@@ -1,0 +1,98 @@
+# file-parser Specification
+
+## Purpose
+TBD - created by archiving change phase-2-file-parser. Update Purpose after archive.
+## Requirements
+### Requirement: 文件拖拽上传
+
+系统 SHALL 支持用户通过拖拽文件到左栏区域或点击上传按钮选择文件来加载数据。支持的扩展名为 `.arw`, `.txt`, `.csv`，支持批量选择多个文件。
+
+#### Scenario: 拖拽单个文件上传
+
+- **WHEN** 用户将 `.txt` 文件拖拽到左栏上传区域
+- **THEN** 文件被解析为 `ParsedFile`，曲线列表显示在左栏
+
+#### Scenario: 批量选择多个文件
+
+- **WHEN** 用户点击上传按钮并选择 3 个 `.csv` 文件
+- **THEN** 3 个文件全部被解析，曲线按文件分组显示在左栏
+
+#### Scenario: 不支持的文件格式
+
+- **WHEN** 用户上传 `.xlsx` 文件
+- **THEN** 左栏显示错误提示"不支持的文件格式：.xlsx"
+
+### Requirement: 分隔符自动检测
+
+系统 SHALL 读取文件前 5 行，统计 Tab 和逗号出现次数，取多者为分隔符。
+
+#### Scenario: Tab 分隔文件
+
+- **WHEN** 文件内容为 `0.0\t0.123\n0.1\t0.456`
+- **THEN** 分隔符检测为 Tab
+
+#### Scenario: 逗号分隔文件
+
+- **WHEN** 文件内容为 `0.0,0.123\n0.1,0.456`
+- **THEN** 分隔符检测为逗号
+
+### Requirement: 列数检测与曲线拆分
+
+系统 SHALL 按检测到的分隔符 split 首行数据，2 列判定为单曲线，≥3 列判定为多曲线（第一列为 Time，后续每列为独立曲线）。
+
+#### Scenario: 两列单曲线
+
+- **WHEN** 数据行有 2 列
+- **THEN** 解析为 1 个 `CurveData`，name 为文件名
+
+#### Scenario: 多列多曲线
+
+- **WHEN** 数据行有 4 列
+- **THEN** 解析为 3 个 `CurveData`（第 1 列为 Time，第 2-4 列为独立曲线），name 为 `文件名_列名`
+
+### Requirement: 表头检测
+
+若首行包含非数字字符（排除 `#`、科学计数法 `e/E`、正负号），系统 SHALL 判定为表头行，将其作为列名来源。
+
+#### Scenario: 有表头行的 CSV
+
+- **WHEN** 文件首行为 `Time,ChannelA,ChannelB`
+- **THEN** 首行被识别为表头，列名取自表头行
+
+### Requirement: 文件头跳过与元数据标签解析
+
+系统 SHALL 自动跳过以 `#`、`//`、`[`、字母开头的注释/元数据行。若文件前若干行为纯字符串标签行（每行一个标签值），自动按行解析为 `tags: string[]`。以首个纯数字数据行为标签区与数据区的分界。
+
+#### Scenario: 带字符串标签头的 .arw 文件
+
+- **WHEN** 文件前 3 行为 `SampleA`, `2024-01-15`, `254nm`，第 4 行起为 `0.0\t0.123`
+- **THEN** `tags` 为 `["SampleA", "2024-01-15", "254nm"]`，数据从第 4 行开始解析
+
+#### Scenario: 带 # 注释行的文件
+
+- **WHEN** 文件前 2 行为 `# Instrument: HPLC`, `# Date: 2024-01-15`，第 3 行起为数据
+- **THEN** 注释行被跳过，数据从第 3 行开始解析
+
+### Requirement: 解析错误提示
+
+解析失败时，系统 SHALL 给出明确错误提示，包含行号和错误原因，不静默丢弃数据。
+
+#### Scenario: 数据行包含非数字内容
+
+- **WHEN** 第 10 行数据为 `0.0\tabc`
+- **THEN** 错误提示为"第 10 行解析失败：'abc' 不是有效数字"
+
+### Requirement: 曲线列表显示
+
+上传成功后，左栏 SHALL 显示已解析的曲线列表，每条曲线一行：曲线名称、颜色指示器。
+
+#### Scenario: 单文件单曲线
+
+- **WHEN** 上传单列 .txt 文件
+- **THEN** 左栏显示 1 条曲线，名称为文件名（去扩展名）
+
+#### Scenario: 多文件多曲线
+
+- **WHEN** 上传 2 个文件，各含 2 条曲线
+- **THEN** 左栏显示 4 条曲线，按文件分组
+
