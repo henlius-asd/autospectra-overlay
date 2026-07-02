@@ -1,6 +1,7 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import ReactECharts from 'echarts-for-react';
 import { useCurveStore } from '@/store';
+import BraceOverlay from './BraceOverlay';
 import type { EChartsOption } from 'echarts';
 import type { EChartsInstance } from 'echarts-for-react';
 
@@ -19,6 +20,30 @@ const CURVE_COLORS = [
 export default function WaterfallChart() {
   const curves = useCurveStore((s) => s.curves);
   const offsets = useCurveStore((s) => s.offsets);
+  const [xRange, setXRange] = useState<[number, number]>([0, 10]);
+
+  const onChartReady = useCallback((instance: EChartsInstance) => {
+    chartInstance = instance;
+    // Get initial dataZoom range
+    const option = instance.getOption() as {
+      xAxis?: { min?: number; max?: number }[];
+    };
+    if (option.xAxis?.[0]) {
+      setXRange([option.xAxis[0].min ?? 0, option.xAxis[0].max ?? 10]);
+    }
+  }, []);
+
+  const onDataZoom = useCallback((params: unknown) => {
+    const p = params as { start?: number; end?: number };
+    if (p.start !== undefined && chartInstance) {
+      const option = chartInstance.getOption() as {
+        xAxis?: { min?: number; max?: number }[];
+      };
+      if (option.xAxis?.[0]) {
+        setXRange([option.xAxis[0].min ?? 0, option.xAxis[0].max ?? 10]);
+      }
+    }
+  }, []);
 
   const option: EChartsOption = useMemo(() => {
     const ids = Object.keys(curves);
@@ -36,12 +61,10 @@ export default function WaterfallChart() {
     const series = ids.map((id, idx) => {
       const curve = curves[id];
       const offset = offsets[id] ?? { xOffset: 0, yOffset: 0 };
-      const yGlobalOffset = idx * 0; // Y offset handled per-curve via offsets
 
-      // Apply offset: X_rendered = X_original + X_offset, Y_rendered = Y_original + Y_offset
       const renderedData = curve.data.map(([x, y]) => [
         x + offset.xOffset,
-        y + offset.yOffset + yGlobalOffset,
+        y + offset.yOffset,
       ]);
 
       return {
@@ -111,5 +134,42 @@ export default function WaterfallChart() {
     };
   }, [curves, offsets]);
 
-  return <ReactECharts option={option} style={{ width: '100%', height: '100%' }} notMerge onChartReady={(instance) => { chartInstance = instance; }} />;
+  const convertXToPixel = (xVal: number): number => {
+    if (!chartInstance) return 0;
+    const grid = (chartInstance.getOption() as Record<string, unknown>).grid as { left?: number; right?: number }[];
+    const gridLeft = (grid?.[0]?.left as number) ?? 60;
+    const gridRight = (grid?.[0]?.right as number) ?? 30;
+    const chartWidth = chartInstance.getWidth();
+    const range = xRange[1] - xRange[0] || 1;
+    return gridLeft + ((xVal - xRange[0]) / range) * (chartWidth - gridLeft - gridRight);
+  };
+
+  const convertPixelToX = (px: number): number => {
+    if (!chartInstance) return 0;
+    const grid = (chartInstance.getOption() as Record<string, unknown>).grid as { left?: number; right?: number }[];
+    const gridLeft = (grid?.[0]?.left as number) ?? 60;
+    const gridRight = (grid?.[0]?.right as number) ?? 30;
+    const chartWidth = chartInstance.getWidth();
+    const range = xRange[1] - xRange[0] || 1;
+    return xRange[0] + ((px - gridLeft) / (chartWidth - gridLeft - gridRight)) * range;
+  };
+
+  return (
+    <div className="relative w-full h-full">
+      <ReactECharts
+        option={option}
+        style={{ width: '100%', height: '100%' }}
+        notMerge
+        onChartReady={onChartReady}
+        onEvents={{ dataZoom: onDataZoom }}
+      />
+      <BraceOverlay
+        width={chartInstance?.getWidth() ?? 800}
+        height={chartInstance?.getHeight() ?? 600}
+        convertXToPixel={convertXToPixel}
+        convertPixelToX={convertPixelToX}
+        xRange={xRange}
+      />
+    </div>
+  );
 }
