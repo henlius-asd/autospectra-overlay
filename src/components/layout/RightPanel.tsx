@@ -1,5 +1,6 @@
 import { useUiStore } from '@/store';
 import OffsetControls from '@/components/toolbox/OffsetControls';
+import AlignmentControls from '@/components/toolbox/AlignmentControls';
 
 export default function RightPanel() {
   const collapsed = useUiStore((s) => s.rightPanelCollapsed);
@@ -26,6 +27,8 @@ export default function RightPanel() {
       {!collapsed && (
         <div className="flex-1 overflow-y-auto">
           <OffsetControls />
+          <div className="border-t border-gray-200" />
+          <AlignmentControls />
         </div>
       )}
     </div>

@@ -2,6 +2,13 @@ import { useMemo } from 'react';
 import ReactECharts from 'echarts-for-react';
 import { useCurveStore } from '@/store';
 import type { EChartsOption } from 'echarts';
+import type { EChartsInstance } from 'echarts-for-react';
+
+// Shared chart instance for PNG export
+let chartInstance: EChartsInstance | null = null;
+export function getChartInstance() {
+  return chartInstance;
+}
 
 const CURVE_COLORS = [
   '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728',
@@ -104,5 +111,5 @@ export default function WaterfallChart() {
     };
   }, [curves, offsets]);
 
-  return <ReactECharts option={option} style={{ width: '100%', height: '100%' }} notMerge />;
+  return <ReactECharts option={option} style={{ width: '100%', height: '100%' }} notMerge onChartReady={(instance) => { chartInstance = instance; }} />;
 }
