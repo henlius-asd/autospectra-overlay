@@ -1,8 +1,37 @@
+import { useState, useCallback } from 'react';
 import { useUiStore } from '@/store';
+import { useCurveStore } from '@/store';
+import { parseFileContent } from '@/parser';
+import FileUpload from '@/components/data/FileUpload';
+import CurveList from '@/components/data/CurveList';
+import type { CurveData } from '@/types';
 
 export default function LeftPanel() {
   const collapsed = useUiStore((s) => s.leftPanelCollapsed);
   const toggle = useUiStore((s) => s.toggleLeftPanel);
+  const curves = useCurveStore((s) => s.curves);
+  const addCurves = useCurveStore((s) => s.addCurves);
+
+  const [errors, setErrors] = useState<{ name: string; error: string }[]>([]);
+
+  const handleFilesParsed = useCallback(
+    (
+      results: { file: File; parsed: ReturnType<typeof parseFileContent> } | { file: File; error: string },
+    ) => {
+      if ('error' in results) {
+        setErrors((prev) => [...prev, { name: results.file.name, error: results.error }]);
+        return;
+      }
+
+      const newCurves: CurveData[] = results.parsed.curves;
+      if (newCurves.length > 0) {
+        addCurves(newCurves);
+      }
+    },
+    [addCurves],
+  );
+
+  const curveList = Object.values(curves);
 
   return (
     <div
@@ -12,9 +41,7 @@ export default function LeftPanel() {
     >
       <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200 h-10">
         {!collapsed && (
-          <span className="text-sm font-medium text-gray-600 truncate">
-            数据区
-          </span>
+          <span className="text-sm font-medium text-gray-600 truncate">数据区</span>
         )}
         <button
           onClick={toggle}
@@ -25,8 +52,11 @@ export default function LeftPanel() {
         </button>
       </div>
       {!collapsed && (
-        <div className="flex-1 p-4">
-          <p className="text-sm text-gray-400">拖拽或点击上传数据文件</p>
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <div className="p-2">
+            <FileUpload onFilesParsed={handleFilesParsed} />
+          </div>
+          <CurveList curves={curveList} errors={errors} />
         </div>
       )}
     </div>
