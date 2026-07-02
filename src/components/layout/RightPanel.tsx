@@ -1,4 +1,5 @@
 import { useUiStore } from '@/store';
+import OffsetControls from '@/components/toolbox/OffsetControls';
 
 export default function RightPanel() {
   const collapsed = useUiStore((s) => s.rightPanelCollapsed);
@@ -19,14 +20,12 @@ export default function RightPanel() {
           {collapsed ? '◀' : '▶'}
         </button>
         {!collapsed && (
-          <span className="text-sm font-medium text-gray-600 truncate">
-            工具箱
-          </span>
+          <span className="text-sm font-medium text-gray-600 truncate">工具箱</span>
         )}
       </div>
       {!collapsed && (
-        <div className="flex-1 p-4">
-          <p className="text-sm text-gray-400">偏置控制、对齐工具将在此显示</p>
+        <div className="flex-1 overflow-y-auto">
+          <OffsetControls />
         </div>
       )}
     </div>
