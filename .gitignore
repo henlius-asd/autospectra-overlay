@@ -1,0 +1,46 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Vite
+.vite/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# TypeScript
+*.tsbuildinfo
+
+# CodeGraph (local index)
+.codegraph/
+
+# RTK (local state)
+.rtk/
+
+# Claude (local state)
+.claude/
+
+# Test coverage
+coverage/
+
+# Temporary files
+*.tmp
+*.temp
