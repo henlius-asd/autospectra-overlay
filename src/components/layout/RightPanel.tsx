@@ -8,9 +8,10 @@ export default function RightPanel() {
 
   return (
     <div
-      className={`bg-gray-50 border-l border-gray-200 flex flex-col overflow-hidden transition-all duration-300 ${
+      className={`bg-gray-50 border-l border-gray-200 flex flex-col overflow-hidden shrink-0 ${
         collapsed ? 'w-12' : 'w-[320px]'
       }`}
+      style={{ transition: 'width 300ms cubic-bezier(0.4, 0, 0.2, 1)' }}
     >
       <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200 h-10">
         <button

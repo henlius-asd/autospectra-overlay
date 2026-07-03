@@ -44,7 +44,7 @@ export function parseFileContent(filename: string, content: string): ParsedFile 
   return {
     id,
     name: filename.replace(/\.[^.]+$/, ''), // Remove extension
-    tags: format.tags.length > 0 ? format.tags : undefined,
+    metadata: Object.keys(format.metadata).length > 0 ? format.metadata : undefined,
     curves,
   };
 }

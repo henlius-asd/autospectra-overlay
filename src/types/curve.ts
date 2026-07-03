@@ -11,7 +11,7 @@ export interface CurveData {
 export interface ParsedFile {
   id: string;
   name: string;
-  /** String tags parsed from the file header (one per line) */
-  tags?: string[];
+  /** Key-value metadata parsed from the file header (e.g., Waters Empower ARW format) */
+  metadata?: Record<string, string>;
   curves: CurveData[];
 }

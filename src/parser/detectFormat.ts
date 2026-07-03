@@ -4,19 +4,19 @@ export interface FormatInfo {
   hasHeader: boolean;
   headerLine: number; // 0-indexed line number of the header row, or -1
   dataStartLine: number; // 0-indexed line number of first data row
-  tags: string[];
+  metadata: Record<string, string>;
 }
 
 /**
  * Detect file format by reading the first 5 lines.
- * Returns FormatInfo with detected delimiter, column count, header info, and metadata tags.
+ * Returns FormatInfo with detected delimiter, column count, header info, and key-value metadata.
  */
 export function detectFormat(lines: string[]): FormatInfo {
   const sampleLines = lines.slice(0, 5);
   const delimiter = detectDelimiter(sampleLines);
-  const tags = extractTags(sampleLines);
-  const dataStartLine = findDataStartLine(sampleLines);
-  const headerInfo = detectHeader(sampleLines, delimiter, dataStartLine);
+  const dataStartLine = findDataStartLine(lines);
+  const metadata = extractMetadata(lines, dataStartLine);
+  const headerInfo = detectHeader(lines, delimiter, dataStartLine);
 
   return {
     delimiter,
@@ -24,7 +24,7 @@ export function detectFormat(lines: string[]): FormatInfo {
     hasHeader: headerInfo.hasHeader,
     headerLine: headerInfo.headerLine,
     dataStartLine,
-    tags,
+    metadata,
   };
 }
 
@@ -60,31 +60,36 @@ function isCommentLine(line: string): boolean {
     trimmed.startsWith('#') ||
     trimmed.startsWith('//') ||
     trimmed.startsWith('[') ||
+    trimmed.startsWith('"') ||
     /^[a-zA-Z]/.test(trimmed)
   );
 }
 
-function isTagLine(line: string): boolean {
-  const trimmed = line.trim();
-  if (!trimmed) return false;
-  // Tag line: non-numeric, non-comment, single value (no delimiter)
-  if (isCommentLine(trimmed)) return false;
-  if (trimmed.includes('\t') || trimmed.includes(',')) return false;
-  return !isNumericLine(trimmed);
+function stripQuotes(s: string): string {
+  const trimmed = s.trim();
+  if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
+    return trimmed.slice(1, -1);
+  }
+  return trimmed;
 }
 
-function extractTags(lines: string[]): string[] {
-  const tags: string[] = [];
-  for (const line of lines) {
-    const trimmed = line.trim();
+function extractMetadata(lines: string[], dataStartLine: number): Record<string, string> {
+  const metadata: Record<string, string> = {};
+  for (let i = 0; i < dataStartLine; i++) {
+    const trimmed = lines[i].trim();
     if (!trimmed) continue;
-    if (isCommentLine(trimmed)) continue;
-    if (isNumericLine(trimmed)) break;
-    if (isTagLine(trimmed)) {
-      tags.push(trimmed);
+    if (!trimmed.startsWith('"')) continue;
+
+    const tabIndex = trimmed.indexOf('\t');
+    if (tabIndex === -1) continue;
+
+    const key = stripQuotes(trimmed.slice(0, tabIndex));
+    const value = stripQuotes(trimmed.slice(tabIndex + 1));
+    if (key) {
+      metadata[key] = value;
     }
   }
-  return tags;
+  return metadata;
 }
 
 function findDataStartLine(lines: string[]): number {

@@ -1,12 +1,22 @@
-import { useState } from 'react';
-import { useCurveStore } from '@/store';
+import { useState, useEffect } from 'react';
+import { useCurveStore, useUiStore } from '@/store';
 import { roiMaxPeakAlignment } from '@/engine';
 import AlignmentWorker from '@/workers/alignment.worker?worker';
+import type { CurveOffsets } from '@/store';
+
+/** Apply offset to data points, returning offset-adjusted data */
+function applyOffset(
+  data: [number, number][],
+  offset: CurveOffsets,
+): [number, number][] {
+  if (offset.xOffset === 0 && offset.yOffset === 0) return data;
+  return data.map(([x, y]) => [x + offset.xOffset, y + offset.yOffset] as [number, number]);
+}
 
 export default function AlignmentControls() {
   const curves = useCurveStore((s) => s.curves);
-  const offsets = useCurveStore((s) => s.offsets);
   const baselineId = useCurveStore((s) => s.baselineId);
+  const xRange = useUiStore((s) => s.xRange);
 
   const [algorithm, setAlgorithm] = useState<'roi-peak' | 'cross-correlation'>('roi-peak');
   const [roiStart, setRoiStart] = useState(0);
@@ -16,33 +26,53 @@ export default function AlignmentControls() {
   const ids = Object.keys(curves);
   const baselineCurve = baselineId ? curves[baselineId] : null;
 
+  // Initialize ROI from baseline curve data (direct, no xRange dependency)
+  useEffect(() => {
+    console.log('[AlignCtrl] useEffect([baselineCurve]), baselineCurve:', baselineCurve?.name, 'data[0][0]:', baselineCurve?.data?.[0]?.[0], 'data[last][0]:', baselineCurve?.data?.[baselineCurve?.data?.length - 1]?.[0]);
+    if (baselineCurve && baselineCurve.data.length > 0) {
+      const min = baselineCurve.data[0][0];
+      const max = baselineCurve.data[baselineCurve.data.length - 1][0];
+      console.log('[AlignCtrl] setting ROI from baselineCurve:', min, max);
+      setRoiStart(min);
+      setRoiEnd(max);
+    }
+  }, [baselineCurve]);
+
+  // Sync ROI to current X-axis visible range on zoom
+  useEffect(() => {
+    console.log('[AlignCtrl] useEffect([xRange]), xRange:', xRange);
+    setRoiStart(xRange[0]);
+    setRoiEnd(xRange[1]);
+  }, [xRange]);
+
   const handleAlign = async () => {
     if (!baselineCurve || ids.length < 2) return;
 
     setProgress(0);
     const targetIds = ids.filter((id) => id !== baselineId);
 
+    // Read latest offsets from store to avoid stale closure
+    const newOffsets = { ...useCurveStore.getState().offsets };
+
+    // Apply current offsets so algorithm computes incremental adjustment
+    const baselineOffset = newOffsets[baselineId!] ?? { xOffset: 0, yOffset: 0 };
+    const adjBaseline = applyOffset(baselineCurve.data, baselineOffset);
+
     if (algorithm === 'roi-peak') {
       for (let i = 0; i < targetIds.length; i++) {
         const targetCurve = curves[targetIds[i]];
-        const result = roiMaxPeakAlignment.align(
-          baselineCurve.data,
-          targetCurve.data,
-          roiStart,
-          roiEnd,
-        );
-        const current = offsets[targetIds[i]] ?? { xOffset: 0, yOffset: 0 };
-        const newOffsets = {
-          ...offsets,
-          [targetIds[i]]: { ...current, xOffset: current.xOffset + result.xOffset },
-        };
-        useCurveStore.setState({ offsets: newOffsets });
+        const targetOffset = newOffsets[targetIds[i]] ?? { xOffset: 0, yOffset: 0 };
+        const adjTarget = applyOffset(targetCurve.data, targetOffset);
+        const result = roiMaxPeakAlignment.align(adjBaseline, adjTarget, roiStart, roiEnd);
+        newOffsets[targetIds[i]] = { ...targetOffset, xOffset: targetOffset.xOffset + result.xOffset };
         setProgress(((i + 1) / targetIds.length) * 100);
       }
     } else {
       // Cross-correlation via Web Worker
       for (let i = 0; i < targetIds.length; i++) {
         const targetCurve = curves[targetIds[i]];
+        const targetOffset = newOffsets[targetIds[i]] ?? { xOffset: 0, yOffset: 0 };
+        const adjTarget = applyOffset(targetCurve.data, targetOffset);
         const result = await new Promise<{ xOffset: number; correlationScore: number }>(
           (resolve) => {
             const worker = new AlignmentWorker();
@@ -51,24 +81,21 @@ export default function AlignmentControls() {
               worker.terminate();
             };
             worker.postMessage({
-              refData: baselineCurve.data,
-              targetData: targetCurve.data,
+              refData: adjBaseline,
+              targetData: adjTarget,
               roiStart,
               roiEnd,
               searchRange: 120,
             });
           },
         );
-        const current = offsets[targetIds[i]] ?? { xOffset: 0, yOffset: 0 };
-        const newOffsets = {
-          ...offsets,
-          [targetIds[i]]: { ...current, xOffset: current.xOffset + result.xOffset },
-        };
-        useCurveStore.setState({ offsets: newOffsets });
+        newOffsets[targetIds[i]] = { ...targetOffset, xOffset: targetOffset.xOffset + result.xOffset };
         setProgress(((i + 1) / targetIds.length) * 100);
       }
     }
 
+    // Apply all offset changes in a single state update
+    useCurveStore.setState({ offsets: newOffsets });
     setProgress(null);
   };
 

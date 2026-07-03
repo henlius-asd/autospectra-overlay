@@ -35,7 +35,7 @@ export default function LeftPanel() {
 
   return (
     <div
-      className={`bg-gray-50 border-r border-gray-200 flex flex-col overflow-hidden transition-all duration-300 ${
+      className={`bg-gray-50 border-r border-gray-200 flex flex-col overflow-hidden shrink-0 transition-[width] duration-300 ${
         collapsed ? 'w-12' : 'w-[240px]'
       }`}
     >

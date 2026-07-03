@@ -1,21 +1,4 @@
-# three-column-layout Specification
-
-## Purpose
-TBD - created by archiving change phase-1-project-scaffold. Update Purpose after archive.
-## Requirements
-### Requirement: 三栏布局渲染
-
-系统 SHALL 渲染左、中、右三栏布局。左栏固定宽度 240px，右栏固定宽度 320px，中栏弹性填充剩余空间。布局使用 CSS Flexbox 实现。
-
-#### Scenario: 默认三栏展示
-
-- **WHEN** 页面首次加载
-- **THEN** 左栏宽度 240px、中栏填充剩余宽度、右栏宽度 320px
-
-#### Scenario: 最小分辨率适配
-
-- **WHEN** 浏览器窗口宽度 ≥ 1366px
-- **THEN** 三栏均可见，中栏有足够渲染空间
+## MODIFIED Requirements
 
 ### Requirement: 左右栏折叠与展开
 
@@ -50,13 +33,3 @@ TBD - created by archiving change phase-1-project-scaffold. Update Purpose after
 
 - **WHEN** 用户反复折叠和展开左栏或右栏
 - **THEN** 展开后面板宽度始终精确恢复为原始宽度（左栏 240px，右栏 320px），不出现变窄
-
-### Requirement: 各栏占位内容
-
-各栏 SHALL 包含明确的占位内容，标识后续模块的插入位置。
-
-#### Scenario: 占位内容可见
-
-- **WHEN** 页面加载完成
-- **THEN** 左栏显示"数据区"占位文本，中栏显示"渲染区"占位文本，右栏显示"工具箱"占位文本
-

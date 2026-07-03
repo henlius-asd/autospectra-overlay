@@ -1,6 +1,6 @@
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useCallback, useEffect } from 'react';
 import ReactECharts from 'echarts-for-react';
-import { useCurveStore } from '@/store';
+import { useCurveStore, useUiStore } from '@/store';
 import BraceOverlay from './BraceOverlay';
 import type { EChartsOption } from 'echarts';
 import type { EChartsInstance } from 'echarts-for-react';
@@ -9,6 +9,21 @@ import type { EChartsInstance } from 'echarts-for-react';
 let chartInstance: EChartsInstance | null = null;
 export function getChartInstance() {
   return chartInstance;
+}
+
+/** Read current X-axis visible range from ECharts model */
+function getXAxisExtent(): [number, number] | null {
+  if (!chartInstance) return null;
+  try {
+    // getModel() is private in type defs but available at runtime
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const chart = chartInstance as any;
+    const extent = chart.getModel()?.getComponent?.('xAxis', 0)?.axis?.scale?.getExtent?.();
+    if (extent && extent.length === 2) {
+      return [extent[0] as number, extent[1] as number];
+    }
+  } catch { /* fall through */ }
+  return null;
 }
 
 const CURVE_COLORS = [
@@ -20,29 +35,33 @@ const CURVE_COLORS = [
 export default function WaterfallChart() {
   const curves = useCurveStore((s) => s.curves);
   const offsets = useCurveStore((s) => s.offsets);
-  const [xRange, setXRange] = useState<[number, number]>([0, 10]);
+  const xRange = useUiStore((s) => s.xRange);
+
+  // Initialize xRange from curve data (reliable, no ECharts dependency)
+  useEffect(() => {
+    const ids = Object.keys(curves);
+    console.log('[WaterfallChart] useEffect([curves]), curves count:', ids.length);
+    if (ids.length > 0) {
+      const firstCurve = curves[ids[0]];
+      if (firstCurve.data.length > 0) {
+        const min = firstCurve.data[0][0];
+        const max = firstCurve.data[firstCurve.data.length - 1][0];
+        console.log('[WaterfallChart] setting xRange from curves:', min, max);
+        useUiStore.getState().setXRange([min, max]);
+      }
+    }
+  }, [curves]);
 
   const onChartReady = useCallback((instance: EChartsInstance) => {
     chartInstance = instance;
-    // Get initial dataZoom range
-    const option = instance.getOption() as {
-      xAxis?: { min?: number; max?: number }[];
-    };
-    if (option.xAxis?.[0]) {
-      setXRange([option.xAxis[0].min ?? 0, option.xAxis[0].max ?? 10]);
-    }
+    // Chart is fully initialized, refine xRange to actual visible range
+    const extent = getXAxisExtent();
+    if (extent) useUiStore.getState().setXRange(extent);
   }, []);
 
-  const onDataZoom = useCallback((params: unknown) => {
-    const p = params as { start?: number; end?: number };
-    if (p.start !== undefined && chartInstance) {
-      const option = chartInstance.getOption() as {
-        xAxis?: { min?: number; max?: number }[];
-      };
-      if (option.xAxis?.[0]) {
-        setXRange([option.xAxis[0].min ?? 0, option.xAxis[0].max ?? 10]);
-      }
-    }
+  const onDataZoom = useCallback(() => {
+    const extent = getXAxisExtent();
+    if (extent) useUiStore.getState().setXRange(extent);
   }, []);
 
   const option: EChartsOption = useMemo(() => {
@@ -83,24 +102,7 @@ export default function WaterfallChart() {
     });
 
     return {
-      tooltip: {
-        trigger: 'axis',
-        formatter: (params: unknown) => {
-          const items = params as { seriesName: string; data: [number, number] }[];
-          if (!items || items.length === 0) return '';
-          const p = items[0];
-          const id = ids.find((i) => curves[i].name === p.seriesName);
-          const offset = id ? offsets[id] : { xOffset: 0, yOffset: 0 };
-          if (!offset) return '';
-          const xOriginal = p.data[0] - offset.xOffset;
-          const yOriginal = p.data[1] - offset.yOffset;
-          return `<strong>${p.seriesName}</strong><br/>
-            原始 X: ${xOriginal.toFixed(4)}<br/>
-            原始 Y: ${yOriginal.toFixed(4)}<br/>
-            渲染 X: ${p.data[0].toFixed(4)}<br/>
-            渲染 Y: ${p.data[1].toFixed(4)}`;
-        },
-      },
+      tooltip: { show: false },
       legend: {
         show: ids.length > 1,
         top: 8,
@@ -117,6 +119,7 @@ export default function WaterfallChart() {
         name: '时间',
         nameLocation: 'center',
         nameGap: 35,
+        scale: true,
       },
       yAxis: {
         type: 'value',
@@ -159,7 +162,6 @@ export default function WaterfallChart() {
       <ReactECharts
         option={option}
         style={{ width: '100%', height: '100%' }}
-        notMerge
         onChartReady={onChartReady}
         onEvents={{ dataZoom: onDataZoom }}
       />
