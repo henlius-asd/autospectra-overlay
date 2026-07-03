@@ -40,13 +40,11 @@ export default function WaterfallChart() {
   // Initialize xRange from curve data (reliable, no ECharts dependency)
   useEffect(() => {
     const ids = Object.keys(curves);
-    console.log('[WaterfallChart] useEffect([curves]), curves count:', ids.length);
     if (ids.length > 0) {
       const firstCurve = curves[ids[0]];
       if (firstCurve.data.length > 0) {
-        const min = firstCurve.data[0][0];
-        const max = firstCurve.data[firstCurve.data.length - 1][0];
-        console.log('[WaterfallChart] setting xRange from curves:', min, max);
+        const min = Math.floor(firstCurve.data[0][0]);
+        const max = Math.ceil(firstCurve.data[firstCurve.data.length - 1][0]);
         useUiStore.getState().setXRange([min, max]);
       }
     }
@@ -101,6 +99,20 @@ export default function WaterfallChart() {
       };
     });
 
+    // Compute global x-range from all curves to set explicit axis min/max
+    let xMin = Infinity;
+    let xMax = -Infinity;
+    for (const id of ids) {
+      const data = curves[id].data;
+      if (data.length > 0) {
+        xMin = Math.min(xMin, data[0][0]);
+        xMax = Math.max(xMax, data[data.length - 1][0]);
+      }
+    }
+    if (!isFinite(xMin)) { xMin = 0; xMax = 10; }
+    xMin = Math.floor(xMin);
+    xMax = Math.ceil(xMax);
+
     return {
       tooltip: { show: false },
       legend: {
@@ -119,7 +131,8 @@ export default function WaterfallChart() {
         name: '时间',
         nameLocation: 'center',
         nameGap: 35,
-        scale: true,
+        min: xMin,
+        max: xMax,
       },
       yAxis: {
         type: 'value',

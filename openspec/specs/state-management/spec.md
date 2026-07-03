@@ -57,9 +57,24 @@ uiStore 初始状态 SHALL 包含以下字段：
 - `rightPanelCollapsed: boolean` — false
 - `selectionMode: 'none' | 'roi'` — 'none'
 - `alignmentProgress: number | null` — null
+- `xRange: [number, number]` — [0, 10]
 
 #### Scenario: 初始 UI 状态验证
 
 - **WHEN** 应用首次加载
-- **THEN** 左右面板均为展开状态，选取模式为 none，对齐进度为 null
+- **THEN** 左右面板均为展开状态，选取模式为 none，对齐进度为 null，xRange 为 [0, 10]
+
+### Requirement: uiStore 包含 X 轴可视范围
+
+uiStore SHALL 包含 `xRange: [number, number]` 字段表示当前图表 X 轴可视范围，默认值为 `[0, 10]`。SHALL 提供 `setXRange` action 用于更新该字段。
+
+#### Scenario: 初始值
+
+- **WHEN** 应用首次加载
+- **THEN** `uiStore.getState().xRange` 为 `[0, 10]`
+
+#### Scenario: 更新可视范围
+
+- **WHEN** 调用 `uiStore.getState().setXRange([5, 15])`
+- **THEN** `uiStore.getState().xRange` 为 `[5, 15]`
 

@@ -26,21 +26,8 @@ export default function AlignmentControls() {
   const ids = Object.keys(curves);
   const baselineCurve = baselineId ? curves[baselineId] : null;
 
-  // Initialize ROI from baseline curve data (direct, no xRange dependency)
+  // Sync ROI to current X-axis visible range
   useEffect(() => {
-    console.log('[AlignCtrl] useEffect([baselineCurve]), baselineCurve:', baselineCurve?.name, 'data[0][0]:', baselineCurve?.data?.[0]?.[0], 'data[last][0]:', baselineCurve?.data?.[baselineCurve?.data?.length - 1]?.[0]);
-    if (baselineCurve && baselineCurve.data.length > 0) {
-      const min = baselineCurve.data[0][0];
-      const max = baselineCurve.data[baselineCurve.data.length - 1][0];
-      console.log('[AlignCtrl] setting ROI from baselineCurve:', min, max);
-      setRoiStart(min);
-      setRoiEnd(max);
-    }
-  }, [baselineCurve]);
-
-  // Sync ROI to current X-axis visible range on zoom
-  useEffect(() => {
-    console.log('[AlignCtrl] useEffect([xRange]), xRange:', xRange);
     setRoiStart(xRange[0]);
     setRoiEnd(xRange[1]);
   }, [xRange]);
