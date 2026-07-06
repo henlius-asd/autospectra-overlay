@@ -26,6 +26,18 @@ function getXAxisExtent(): [number, number] | null {
   return null;
 }
 
+/** Read current Y-axis visible range from ECharts model */
+function getYAxisExtent(): [number, number] | null {
+  if (!chartInstance) return null;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const chart = chartInstance as any;
+    const extent = chart.getModel()?.getComponent?.('yAxis', 0)?.axis?.scale?.getExtent?.();
+    if (extent && extent.length === 2) return [extent[0] as number, extent[1] as number];
+  } catch { /* fall through */ }
+  return null;
+}
+
 const CURVE_COLORS = [
   '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728',
   '#9467bd', '#8c564b', '#e377c2', '#7f7f7f',
@@ -37,11 +49,13 @@ export default function WaterfallChart() {
   const offsets = useCurveStore((s) => s.offsets);
   const visibleCurves = useCurveStore((s) => s.visibleCurves);
   const stagingOrder = useCurveStore((s) => s.stagingOrder);
-  const baselineId = useCurveStore((s) => s.baselineId);
   const layerSpacing = useCurveStore((s) => s.layerSpacing);
+  const setLayerSpacing = useCurveStore((s) => s.setLayerSpacing);
   const xRange = useUiStore((s) => s.xRange);
+  const yRange = useUiStore((s) => s.yRange);
 
   // visibleIds follows stagingOrder (only IDs that are in stagingOrder AND visible)
+  // visibleIds[0] = top of list = top of chart; visibleIds[last] = bottom (baseline)
   const visibleIds = stagingOrder.filter((id) => visibleCurves[id]);
 
   // Seed xRange only when visible curves appear for the first time after a period
@@ -77,14 +91,18 @@ export default function WaterfallChart() {
 
   const onChartReady = useCallback((instance: EChartsInstance) => {
     chartInstance = instance;
-    // Chart is fully initialized, refine xRange to actual visible range
-    const extent = getXAxisExtent();
-    if (extent) useUiStore.getState().setXRange(extent);
+    // Chart is fully initialized, refine xRange/yRange to actual visible range
+    const xExtent = getXAxisExtent();
+    if (xExtent) useUiStore.getState().setXRange(xExtent);
+    const yExtent = getYAxisExtent();
+    if (yExtent) useUiStore.getState().setYRange(yExtent);
   }, []);
 
   const onDataZoom = useCallback(() => {
-    const extent = getXAxisExtent();
-    if (extent) useUiStore.getState().setXRange(extent);
+    const xExtent = getXAxisExtent();
+    if (xExtent) useUiStore.getState().setXRange(xExtent);
+    const yExtent = getYAxisExtent();
+    if (yExtent) useUiStore.getState().setYRange(yExtent);
   }, []);
 
   const option: EChartsOption = useMemo(() => {
@@ -99,20 +117,17 @@ export default function WaterfallChart() {
       };
     }
 
-    const series = visibleIds.map((id, visibleIdx) => {
+    const visibleCount = visibleIds.length;
+    const visibleYRange = (yRange[1] - yRange[0]) || 1;
+
+    const series = visibleIds.map((id, visibleIndex) => {
       const curve = curves[id];
       const offset = offsets[id] ?? { xOffset: 0, yOffset: 0 };
 
-      // Baseline always at layerYOffset = 0 (chart bottom)
-      // Other curves: layerYOffset = layerSpacing * (position in stagingOrder excluding baseline + 1)
-      let layerYOffset: number;
-      if (id === baselineId) {
-        layerYOffset = 0;
-      } else {
-        const nonBaselineIds = visibleIds.filter((oid) => oid !== baselineId);
-        const nonBaselineIdx = nonBaselineIds.indexOf(id);
-        layerYOffset = layerSpacing * (nonBaselineIdx + 1);
-      }
+      // Unified layer formula: baseline is visibleIds[last] (layerIndex 0, offset 0),
+      // curves stack upward with increasing layerIndex.
+      const layerIndex = visibleCount - 1 - visibleIndex;
+      const layerYOffset = layerIndex * layerSpacing * visibleYRange;
 
       const renderedData = curve.data.map(([x, y]) => [
         x + offset.xOffset,
@@ -126,7 +141,7 @@ export default function WaterfallChart() {
         smooth: false,
         symbol: 'none',
         lineStyle: {
-          color: CURVE_COLORS[visibleIdx % CURVE_COLORS.length],
+          color: CURVE_COLORS[visibleIndex % CURVE_COLORS.length],
           width: 1.5,
         },
         large: true,
@@ -158,7 +173,7 @@ export default function WaterfallChart() {
       },
       grid: {
         left: 60,
-        right: 30,
+        right: 48,
         top: visibleIds.length > 1 ? 50 : 20,
         bottom: 60,
       },
@@ -184,13 +199,13 @@ export default function WaterfallChart() {
       series,
       animation: false,
     };
-  }, [curves, offsets, visibleCurves, layerSpacing, stagingOrder, baselineId, visibleIds]);
+  }, [curves, offsets, visibleCurves, layerSpacing, stagingOrder, visibleIds, yRange]);
 
   const convertXToPixel = (xVal: number): number => {
     if (!chartInstance) return 0;
     const grid = (chartInstance.getOption() as Record<string, unknown>).grid as { left?: number; right?: number }[];
     const gridLeft = (grid?.[0]?.left as number) ?? 60;
-    const gridRight = (grid?.[0]?.right as number) ?? 30;
+    const gridRight = (grid?.[0]?.right as number) ?? 48;
     const chartWidth = chartInstance.getWidth();
     const range = xRange[1] - xRange[0] || 1;
     return gridLeft + ((xVal - xRange[0]) / range) * (chartWidth - gridLeft - gridRight);
@@ -200,7 +215,7 @@ export default function WaterfallChart() {
     if (!chartInstance) return 0;
     const grid = (chartInstance.getOption() as Record<string, unknown>).grid as { left?: number; right?: number }[];
     const gridLeft = (grid?.[0]?.left as number) ?? 60;
-    const gridRight = (grid?.[0]?.right as number) ?? 30;
+    const gridRight = (grid?.[0]?.right as number) ?? 48;
     const chartWidth = chartInstance.getWidth();
     const range = xRange[1] - xRange[0] || 1;
     return xRange[0] + ((px - gridLeft) / (chartWidth - gridLeft - gridRight)) * range;
@@ -221,6 +236,17 @@ export default function WaterfallChart() {
         convertXToPixel={convertXToPixel}
         convertPixelToX={convertPixelToX}
         xRange={xRange}
+      />
+      <input
+        type="range"
+        min={-0.5}
+        max={0.5}
+        step={0.01}
+        value={layerSpacing}
+        onChange={(e) => setLayerSpacing(parseFloat(e.target.value))}
+        className="absolute top-1/2 right-1 -translate-y-1/2 h-3/5 w-3"
+        style={{ writingMode: 'vertical-lr', direction: 'rtl', accentColor: '#3b82f6' }}
+        title="Y 轴层间距（占可见范围比例）"
       />
     </div>
   );

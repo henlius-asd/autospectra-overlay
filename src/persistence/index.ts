@@ -21,6 +21,7 @@ function saveWorkspace() {
   saveTimer = setTimeout(() => {
     const state = useCurveStore.getState();
     const snapshot = {
+      version: 2,
       curves: state.curves,
       offsets: state.offsets,
       baselineId: state.baselineId,
@@ -43,6 +44,7 @@ function saveWorkspace() {
 export async function restoreWorkspace(): Promise<boolean> {
   try {
     const snapshot = await persistenceStore.getItem<{
+      version?: number;
       curves: Record<string, unknown>;
       offsets: Record<string, unknown>;
       baselineId: string | null;
@@ -54,6 +56,12 @@ export async function restoreWorkspace(): Promise<boolean> {
     }>(PERSISTENCE_KEY);
 
     if (snapshot && snapshot.curves && Object.keys(snapshot.curves).length > 0) {
+      // version 2 changed layerSpacing semantics from absolute Y value to
+      // proportion of visible Y range. Old workspaces (no version field) get
+      // layerSpacing reset to 0 to avoid a jarring jump on restore.
+      const layerSpacing =
+        snapshot.version === 2 ? (snapshot.layerSpacing ?? 0) : 0;
+
       useCurveStore.setState({
         curves: snapshot.curves as ReturnType<typeof useCurveStore.getState>['curves'],
         offsets: snapshot.offsets as ReturnType<typeof useCurveStore.getState>['offsets'],
@@ -61,7 +69,7 @@ export async function restoreWorkspace(): Promise<boolean> {
         braces: snapshot.braces as ReturnType<typeof useCurveStore.getState>['braces'],
         stagingOrder: snapshot.stagingOrder ?? [],
         visibleCurves: snapshot.visibleCurves ?? {},
-        layerSpacing: snapshot.layerSpacing ?? 0,
+        layerSpacing,
       });
       return true;
     }

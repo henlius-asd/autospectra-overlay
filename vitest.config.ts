@@ -9,5 +9,6 @@ export default defineConfig({
   },
   test: {
     include: ['src/**/*.test.ts', 'test/**/*.test.ts'],
+    pool: 'forks',
   },
 });
