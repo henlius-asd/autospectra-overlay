@@ -1,10 +1,4 @@
-# echarts-series-replace-merge
-
-## Purpose
-
-定义了 ECharts 图表组件在更新 option 时对 series 数组使用 `replaceMerge` 策略的行为规范，确保 series 被完全替换而非合并，同时保持 dataZoom、xAxis、yAxis、grid、legend 等组件的合并行为。
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: ECharts series 替换合并
 

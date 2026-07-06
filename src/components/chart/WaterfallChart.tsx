@@ -1,4 +1,4 @@
-import { useMemo, useCallback, useEffect } from 'react';
+import { useMemo, useCallback, useEffect, useRef } from 'react';
 import ReactECharts from 'echarts-for-react';
 import { useCurveStore, useUiStore } from '@/store';
 import BraceOverlay from './BraceOverlay';
@@ -44,15 +44,34 @@ export default function WaterfallChart() {
   // visibleIds follows stagingOrder (only IDs that are in stagingOrder AND visible)
   const visibleIds = stagingOrder.filter((id) => visibleCurves[id]);
 
-  // Initialize xRange from visible curve data (reliable, no ECharts dependency)
+  // Seed xRange only when visible curves appear for the first time after a period
+  // of having none. Visibility toggles (add/remove from overlay, select/deselect all)
+  // must NOT overwrite xRange — the ECharts dataZoom viewport is preserved by
+  // replaceMerge, and overwriting the store value here would desync ROI from the
+  // on-screen visible range. onChartReady/onDataZoom remain the sources of truth for
+  // the live visible range; this effect only provides the initial seed.
+  const hasInitializedXRange = useRef(false);
   useEffect(() => {
-    if (visibleIds.length > 0) {
-      const firstCurve = curves[visibleIds[0]];
-      if (firstCurve.data.length > 0) {
-        const min = Math.floor(firstCurve.data[0][0]);
-        const max = Math.ceil(firstCurve.data[firstCurve.data.length - 1][0]);
-        useUiStore.getState().setXRange([min, max]);
-      }
+    if (visibleIds.length === 0) {
+      // No visible curves: allow the next appearance to re-seed xRange.
+      hasInitializedXRange.current = false;
+      return;
+    }
+    if (hasInitializedXRange.current) return;
+    hasInitializedXRange.current = true;
+
+    // Prefer the real ECharts visible extent; fall back to data head/tail when the
+    // chart instance is not ready yet (onChartReady will refine it afterwards).
+    const extent = getXAxisExtent();
+    if (extent) {
+      useUiStore.getState().setXRange(extent);
+      return;
+    }
+    const firstCurve = curves[visibleIds[0]];
+    if (firstCurve && firstCurve.data.length > 0) {
+      const min = Math.floor(firstCurve.data[0][0]);
+      const max = Math.ceil(firstCurve.data[firstCurve.data.length - 1][0]);
+      useUiStore.getState().setXRange([min, max]);
     }
   }, [curves, visibleCurves]);
 
