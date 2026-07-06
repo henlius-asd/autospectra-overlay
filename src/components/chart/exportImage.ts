@@ -120,5 +120,7 @@ export async function exportChartImage(): Promise<void> {
     .replace('T', '_')
     .slice(0, 19);
   a.download = `chromatogram_${ts}.png`;
+  document.body.appendChild(a);
   a.click();
+  document.body.removeChild(a);
 }
