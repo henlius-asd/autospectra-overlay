@@ -8,11 +8,15 @@ interface UiState {
   selectionMode: SelectionMode;
   alignmentProgress: number | null;
   xRange: [number, number];
+  selectedCurveId: string | null;
+  bracePlacementMode: boolean;
   toggleLeftPanel: () => void;
   toggleRightPanel: () => void;
   setSelectionMode: (mode: SelectionMode) => void;
   setAlignmentProgress: (progress: number | null) => void;
   setXRange: (range: [number, number]) => void;
+  setSelectedCurveId: (id: string | null) => void;
+  setBracePlacementMode: (active: boolean) => void;
 }
 
 export const useUiStore = create<UiState>((set) => ({
@@ -21,6 +25,8 @@ export const useUiStore = create<UiState>((set) => ({
   selectionMode: 'none',
   alignmentProgress: null,
   xRange: [0, 10],
+  selectedCurveId: null,
+  bracePlacementMode: false,
   toggleLeftPanel: () =>
     set((s) => ({ leftPanelCollapsed: !s.leftPanelCollapsed })),
   toggleRightPanel: () =>
@@ -28,4 +34,6 @@ export const useUiStore = create<UiState>((set) => ({
   setSelectionMode: (mode) => set({ selectionMode: mode }),
   setAlignmentProgress: (progress) => set({ alignmentProgress: progress }),
   setXRange: (range) => set({ xRange: range }),
+  setSelectedCurveId: (id) => set({ selectedCurveId: id }),
+  setBracePlacementMode: (active) => set({ bracePlacementMode: active }),
 }));
