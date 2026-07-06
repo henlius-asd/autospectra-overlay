@@ -68,7 +68,7 @@ function isCommentLine(line: string): boolean {
 function stripQuotes(s: string): string {
   const trimmed = s.trim();
   if (trimmed.startsWith('"') && trimmed.endsWith('"')) {
-    return trimmed.slice(1, -1);
+    return trimmed.slice(1, -1).trim();
   }
   return trimmed;
 }

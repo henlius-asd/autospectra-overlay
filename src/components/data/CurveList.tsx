@@ -149,10 +149,10 @@ export default function CurveList({
     [selectedCurveId, setSelectedCurveId],
   );
 
-  // Get display name for a curve
+  // Get display name for a curve: displayName → name (SampleName) → fileName
   const getDisplayName = (id: string): string => {
     const c = curves[id];
-    return c?.displayName || c?.name || '';
+    return c?.displayName || c?.name || c?.metadata?.fileName || '';
   };
 
   // Render a single curve row
@@ -216,9 +216,6 @@ export default function CurveList({
             {getDisplayName(id)}
           </span>
         )}
-        <span className="text-gray-400 text-xs flex-shrink-0">
-          {curve.data.length.toLocaleString()} 点
-        </span>
         <button
           onClick={(e) => {
             e.stopPropagation();

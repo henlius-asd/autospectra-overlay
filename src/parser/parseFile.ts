@@ -17,11 +17,17 @@ export class ParseError extends Error {
  * multi-column .csv (Time + channels), .arw with string tag headers.
  */
 export function parseFileContent(filename: string, content: string): ParsedFile {
-  // Normalize line endings: \r\n → \n, \r → \n
-  const normalized = content.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  // Strip UTF-8 BOM, then normalize line endings: \r\n → \n, \r → \n
+  const normalized = content.replace(/^﻿/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
   const allLines = normalized.split('\n');
 
   const format = detectFormat(allLines);
+
+  // Merge file-level metadata: parsed ARW metadata + original filename
+  const metadata: Record<string, string> = { ...format.metadata, fileName: filename };
+
+  // SampleName drives CurveData.name; fall back to stem of filename
+  const sampleName = metadata.SampleName ?? filename.replace(/\.[^.]+$/, '');
 
   // Extract data lines
   const dataLines = allLines.slice(format.dataStartLine);
@@ -41,16 +47,17 @@ export function parseFileContent(filename: string, content: string): ParsedFile 
   // Generate unique ID
   const id = `${filename}_${Date.now()}`;
 
-  // Build CurveData array with file metadata passed through
-  const fileMetadata = Object.keys(format.metadata).length > 0 ? format.metadata : undefined;
-
   return {
     id,
-    name: filename.replace(/\.[^.]+$/, ''), // Remove extension
-    metadata: fileMetadata,
-    curves: curves.map((c) => ({
+    name: sampleName,
+    metadata,
+    curves: curves.map((c, idx) => ({
       ...c,
-      metadata: fileMetadata,
+      name:
+        columnNames.length > 2
+          ? `${sampleName}_${columnNames[idx + 1]}`
+          : sampleName,
+      metadata,
     })),
   };
 }
