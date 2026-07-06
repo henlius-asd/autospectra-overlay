@@ -38,6 +38,10 @@ npm-debug.log*
 # Claude (local state)
 .claude/
 
+# OpenCode (local state)
+.opencode/
+opencode.json
+
 # Test coverage
 coverage/
 
@@ -47,3 +51,6 @@ coverage/
 
 # RAW DATA
 raw_data/
+
+# Superpowers (local docs)
+docs/superpowers/
