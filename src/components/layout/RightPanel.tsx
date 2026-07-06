@@ -1,5 +1,6 @@
 import { useUiStore } from '@/store';
-import OffsetControls from '@/components/toolbox/OffsetControls';
+import MetadataPanel from '@/components/toolbox/MetadataPanel';
+import AutoLayerControl from '@/components/toolbox/AutoLayerControl';
 import AlignmentControls from '@/components/toolbox/AlignmentControls';
 
 export default function RightPanel() {
@@ -27,9 +28,11 @@ export default function RightPanel() {
       </div>
       {!collapsed && (
         <div className="flex-1 overflow-y-auto">
-          <OffsetControls />
+          <MetadataPanel />
           <div className="border-t border-gray-200" />
           <AlignmentControls />
+          <div className="border-t border-gray-200" />
+          <AutoLayerControl />
         </div>
       )}
     </div>
