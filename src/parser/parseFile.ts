@@ -41,11 +41,17 @@ export function parseFileContent(filename: string, content: string): ParsedFile 
   // Generate unique ID
   const id = `${filename}_${Date.now()}`;
 
+  // Build CurveData array with file metadata passed through
+  const fileMetadata = Object.keys(format.metadata).length > 0 ? format.metadata : undefined;
+
   return {
     id,
     name: filename.replace(/\.[^.]+$/, ''), // Remove extension
-    metadata: Object.keys(format.metadata).length > 0 ? format.metadata : undefined,
-    curves,
+    metadata: fileMetadata,
+    curves: curves.map((c) => ({
+      ...c,
+      metadata: fileMetadata,
+    })),
   };
 }
 
