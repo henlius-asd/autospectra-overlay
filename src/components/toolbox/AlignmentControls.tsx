@@ -49,9 +49,16 @@ export default function AlignmentControls() {
       for (let i = 0; i < targetIds.length; i++) {
         const targetCurve = curves[targetIds[i]];
         const targetOffset = newOffsets[targetIds[i]] ?? { xOffset: 0, yOffset: 0 };
-        const adjTarget = applyOffset(targetCurve.data, targetOffset);
+        // Shift target to baseline's coordinate system so ROI extraction
+        // works correctly even when target has a large xOffset
+        const adjTarget = applyOffset(targetCurve.data, {
+          xOffset: baselineOffset.xOffset,
+          yOffset: targetOffset.yOffset,
+        });
         const result = roiMaxPeakAlignment.align(adjBaseline, adjTarget, roiStart, roiEnd);
-        newOffsets[targetIds[i]] = { ...targetOffset, xOffset: targetOffset.xOffset + result.xOffset };
+        // result.xOffset is in baseline's coordinate system;
+        // new absolute offset = result.xOffset + baselineOffset.xOffset
+        newOffsets[targetIds[i]] = { ...targetOffset, xOffset: result.xOffset + baselineOffset.xOffset };
         setProgress(((i + 1) / targetIds.length) * 100);
       }
     } else {
@@ -59,7 +66,12 @@ export default function AlignmentControls() {
       for (let i = 0; i < targetIds.length; i++) {
         const targetCurve = curves[targetIds[i]];
         const targetOffset = newOffsets[targetIds[i]] ?? { xOffset: 0, yOffset: 0 };
-        const adjTarget = applyOffset(targetCurve.data, targetOffset);
+        // Shift target to baseline's coordinate system so ROI extraction
+        // works correctly even when target has a large xOffset
+        const adjTarget = applyOffset(targetCurve.data, {
+          xOffset: baselineOffset.xOffset,
+          yOffset: targetOffset.yOffset,
+        });
         const result = await new Promise<{ xOffset: number; correlationScore: number }>(
           (resolve) => {
             const worker = new AlignmentWorker();
@@ -76,7 +88,9 @@ export default function AlignmentControls() {
             });
           },
         );
-        newOffsets[targetIds[i]] = { ...targetOffset, xOffset: targetOffset.xOffset + result.xOffset };
+        // result.xOffset is in baseline's coordinate system;
+        // new absolute offset = result.xOffset + baselineOffset.xOffset
+        newOffsets[targetIds[i]] = { ...targetOffset, xOffset: result.xOffset + baselineOffset.xOffset };
         setProgress(((i + 1) / targetIds.length) * 100);
       }
     }
