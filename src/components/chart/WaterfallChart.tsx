@@ -53,6 +53,7 @@ export default function WaterfallChart() {
   const setLayerSpacing = useCurveStore((s) => s.setLayerSpacing);
   const xRange = useUiStore((s) => s.xRange);
   const yRange = useUiStore((s) => s.yRange);
+  const bracePlacementMode = useUiStore((s) => s.bracePlacementMode);
 
   // visibleIds follows stagingOrder (only IDs that are in stagingOrder AND visible)
   // visibleIds[0] = top of list = top of chart; visibleIds[last] = bottom (baseline)
@@ -191,15 +192,17 @@ export default function WaterfallChart() {
         nameLocation: 'center',
         nameGap: 45,
       },
-      dataZoom: [
-        { type: 'inside', xAxisIndex: 0 },
-        { type: 'inside', yAxisIndex: 0 },
-        { type: 'slider', xAxisIndex: 0, bottom: 10 },
-      ],
+      dataZoom: bracePlacementMode
+        ? [{ type: 'slider', xAxisIndex: 0, bottom: 10 }]
+        : [
+            { type: 'inside', xAxisIndex: 0 },
+            { type: 'inside', yAxisIndex: 0 },
+            { type: 'slider', xAxisIndex: 0, bottom: 10 },
+          ],
       series,
       animation: false,
     };
-  }, [curves, offsets, visibleCurves, layerSpacing, stagingOrder, visibleIds, yRange]);
+  }, [curves, offsets, visibleCurves, layerSpacing, stagingOrder, visibleIds, yRange, bracePlacementMode]);
 
   const convertXToPixel = (xVal: number): number => {
     if (!chartInstance) return 0;
@@ -236,6 +239,7 @@ export default function WaterfallChart() {
         convertXToPixel={convertXToPixel}
         convertPixelToX={convertPixelToX}
         xRange={xRange}
+        gridTop={visibleIds.length > 1 ? 50 : 20}
       />
       <div className="absolute top-1/2 right-0 -translate-y-1/2 flex flex-col items-center gap-1 pointer-events-none">
         <span className="text-[10px] text-gray-500 font-mono">

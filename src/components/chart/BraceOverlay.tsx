@@ -1,24 +1,8 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import type { MouseEvent as ReactMouseEvent } from 'react';
+import type { PointerEvent as ReactPointerEvent } from 'react';
 import { useCurveStore, useUiStore } from '@/store';
 import type { BraceAnnotation } from '@/types';
-
-const BRACE_COLOR = '#e74c3c';
-
-function bracePath(startX: number, endX: number, y: number): string {
-  const width = endX - startX;
-  const midX = startX + width / 2;
-  const h = 12;
-  const w = 6;
-
-  return `M ${startX} ${y}
-    C ${startX} ${y - h}, ${startX + w} ${y - h}, ${startX + w} ${y - h / 2}
-    L ${midX - w / 2} ${y + h / 2}
-    L ${midX} ${y + h}
-    L ${midX + w / 2} ${y + h / 2}
-    L ${endX - w} ${y - h / 2}
-    C ${endX - w} ${y - h}, ${endX} ${y - h}, ${endX} ${y}`;
-}
+import { bracePath, BRACE_COLOR } from './bracePath';
 
 interface BraceOverlayProps {
   width: number;
@@ -26,6 +10,7 @@ interface BraceOverlayProps {
   convertXToPixel: (xVal: number) => number;
   convertPixelToX: (px: number) => number;
   xRange: [number, number];
+  gridTop: number;
 }
 
 export default function BraceOverlay({
@@ -34,54 +19,85 @@ export default function BraceOverlay({
   convertXToPixel,
   convertPixelToX,
   xRange,
+  gridTop,
 }: BraceOverlayProps) {
   const braces = useCurveStore((s) => s.braces);
   const bracePlacementMode = useUiStore((s) => s.bracePlacementMode);
   const setBracePlacementMode = useUiStore((s) => s.setBracePlacementMode);
 
-  const [firstPoint, setFirstPoint] = useState<number | null>(null);
   const [editingBrace, setEditingBrace] = useState<BraceAnnotation | null>(null);
+  const [dragStart, setDragStart] = useState<number | null>(null);
+  const [dragEnd, setDragEnd] = useState<number | null>(null);
   const [labelInput, setLabelInput] = useState('');
   const svgRef = useRef<SVGSVGElement>(null);
 
-  // Handle click on chart area during placement mode
-  const handleChartClick = useCallback(
-    (e: ReactMouseEvent) => {
+  const handlePointerDown = useCallback(
+    (e: ReactPointerEvent<SVGSVGElement>) => {
       if (!bracePlacementMode) return;
       const rect = svgRef.current?.getBoundingClientRect();
       if (!rect) return;
       const px = e.clientX - rect.left;
-
-      if (firstPoint === null) {
-        setFirstPoint(px);
-      } else {
-        // Second click — create brace
-        const startX = Math.min(firstPoint, px);
-        const endX = Math.max(firstPoint, px);
-        const dataStartX = convertPixelToX(startX);
-        const dataEndX = convertPixelToX(endX);
-
-        const newBrace: BraceAnnotation = {
-          id: `brace_${Date.now()}`,
-          type: 'horizontal',
-          startX: dataStartX,
-          endX: dataEndX,
-          label: '',
-        };
-        setEditingBrace(newBrace);
-        setLabelInput('');
-        setFirstPoint(null);
-        setBracePlacementMode(false);
-      }
+      setDragStart(px);
+      setDragEnd(px);
+      svgRef.current?.setPointerCapture(e.pointerId);
+      e.stopPropagation();
     },
-    [bracePlacementMode, firstPoint, convertPixelToX, setBracePlacementMode],
+    [bracePlacementMode],
+  );
+
+  const handlePointerMove = useCallback(
+    (e: ReactPointerEvent<SVGSVGElement>) => {
+      if (!bracePlacementMode || dragStart === null) return;
+      const rect = svgRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const px = e.clientX - rect.left;
+      setDragEnd(px);
+      e.stopPropagation();
+    },
+    [bracePlacementMode, dragStart],
+  );
+
+  const handlePointerUp = useCallback(
+    (e: ReactPointerEvent<SVGSVGElement>) => {
+      svgRef.current?.releasePointerCapture(e.pointerId);
+      if (!bracePlacementMode || dragStart === null || dragEnd === null) {
+        setDragStart(null);
+        setDragEnd(null);
+        return;
+      }
+      const startX = Math.min(dragStart, dragEnd);
+      const endX = Math.max(dragStart, dragEnd);
+      if (endX - startX < 5) {
+        // Too small — treat as click, not a placement drag.
+        setDragStart(null);
+        setDragEnd(null);
+        return;
+      }
+      const dataStartX = convertPixelToX(startX);
+      const dataEndX = convertPixelToX(endX);
+
+      const newBrace: BraceAnnotation = {
+        id: `brace_${Date.now()}`,
+        type: 'horizontal',
+        startX: dataStartX,
+        endX: dataEndX,
+        label: '',
+      };
+      setEditingBrace(newBrace);
+      setLabelInput('');
+      setDragStart(null);
+      setDragEnd(null);
+      setBracePlacementMode(false);
+    },
+    [bracePlacementMode, dragStart, dragEnd, convertPixelToX, setBracePlacementMode],
   );
 
   // Cancel placement on Escape
   const handleKeyDown = useCallback(
     (e: KeyboardEvent) => {
       if (e.key === 'Escape' && bracePlacementMode) {
-        setFirstPoint(null);
+        setDragStart(null);
+        setDragEnd(null);
         setBracePlacementMode(false);
       }
     },
@@ -122,6 +138,14 @@ export default function BraceOverlay({
     (b) => b.startX <= xRange[1] && b.endX >= xRange[0],
   );
 
+  const y = gridTop + 12;
+
+  // Drag preview bounds
+  const previewLeft =
+    dragStart !== null && dragEnd !== null ? Math.min(dragStart, dragEnd) : null;
+  const previewRight =
+    dragStart !== null && dragEnd !== null ? Math.max(dragStart, dragEnd) : null;
+
   return (
     <svg
       ref={svgRef}
@@ -132,15 +156,20 @@ export default function BraceOverlay({
         cursor: bracePlacementMode ? 'crosshair' : 'default',
         pointerEvents: bracePlacementMode ? 'auto' : 'none',
       }}
-      onClick={handleChartClick}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
     >
-      {/* Render existing braces */}
+      {/* Render existing braces (only when not in active placement drag) */}
       {visibleBraces.map((brace) => {
         const px1 = convertXToPixel(brace.startX);
         const px2 = convertXToPixel(brace.endX);
-        const y = height - 40;
         return (
-          <g key={brace.id} style={{ pointerEvents: 'auto', cursor: 'pointer' }}>
+          <g
+            key={brace.id}
+            style={{ pointerEvents: 'auto', cursor: 'pointer' }}
+            onPointerDown={(e) => e.stopPropagation()}
+          >
             <path
               d={bracePath(px1, px2, y)}
               fill="none"
@@ -153,7 +182,7 @@ export default function BraceOverlay({
             />
             <text
               x={(px1 + px2) / 2}
-              y={y + 24}
+              y={y - 6}
               textAnchor="middle"
               fontSize={11}
               fill={BRACE_COLOR}
@@ -168,17 +197,28 @@ export default function BraceOverlay({
         );
       })}
 
-      {/* First point marker */}
-      {bracePlacementMode && firstPoint !== null && (
-        <line
-          x1={firstPoint}
-          y1={0}
-          x2={firstPoint}
-          y2={height}
-          stroke={BRACE_COLOR}
-          strokeWidth={1}
-          strokeDasharray="4 2"
-        />
+      {/* Drag preview: dashed brace + semi-transparent rect */}
+      {dragStart !== null && previewLeft !== null && previewRight !== null && (
+        <g pointerEvents="none">
+          <rect
+            x={previewLeft}
+            y={0}
+            width={previewRight - previewLeft}
+            height={height}
+            fill={BRACE_COLOR}
+            fillOpacity={0.1}
+            stroke={BRACE_COLOR}
+            strokeWidth={1}
+            strokeDasharray="4 2"
+          />
+          <path
+            d={bracePath(previewLeft, previewRight, y)}
+            fill="none"
+            stroke={BRACE_COLOR}
+            strokeWidth={2}
+            strokeDasharray="4 2"
+          />
+        </g>
       )}
 
       {/* Label editing dialog */}

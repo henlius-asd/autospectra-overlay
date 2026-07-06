@@ -1,6 +1,6 @@
 import { useCurveStore } from '@/store';
 import { useUiStore } from '@/store';
-import { getChartInstance } from '@/components/chart/WaterfallChart';
+import { exportChartImage } from '@/components/chart/exportImage';
 
 export default function Toolbar() {
   const temporal = useCurveStore.temporal;
@@ -30,17 +30,10 @@ export default function Toolbar() {
     setBracePlacementMode(!bracePlacementMode);
   };
 
-  const handleExportPNG = () => {
-    const instance = getChartInstance();
-    if (instance) {
-      const url = instance.getDataURL({ type: 'png', pixelRatio: 2, backgroundColor: '#fff' });
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'chromatogram.png';
-      a.click();
-    } else {
-      alert('图表尚未渲染');
-    }
+  const handleExportImage = () => {
+    exportChartImage().catch(() => {
+      alert('导出图片失败');
+    });
   };
 
   const handleExportJSON = () => {
@@ -111,17 +104,18 @@ export default function Toolbar() {
             ? 'bg-blue-500 text-white'
             : 'hover:bg-gray-200 text-gray-600'
         } disabled:text-gray-300 disabled:cursor-not-allowed`}
-        title={bracePlacementMode ? '点击取消大括号放置模式' : '插入大括号：点击图表两端放置'}
+        title={bracePlacementMode ? '点击取消大括号放置模式' : '插入大括号：拖拽图表区域选择区间'}
       >
         {bracePlacementMode ? '放置中...' : '大括号'}
       </button>
       <div className="w-px h-5 bg-gray-300" />
       <button
-        onClick={handleExportPNG}
+        onClick={handleExportImage}
         className="text-xs px-2 py-1 rounded hover:bg-gray-200 text-gray-600"
         disabled={!hasCurves}
+        title="导出当前渲染图层为 PNG"
       >
-        截图
+        导出图片
       </button>
       <button
         onClick={handleExportJSON}
