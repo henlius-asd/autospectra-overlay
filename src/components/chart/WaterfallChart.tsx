@@ -35,20 +35,26 @@ const CURVE_COLORS = [
 export default function WaterfallChart() {
   const curves = useCurveStore((s) => s.curves);
   const offsets = useCurveStore((s) => s.offsets);
+  const visibleCurves = useCurveStore((s) => s.visibleCurves);
+  const stagingOrder = useCurveStore((s) => s.stagingOrder);
+  const baselineId = useCurveStore((s) => s.baselineId);
+  const layerSpacing = useCurveStore((s) => s.layerSpacing);
   const xRange = useUiStore((s) => s.xRange);
 
-  // Initialize xRange from curve data (reliable, no ECharts dependency)
+  // visibleIds follows stagingOrder (only IDs that are in stagingOrder AND visible)
+  const visibleIds = stagingOrder.filter((id) => visibleCurves[id]);
+
+  // Initialize xRange from visible curve data (reliable, no ECharts dependency)
   useEffect(() => {
-    const ids = Object.keys(curves);
-    if (ids.length > 0) {
-      const firstCurve = curves[ids[0]];
+    if (visibleIds.length > 0) {
+      const firstCurve = curves[visibleIds[0]];
       if (firstCurve.data.length > 0) {
         const min = Math.floor(firstCurve.data[0][0]);
         const max = Math.ceil(firstCurve.data[firstCurve.data.length - 1][0]);
         useUiStore.getState().setXRange([min, max]);
       }
     }
-  }, [curves]);
+  }, [curves, visibleCurves]);
 
   const onChartReady = useCallback((instance: EChartsInstance) => {
     chartInstance = instance;
@@ -63,8 +69,7 @@ export default function WaterfallChart() {
   }, []);
 
   const option: EChartsOption = useMemo(() => {
-    const ids = Object.keys(curves);
-    if (ids.length === 0) {
+    if (visibleIds.length === 0) {
       return {
         title: {
           text: '尚未加载曲线数据',
@@ -75,23 +80,34 @@ export default function WaterfallChart() {
       };
     }
 
-    const series = ids.map((id, idx) => {
+    const series = visibleIds.map((id, visibleIdx) => {
       const curve = curves[id];
       const offset = offsets[id] ?? { xOffset: 0, yOffset: 0 };
 
+      // Baseline always at layerYOffset = 0 (chart bottom)
+      // Other curves: layerYOffset = layerSpacing * (position in stagingOrder excluding baseline + 1)
+      let layerYOffset: number;
+      if (id === baselineId) {
+        layerYOffset = 0;
+      } else {
+        const nonBaselineIds = visibleIds.filter((oid) => oid !== baselineId);
+        const nonBaselineIdx = nonBaselineIds.indexOf(id);
+        layerYOffset = layerSpacing * (nonBaselineIdx + 1);
+      }
+
       const renderedData = curve.data.map(([x, y]) => [
         x + offset.xOffset,
-        y + offset.yOffset,
+        y + layerYOffset + offset.yOffset,
       ]);
 
       return {
-        name: curve.name,
+        name: curve.displayName || curve.name,
         type: 'line' as const,
         data: renderedData,
         smooth: false,
         symbol: 'none',
         lineStyle: {
-          color: CURVE_COLORS[idx % CURVE_COLORS.length],
+          color: CURVE_COLORS[visibleIdx % CURVE_COLORS.length],
           width: 1.5,
         },
         large: true,
@@ -99,10 +115,10 @@ export default function WaterfallChart() {
       };
     });
 
-    // Compute global x-range from all curves to set explicit axis min/max
+    // Compute global x-range from visible curves to set explicit axis min/max
     let xMin = Infinity;
     let xMax = -Infinity;
-    for (const id of ids) {
+    for (const id of visibleIds) {
       const data = curves[id].data;
       if (data.length > 0) {
         xMin = Math.min(xMin, data[0][0]);
@@ -114,16 +130,17 @@ export default function WaterfallChart() {
     xMax = Math.ceil(xMax);
 
     return {
+      title: { show: false },
       tooltip: { show: false },
       legend: {
-        show: ids.length > 1,
+        show: visibleIds.length > 1,
         top: 8,
         type: 'scroll',
       },
       grid: {
         left: 60,
         right: 30,
-        top: ids.length > 1 ? 50 : 20,
+        top: visibleIds.length > 1 ? 50 : 20,
         bottom: 60,
       },
       xAxis: {
@@ -148,7 +165,7 @@ export default function WaterfallChart() {
       series,
       animation: false,
     };
-  }, [curves, offsets]);
+  }, [curves, offsets, visibleCurves, layerSpacing, stagingOrder, baselineId, visibleIds]);
 
   const convertXToPixel = (xVal: number): number => {
     if (!chartInstance) return 0;
@@ -174,6 +191,7 @@ export default function WaterfallChart() {
     <div className="relative w-full h-full">
       <ReactECharts
         option={option}
+        replaceMerge={['series']}
         style={{ width: '100%', height: '100%' }}
         onChartReady={onChartReady}
         onEvents={{ dataZoom: onDataZoom }}
