@@ -97,7 +97,14 @@ export default function BraceOverlay({
   const handleSaveLabel = () => {
     if (!editingBrace) return;
     const brace: BraceAnnotation = { ...editingBrace, label: labelInput || '未命名' };
-    useCurveStore.setState((s) => ({ braces: [...s.braces, brace] }));
+    useCurveStore.setState((s) => {
+      const exists = s.braces.some((b) => b.id === brace.id);
+      return {
+        braces: exists
+          ? s.braces.map((b) => (b.id === brace.id ? brace : b))
+          : [...s.braces, brace],
+      };
+    });
     setEditingBrace(null);
     setLabelInput('');
   };
