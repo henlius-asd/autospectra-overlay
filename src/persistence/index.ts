@@ -27,6 +27,7 @@ function saveWorkspace() {
       braces: state.braces,
       stagingOrder: state.stagingOrder,
       visibleCurves: state.visibleCurves,
+      layerSpacing: state.layerSpacing,
       savedAt: Date.now(),
     };
     persistenceStore.setItem(PERSISTENCE_KEY, snapshot).catch((err) => {
@@ -48,6 +49,7 @@ export async function restoreWorkspace(): Promise<boolean> {
       braces: unknown[];
       stagingOrder: string[];
       visibleCurves: Record<string, boolean>;
+      layerSpacing: number;
       savedAt: number;
     }>(PERSISTENCE_KEY);
 
@@ -59,6 +61,7 @@ export async function restoreWorkspace(): Promise<boolean> {
         braces: snapshot.braces as ReturnType<typeof useCurveStore.getState>['braces'],
         stagingOrder: snapshot.stagingOrder ?? [],
         visibleCurves: snapshot.visibleCurves ?? {},
+        layerSpacing: snapshot.layerSpacing ?? 0,
       });
       return true;
     }

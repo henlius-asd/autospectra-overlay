@@ -1,7 +1,6 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useCurveStore, useUiStore } from '@/store';
 import ContextMenu from './ContextMenu';
-import type { CurveData } from '@/types';
 
 const CURVE_COLORS = [
   '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728',
@@ -10,8 +9,6 @@ const CURVE_COLORS = [
 ];
 
 interface CurveListProps {
-  curves: CurveData[];
-  curveIds: string[];
   visibleCurves: Record<string, boolean>;
   errors: { name: string; error: string }[];
   onToggleVisibility: (id: string) => void;
@@ -22,8 +19,6 @@ interface CurveListProps {
 }
 
 export default function CurveList({
-  curves: _allCurves,
-  curveIds: _allCurveIds,
   visibleCurves,
   errors,
   onToggleVisibility,
@@ -123,15 +118,16 @@ export default function CurveList({
 
   const handleAliasConfirm = useCallback(
     (id: string) => {
+      if (!editingId) return;
       const trimmed = editValue.trim();
+      setEditingId(null);
       if (trimmed && trimmed !== curves[id].name) {
         setDisplayName(id, trimmed);
       } else if (!trimmed) {
         setDisplayName(id, '');
       }
-      setEditingId(null);
     },
-    [editValue, curves, setDisplayName],
+    [editValue, curves, setDisplayName, editingId],
   );
 
   const handleAliasCancel = useCallback(() => {
@@ -160,7 +156,7 @@ export default function CurveList({
   };
 
   // Render a single curve row
-  const renderCurveRow = (id: string, index: number, isStaging: boolean) => {
+  const renderCurveRow = (id: string, _index: number, isStaging: boolean) => {
     const curve = curves[id];
     if (!curve) return null;
     const isVisible = !!visibleCurves[id];
@@ -195,7 +191,7 @@ export default function CurveList({
         )}
         <span
           className="w-3 h-3 rounded-full flex-shrink-0"
-          style={{ backgroundColor: CURVE_COLORS[index % CURVE_COLORS.length] }}
+          style={{ backgroundColor: CURVE_COLORS[id.split('').reduce((sum, c) => sum + c.charCodeAt(0), 0) % CURVE_COLORS.length] }}
         />
         {editingId === id ? (
           <input
@@ -281,14 +277,16 @@ export default function CurveList({
               </span>
               <div className="flex items-center gap-1">
                 <button
-                  onClick={stagingIds.length === allCurveIds.length ? onDeselectAll : onSelectAll}
+                  onClick={stagingOrder.length === Object.keys(curves).length ? onDeselectAll : onSelectAll}
                   className="text-xs text-blue-500 hover:text-blue-700 px-1 py-0.5"
                 >
-                  {stagingIds.length === allCurveIds.length ? '取消全选' : '全选'}
+                  {stagingOrder.length === Object.keys(curves).length ? '取消全选' : '全选'}
                 </button>
                 <span className="text-xs text-gray-300">|</span>
                 <button
-                  onClick={onRemoveSelected}
+                  onClick={() => {
+                    if (window.confirm('确定要删除所有选中的曲线吗？')) onRemoveSelected();
+                  }}
                   disabled={stagingIds.length === 0}
                   className="text-xs text-red-400 hover:text-red-600 px-1 py-0.5 disabled:text-gray-300 disabled:cursor-not-allowed"
                 >

@@ -9,8 +9,12 @@ import type { CurveData } from '@/types';
 export default function LeftPanel() {
   const collapsed = useUiStore((s) => s.leftPanelCollapsed);
   const toggle = useUiStore((s) => s.toggleLeftPanel);
-  const curves = useCurveStore((s) => s.curves);
+  const visibleCurves = useCurveStore((s) => s.visibleCurves);
   const addCurves = useCurveStore((s) => s.addCurves);
+  const toggleCurveVisibility = useCurveStore((s) => s.toggleCurveVisibility);
+  const removeCurve = useCurveStore((s) => s.removeCurve);
+  const setAllCurvesVisibility = useCurveStore((s) => s.setAllCurvesVisibility);
+  const removeSelectedCurves = useCurveStore((s) => s.removeSelectedCurves);
 
   const [errors, setErrors] = useState<{ name: string; error: string }[]>([]);
 
@@ -30,8 +34,6 @@ export default function LeftPanel() {
     },
     [addCurves],
   );
-
-  const curveList = Object.values(curves);
 
   return (
     <div
@@ -56,7 +58,15 @@ export default function LeftPanel() {
           <div className="p-2">
             <FileUpload onFilesParsed={handleFilesParsed} />
           </div>
-          <CurveList curves={curveList} errors={errors} />
+          <CurveList
+            visibleCurves={visibleCurves}
+            errors={errors}
+            onToggleVisibility={toggleCurveVisibility}
+            onRemoveCurve={removeCurve}
+            onSelectAll={() => setAllCurvesVisibility(true)}
+            onDeselectAll={() => setAllCurvesVisibility(false)}
+            onRemoveSelected={removeSelectedCurves}
+          />
         </div>
       )}
     </div>
