@@ -19,7 +19,7 @@ The system SHALL parse Waters Empower ARW file metadata lines in `"Key"\t"Value"
 - **WHEN** a metadata value contains spaces, slashes, or colons (e.g., `"5/20/2026 5:03:01 AM CST"`)
 - **THEN** the full value is preserved verbatim in the metadata dictionary after stripping surrounding double quotes
 
-#### Scenario: Empty metadata section
+#### Scenario: No metadata lines (data starts immediately)
 
-- **WHEN** an ARW file has no metadata lines (data starts immediately)
-- **THEN** `metadata` field is `undefined` in the `ParsedFile` result
+- **WHEN** an ARW file has no `"Key"\t"Value"` metadata lines (data starts immediately)
+- **THEN** the parsed `metadata` SHALL still contain at least `fileName` (the original filename with extension); no `SampleName` key is present, and `CurveData.name` falls back to the filename stem
