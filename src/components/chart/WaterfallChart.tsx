@@ -237,17 +237,22 @@ export default function WaterfallChart() {
         convertPixelToX={convertPixelToX}
         xRange={xRange}
       />
-      <input
-        type="range"
-        min={-0.5}
-        max={0.5}
-        step={0.01}
-        value={layerSpacing}
-        onChange={(e) => setLayerSpacing(parseFloat(e.target.value))}
-        className="absolute top-1/2 right-1 -translate-y-1/2 h-3/5 w-3"
-        style={{ writingMode: 'vertical-lr', direction: 'rtl', accentColor: '#3b82f6' }}
-        title="Y 轴层间距（占可见范围比例）"
-      />
+      <div className="absolute top-1/2 right-0 -translate-y-1/2 flex flex-col items-center gap-1 pointer-events-none">
+        <span className="text-[10px] text-gray-500 font-mono">
+          {layerSpacing.toFixed(2)}
+        </span>
+        <input
+          type="range"
+          min={-0.5}
+          max={0.5}
+          step={0.01}
+          value={layerSpacing}
+          onChange={(e) => setLayerSpacing(parseFloat(e.target.value))}
+          className="h-3/5 w-3 pointer-events-auto"
+          style={{ writingMode: 'vertical-lr', direction: 'rtl', accentColor: '#3b82f6' }}
+          title="Y 轴层间距（占可见范围比例）"
+        />
+      </div>
     </div>
   );
 }
