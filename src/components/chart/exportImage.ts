@@ -52,8 +52,10 @@ export async function exportChartImage(): Promise<void> {
   ctx.drawImage(echartsImg, 0, 0, canvas.width, canvas.height);
 
   // 2. Build a clean brace SVG (no foreignObject, no editing dialog).
-  const { braces, visibleCurves, stagingOrder } = useCurveStore.getState();
+  const state = useCurveStore.getState();
+  const { braces, visibleCurves, stagingOrder } = state;
   const xRange = useUiStore.getState().xRange;
+  const yRange = useUiStore.getState().yRange;
   const visibleIds = stagingOrder.filter((id) => visibleCurves[id]);
   const visibleBraces = braces.filter(
     (b) => b.startX <= xRange[1] && b.endX >= xRange[0],
@@ -77,7 +79,27 @@ export async function exportChartImage(): Promise<void> {
     `0 0 ${canvas.width} ${canvas.height}`,
   );
 
-  const braceY = (gridTop + 12) * pixelRatio;
+  // Calculate maxY for dynamic brace positioning (same logic as WaterfallChart)
+  let maxY = -Infinity;
+  for (let vi = 0; vi < visibleIds.length; vi++) {
+    const id = visibleIds[vi];
+    const curve = state.curves[id];
+    const offset = state.offsets[id] ?? { xOffset: 0, yOffset: 0 };
+    const layerIndex = visibleIds.length - 1 - vi;
+    const layerYOffset = layerIndex * state.layerSpacing * ((yRange[1] - yRange[0]) || 1);
+    for (const [x, yVal] of curve.data) {
+      if (x + offset.xOffset >= xRange[0] && x + offset.xOffset <= xRange[1]) {
+        const rendered = yVal + layerYOffset + offset.yOffset;
+        if (rendered > maxY) maxY = rendered;
+      }
+    }
+  }
+  if (!isFinite(maxY)) maxY = yRange[1];
+
+  const gridBottom = 60;
+  const yPixelRange = chartHeight - gridTop - gridBottom;
+  const yPixel = gridTop + ((yRange[1] - maxY) / ((yRange[1] - yRange[0]) || 1)) * yPixelRange;
+  const braceY = Math.max(gridTop + 5, yPixel - 18) * pixelRatio;
   for (const brace of visibleBraces) {
     const px1 = convertXToPixel(brace.startX, xRange, chartWidth, gridLeft, gridRight) * pixelRatio;
     const px2 = convertXToPixel(brace.endX, xRange, chartWidth, gridLeft, gridRight) * pixelRatio;
@@ -91,7 +113,7 @@ export async function exportChartImage(): Promise<void> {
 
     const textEl = document.createElementNS(ns, 'text');
     textEl.setAttribute('x', String((px1 + px2) / 2));
-    textEl.setAttribute('y', String(braceY - 6 * pixelRatio));
+    textEl.setAttribute('y', String(braceY - 10 * pixelRatio));
     textEl.setAttribute('font-size', String(11 * pixelRatio));
     textEl.setAttribute('fill', BRACE_COLOR);
     textEl.setAttribute('text-anchor', 'middle');
