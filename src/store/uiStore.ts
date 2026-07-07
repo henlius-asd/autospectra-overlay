@@ -11,6 +11,7 @@ interface UiState {
   yRange: [number, number];
   selectedCurveId: string | null;
   bracePlacementMode: boolean;
+  pointLabelPlacementMode: boolean;
   showGrid: boolean;
   showAxes: boolean;
   toggleLeftPanel: () => void;
@@ -21,6 +22,7 @@ interface UiState {
   setYRange: (range: [number, number]) => void;
   setSelectedCurveId: (id: string | null) => void;
   setBracePlacementMode: (active: boolean) => void;
+  setPointLabelPlacementMode: (active: boolean) => void;
   toggleShowGrid: () => void;
   toggleShowAxes: () => void;
 }
@@ -34,6 +36,7 @@ export const useUiStore = create<UiState>((set) => ({
   yRange: [0, 1],
   selectedCurveId: null,
   bracePlacementMode: false,
+  pointLabelPlacementMode: false,
   showGrid: true,
   showAxes: true,
   toggleLeftPanel: () =>
@@ -46,6 +49,7 @@ export const useUiStore = create<UiState>((set) => ({
   setYRange: (range) => set({ yRange: range }),
   setSelectedCurveId: (id) => set({ selectedCurveId: id }),
   setBracePlacementMode: (active) => set({ bracePlacementMode: active }),
+  setPointLabelPlacementMode: (active) => set({ pointLabelPlacementMode: active }),
   toggleShowGrid: () => set((s) => ({ showGrid: !s.showGrid })),
   toggleShowAxes: () => set((s) => ({ showAxes: !s.showAxes })),
 }));

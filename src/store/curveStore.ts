@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { temporal, TemporalState } from 'zundo';
-import type { CurveData, BraceAnnotation } from '@/types';
+import type { CurveData, BraceAnnotation, PointLabel } from '@/types';
 
 export interface CurveOffsets {
   xOffset: number;
@@ -15,6 +15,7 @@ interface CurveState {
   layerSpacing: number;
   baselineId: string | null;
   braces: BraceAnnotation[];
+  pointLabels: PointLabel[];
   // Actions
   addCurves: (newCurves: CurveData[]) => void;
   removeCurve: (id: string) => void;
@@ -25,6 +26,9 @@ interface CurveState {
   setLayerSpacing: (spacing: number) => void;
   setStagingOrder: (order: string[]) => void;
   setDisplayName: (id: string, displayName: string) => void;
+  addPointLabel: (label: PointLabel) => void;
+  updatePointLabel: (id: string, updates: Partial<PointLabel>) => void;
+  removePointLabel: (id: string) => void;
 }
 
 // For zundo temporal typing
@@ -57,6 +61,7 @@ export const useCurveStore = create<CurveState>()(
       layerSpacing: 0,
       baselineId: null,
       braces: [],
+      pointLabels: [],
 
       addCurves: (newCurves) =>
         set((state) => {
@@ -186,6 +191,23 @@ export const useCurveStore = create<CurveState>()(
           };
           return { curves };
         }),
+
+      addPointLabel: (label) =>
+        set((state) => ({
+          pointLabels: [...state.pointLabels, label],
+        })),
+
+      updatePointLabel: (id, updates) =>
+        set((state) => ({
+          pointLabels: state.pointLabels.map((pl) =>
+            pl.id === id ? { ...pl, ...updates } : pl,
+          ),
+        })),
+
+      removePointLabel: (id) =>
+        set((state) => ({
+          pointLabels: state.pointLabels.filter((pl) => pl.id !== id),
+        })),
     }),
     { limit: 50 },
   ),
