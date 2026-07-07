@@ -1,16 +1,27 @@
-export const BRACE_COLOR = '#e74c3c';
+export const BRACE_COLOR = '#555555';
 
+/**
+ * Generate SVG path for an I-beam bracket style annotation.
+ *
+ * Visual:
+ *   ┌──────────────────────┐    ← y - tickH
+ *   │      label area      │
+ *   └──────────────────────┘    ← y
+ *   │                        │  ← ticks at start/end
+ *
+ * @param startX - left pixel X
+ * @param endX - right pixel X
+ * @param y - baseline Y pixel (bottom of the bracket)
+ */
 export function bracePath(startX: number, endX: number, y: number): string {
-  const width = endX - startX;
-  const midX = startX + width / 2;
-  const h = 12;
-  const w = 6;
+  const tickH = 8; // vertical tick height
 
-  return `M ${startX} ${y}
-    C ${startX} ${y - h}, ${startX + w} ${y - h}, ${startX + w} ${y - h / 2}
-    L ${midX - w / 2} ${y + h / 2}
-    L ${midX} ${y + h}
-    L ${midX + w / 2} ${y + h / 2}
-    L ${endX - w} ${y - h / 2}
-    C ${endX - w} ${y - h}, ${endX} ${y - h}, ${endX} ${y}`;
+  // Left vertical tick
+  const leftTick = `M ${startX} ${y} L ${startX} ${y - tickH}`;
+  // Horizontal line
+  const hLine = `M ${startX} ${y} L ${endX} ${y}`;
+  // Right vertical tick
+  const rightTick = `M ${endX} ${y} L ${endX} ${y - tickH}`;
+
+  return `${leftTick} ${hLine} ${rightTick}`;
 }
