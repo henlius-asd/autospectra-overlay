@@ -1,4 +1,4 @@
-import { getChartInstance } from './WaterfallChart';
+import { getChartInstance, LABEL_PADDING_RATIO } from './WaterfallChart';
 import { useCurveStore, useUiStore } from '@/store';
 import { bracePath, BRACE_COLOR } from './bracePath';
 
@@ -57,12 +57,15 @@ export async function exportChartImage(): Promise<void> {
   const { braces, visibleCurves, stagingOrder } = state;
   const xRange = useUiStore.getState().xRange;
 
-  // Read Y-axis extent from ECharts model (not stale store)
+  // Read Y-axis extent from ECharts model for pixel conversion only.
+  // Layer offsets and maxY are computed deterministically from raw data +
+  // layerSpacing (same formula as WaterfallChart), NOT from yExtent.
   const chart = instance as any;
-  const yExtent = chart.getModel()?.getComponent?.('yAxis', 0)?.axis?.scale?.getExtent?.();
-  const yRange: [number, number] = yExtent?.length === 2
-    ? [yExtent[0] as number, yExtent[1] as number]
-    : useUiStore.getState().yRange;
+  const yExtentRaw = chart.getModel()?.getComponent?.('yAxis', 0)?.axis?.scale?.getExtent?.();
+  const yExtent: [number, number] = yExtentRaw?.length === 2
+    ? [yExtentRaw[0] as number, yExtentRaw[1] as number]
+    : [0, 1];
+  const yExtentRange = yExtent[1] - yExtent[0] || 1;
 
   const visibleIds = stagingOrder.filter((id) => visibleCurves[id]);
   const visibleBraces = braces.filter(
@@ -87,26 +90,31 @@ export async function exportChartImage(): Promise<void> {
     `0 0 ${canvas.width} ${canvas.height}`,
   );
 
-  // Calculate maxY for dynamic brace positioning (same logic as WaterfallChart)
-  let maxY = -Infinity;
-  for (let vi = 0; vi < visibleIds.length; vi++) {
-    const id = visibleIds[vi];
+  // Calculate maxY deterministically using the same fixed-point formula
+  // as WaterfallChart: yRange = rawDataMax / (1 - (n-1) × layerSpacing).
+  // This is stable and does NOT depend on ECharts auto-scale.
+  const visibleCount = visibleIds.length;
+  let rawDataMax = -Infinity;
+  for (const id of visibleIds) {
     const curve = state.curves[id];
     const offset = state.offsets[id] ?? { xOffset: 0, yOffset: 0 };
-    const layerIndex = visibleIds.length - 1 - vi;
-    const layerYOffset = layerIndex * state.layerSpacing * ((yRange[1] - yRange[0]) || 1);
     for (const [x, yVal] of curve.data) {
       if (x + offset.xOffset >= xRange[0] && x + offset.xOffset <= xRange[1]) {
-        const rendered = yVal + layerYOffset + offset.yOffset;
-        if (rendered > maxY) maxY = rendered;
+        const adjusted = yVal + offset.yOffset;
+        if (adjusted > rawDataMax) rawDataMax = adjusted;
       }
     }
   }
-  if (!isFinite(maxY)) maxY = yRange[1];
+  if (!isFinite(rawDataMax) || rawDataMax <= 0) rawDataMax = 1;
+  const spacingBudget = (visibleCount - 1) * state.layerSpacing;
+  // Match WaterfallChart: include label padding so maxY reflects the reserved
+  // top region, not just the curve peak.
+  const maxY = (spacingBudget >= 1 ? rawDataMax * 10 : rawDataMax / (1 - spacingBudget))
+    * (1 + LABEL_PADDING_RATIO);
 
   const gridBottom = 60;
   const yPixelRange = chartHeight - gridTop - gridBottom;
-  const yPixel = gridTop + ((yRange[1] - maxY) / ((yRange[1] - yRange[0]) || 1)) * yPixelRange;
+  const yPixel = gridTop + ((yExtent[1] - maxY) / yExtentRange) * yPixelRange;
   const braceY = Math.max(gridTop + 5, yPixel - 18) * pixelRatio;
   for (const brace of visibleBraces) {
     const px1 = convertXToPixel(brace.startX, xRange, chartWidth, gridLeft, gridRight) * pixelRatio;
@@ -135,7 +143,7 @@ export async function exportChartImage(): Promise<void> {
     (pl) => pl.x >= xRange[0] && pl.x <= xRange[1],
   );
 
-  const topCurvePixelYExport = gridTop + ((yRange[1] - maxY) / ((yRange[1] - yRange[0]) || 1)) * yPixelRange;
+  const topCurvePixelYExport = gridTop + ((yExtent[1] - maxY) / yExtentRange) * yPixelRange;
 
   for (const pl of visiblePointLabels) {
     const px = convertXToPixel(pl.x, xRange, chartWidth, gridLeft, gridRight) * pixelRatio;

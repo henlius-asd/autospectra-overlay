@@ -13,6 +13,14 @@ export function getChartInstance() {
   return chartInstance;
 }
 
+/**
+ * Proportion of the Y-axis reserved above the highest curve for labels
+ * (brace text, point label boxes). Applied to both yMaxForAxis (yAxis max)
+ * and maxY (label positioning baseline) so labels land in the reserved area.
+ * Shared with exportImage.ts to keep export and on-screen rendering identical.
+ */
+export const LABEL_PADDING_RATIO = 0.15;
+
 /** Read current X-axis visible range from ECharts model */
 function getXAxisExtent(): [number, number] | null {
   if (!chartInstance) return null;
@@ -48,7 +56,6 @@ export default function WaterfallChart() {
   const layerSpacing = useCurveStore((s) => s.layerSpacing);
   const setLayerSpacing = useCurveStore((s) => s.setLayerSpacing);
   const xRange = useUiStore((s) => s.xRange);
-  const yRange = useUiStore((s) => s.yRange);
   const bracePlacementMode = useUiStore((s) => s.bracePlacementMode);
   const showGrid = useUiStore((s) => s.showGrid);
   const showAxes = useUiStore((s) => s.showAxes);
@@ -90,18 +97,16 @@ export default function WaterfallChart() {
 
   const onChartReady = useCallback((instance: EChartsInstance) => {
     chartInstance = instance;
-    // Chart is fully initialized, refine xRange/yRange to actual visible range
+    // Chart is fully initialized, refine xRange to actual visible range.
     const xExtent = getXAxisExtent();
     if (xExtent) useUiStore.getState().setXRange(xExtent);
-    const yExtent = getYAxisExtent();
-    if (yExtent) useUiStore.getState().setYRange(yExtent);
   }, []);
 
   const onDataZoom = useCallback(() => {
+    // Only the X axis zooms; Y bounds are fixed by explicit min/max, so we
+    // only need to sync xRange here.
     const xExtent = getXAxisExtent();
     if (xExtent) useUiStore.getState().setXRange(xExtent);
-    const yExtent = getYAxisExtent();
-    if (yExtent) useUiStore.getState().setYRange(yExtent);
   }, []);
 
   const option: EChartsOption = useMemo(() => {
@@ -117,16 +122,39 @@ export default function WaterfallChart() {
     }
 
     const visibleCount = visibleIds.length;
-    const visibleYRange = (yRange[1] - yRange[0]) || 1;
+
+    // ── Compute explicit Y-axis bounds using fixed-point formula ──
+    // We want: layerYOffset = layerIndex × layerSpacing × yRange
+    // AND:     yRange = rawDataMax + (visibleCount-1) × layerSpacing × yRange
+    // Solving: yRange = rawDataMax / (1 - (visibleCount-1) × layerSpacing)
+    // This gives a STABLE, deterministic yRange that does NOT depend on
+    // ECharts auto-scale, breaking the positive-feedback loop.
+    let rawDataMax = -Infinity;
+    for (const id of visibleIds) {
+      const curve = curves[id];
+      const offset = offsets[id] ?? { xOffset: 0, yOffset: 0 };
+      for (const [x, yVal] of curve.data) {
+        if (x + offset.xOffset >= xRange[0] && x + offset.xOffset <= xRange[1]) {
+          const adjusted = yVal + offset.yOffset;
+          if (adjusted > rawDataMax) rawDataMax = adjusted;
+        }
+      }
+    }
+    if (!isFinite(rawDataMax) || rawDataMax <= 0) rawDataMax = 1;
+
+    const spacingBudget = (visibleCount - 1) * layerSpacing;
+    const yRangeForLayer = spacingBudget >= 1
+      ? rawDataMax * 10 // safety fallback when spacing would exceed 100%
+      : rawDataMax / (1 - spacingBudget);
+    // Reserve LABEL_PADDING_RATIO of the axis above the highest curve for labels.
+    const yMaxForAxis = yRangeForLayer * (1 + LABEL_PADDING_RATIO);
 
     const series = visibleIds.map((id, visibleIndex) => {
       const curve = curves[id];
       const offset = offsets[id] ?? { xOffset: 0, yOffset: 0 };
 
-      // Unified layer formula: baseline is visibleIds[last] (layerIndex 0, offset 0),
-      // curves stack upward with increasing layerIndex.
       const layerIndex = visibleCount - 1 - visibleIndex;
-      const layerYOffset = layerIndex * layerSpacing * visibleYRange;
+      const layerYOffset = layerIndex * layerSpacing * yRangeForLayer;
 
       const renderedData = curve.data.map(([x, y]) => [
         x + offset.xOffset,
@@ -195,6 +223,9 @@ export default function WaterfallChart() {
         name: showAxes ? '强度' : '',
         nameLocation: 'center',
         nameGap: 45,
+        // Explicit bounds — prevents ECharts auto-scale from drifting.
+        min: 0,
+        max: yMaxForAxis,
         axisLine: { show: showAxes },
         axisTick: { show: showAxes },
         axisLabel: { show: showAxes },
@@ -203,14 +234,16 @@ export default function WaterfallChart() {
       dataZoom: bracePlacementMode
         ? [{ type: 'slider', xAxisIndex: 0, bottom: 10 }]
         : [
+            // X-axis zoom only. Y-axis bounds are computed explicitly (with a
+            // reserved label area on top); enabling y-axis zoom would let the
+            // user drag curves out of the reserved region and misalign labels.
             { type: 'inside', xAxisIndex: 0 },
-            { type: 'inside', yAxisIndex: 0 },
             { type: 'slider', xAxisIndex: 0, bottom: 10 },
           ],
       series,
       animation: false,
     };
-  }, [curves, offsets, visibleCurves, layerSpacing, stagingOrder, visibleIds, yRange, bracePlacementMode, showGrid, showAxes]);
+  }, [curves, offsets, visibleCurves, layerSpacing, stagingOrder, visibleIds, xRange, bracePlacementMode, showGrid, showAxes]);
 
   const convertXToPixel = (xVal: number): number => {
     if (!chartInstance) return 0;
@@ -245,23 +278,28 @@ export default function WaterfallChart() {
     return gridTop + ((yExtent[1] - yVal) / range) * (chartHeight - gridTop - gridBottom);
   };
 
+  // maxY for label positioning — uses the same fixed-point formula as the
+  // option useMemo so labels always sit at the top of the highest curve.
   const maxY = useMemo(() => {
-    let max = -Infinity;
-    for (let vi = 0; vi < visibleIds.length; vi++) {
-      const id = visibleIds[vi];
+    const visibleCount = visibleIds.length;
+    let rawDataMax = -Infinity;
+    for (const id of visibleIds) {
       const curve = curves[id];
       const offset = offsets[id] ?? { xOffset: 0, yOffset: 0 };
-      const layerIndex = visibleIds.length - 1 - vi;
-      const layerYOffset = layerIndex * layerSpacing * ((yRange[1] - yRange[0]) || 1);
       for (const [x, yVal] of curve.data) {
         if (x + offset.xOffset >= xRange[0] && x + offset.xOffset <= xRange[1]) {
-          const rendered = yVal + layerYOffset + offset.yOffset;
-          if (rendered > max) max = rendered;
+          const adjusted = yVal + offset.yOffset;
+          if (adjusted > rawDataMax) rawDataMax = adjusted;
         }
       }
     }
-    return isFinite(max) ? max : yRange[1];
-  }, [curves, offsets, visibleIds, layerSpacing, yRange, xRange]);
+    if (!isFinite(rawDataMax) || rawDataMax <= 0) rawDataMax = 1;
+    const spacingBudget = (visibleCount - 1) * layerSpacing;
+    // Match yMaxForAxis: include the label padding so labels position inside
+    // the reserved top region rather than at the curve peak.
+    return (spacingBudget >= 1 ? rawDataMax * 10 : rawDataMax / (1 - spacingBudget))
+      * (1 + LABEL_PADDING_RATIO);
+  }, [curves, offsets, visibleIds, layerSpacing, xRange]);
 
   const braceY = Math.max(
     (visibleIds.length > 1 ? 50 : 20) + 5,
