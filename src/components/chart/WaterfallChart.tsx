@@ -1,6 +1,7 @@
 import { useMemo, useCallback, useEffect, useRef } from 'react';
 import ReactECharts from 'echarts-for-react';
 import { useCurveStore, useUiStore } from '@/store';
+import { CURVE_COLORS } from '@/lib/colors';
 import BraceOverlay from './BraceOverlay';
 import type { EChartsOption } from 'echarts';
 import type { EChartsInstance } from 'echarts-for-react';
@@ -37,12 +38,6 @@ function getYAxisExtent(): [number, number] | null {
   } catch { /* fall through */ }
   return null;
 }
-
-const CURVE_COLORS = [
-  '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728',
-  '#9467bd', '#8c564b', '#e377c2', '#7f7f7f',
-  '#bcbd22', '#17becf',
-];
 
 export default function WaterfallChart() {
   const curves = useCurveStore((s) => s.curves);
