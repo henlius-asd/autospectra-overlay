@@ -29,10 +29,11 @@ export async function exportChartImage(): Promise<void> {
   }
 
   const pixelRatio = 2;
+  const uiState = useUiStore.getState();
   const url = instance.getDataURL({
     type: 'png',
     pixelRatio,
-    backgroundColor: '#fff',
+    backgroundColor: (!uiState.showAxes) ? 'transparent' : '#fff',
   });
 
   const canvas = document.createElement('canvas');
@@ -118,6 +119,59 @@ export async function exportChartImage(): Promise<void> {
     textEl.setAttribute('fill', BRACE_COLOR);
     textEl.setAttribute('text-anchor', 'middle');
     textEl.textContent = brace.label || '未命名';
+    svgEl.appendChild(textEl);
+  }
+
+  // Render point labels
+  const { pointLabels } = state;
+  const visiblePointLabels = pointLabels.filter(
+    (pl) => pl.x >= xRange[0] && pl.x <= xRange[1],
+  );
+
+  const topCurvePixelYExport = gridTop + ((yRange[1] - maxY) / ((yRange[1] - yRange[0]) || 1)) * yPixelRange;
+
+  for (const pl of visiblePointLabels) {
+    const px = convertXToPixel(pl.x, xRange, chartWidth, gridLeft, gridRight) * pixelRatio;
+    const py = (topCurvePixelYExport + pl.yOffset) * pixelRatio;
+    const curveY = topCurvePixelYExport * pixelRatio;
+
+    const lineEl = document.createElementNS(ns, 'line');
+    lineEl.setAttribute('x1', String(px));
+    lineEl.setAttribute('y1', String(py + 8 * pixelRatio));
+    lineEl.setAttribute('x2', String(px));
+    lineEl.setAttribute('y2', String(curveY));
+    lineEl.setAttribute('stroke', '#555');
+    lineEl.setAttribute('stroke-width', String(1 * pixelRatio));
+    lineEl.setAttribute('stroke-dasharray', `${3 * pixelRatio} ${2 * pixelRatio}`);
+    svgEl.appendChild(lineEl);
+
+    const dotEl = document.createElementNS(ns, 'circle');
+    dotEl.setAttribute('cx', String(px));
+    dotEl.setAttribute('cy', String(curveY));
+    dotEl.setAttribute('r', String(3 * pixelRatio));
+    dotEl.setAttribute('fill', '#555');
+    svgEl.appendChild(dotEl);
+
+    const labelW = 60 * pixelRatio;
+    const labelH = 18 * pixelRatio;
+    const rectEl = document.createElementNS(ns, 'rect');
+    rectEl.setAttribute('x', String(px - labelW / 2));
+    rectEl.setAttribute('y', String(py - 10 * pixelRatio));
+    rectEl.setAttribute('width', String(labelW));
+    rectEl.setAttribute('height', String(labelH));
+    rectEl.setAttribute('rx', String(3 * pixelRatio));
+    rectEl.setAttribute('fill', 'white');
+    rectEl.setAttribute('stroke', '#ccc');
+    rectEl.setAttribute('stroke-width', String(1 * pixelRatio));
+    svgEl.appendChild(rectEl);
+
+    const textEl = document.createElementNS(ns, 'text');
+    textEl.setAttribute('x', String(px));
+    textEl.setAttribute('y', String(py + 3 * pixelRatio));
+    textEl.setAttribute('font-size', String(10 * pixelRatio));
+    textEl.setAttribute('fill', '#333');
+    textEl.setAttribute('text-anchor', 'middle');
+    textEl.textContent = pl.label || '未命名';
     svgEl.appendChild(textEl);
   }
 
