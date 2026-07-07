@@ -1,6 +1,7 @@
-import { getChartInstance, LABEL_PADDING_RATIO } from './WaterfallChart';
+import { getChartInstance } from './WaterfallChart';
 import { useCurveStore, useUiStore } from '@/store';
 import { bracePath, BRACE_COLOR } from './bracePath';
+import { computeYAxisRange } from './computeYAxisRange';
 
 /**
  * Local reimplementation of WaterfallChart's convertXToPixel.
@@ -90,27 +91,13 @@ export async function exportChartImage(): Promise<void> {
     `0 0 ${canvas.width} ${canvas.height}`,
   );
 
-  // Calculate maxY deterministically using the same fixed-point formula
-  // as WaterfallChart: yRange = rawDataMax / (1 - (n-1) × layerSpacing).
-  // This is stable and does NOT depend on ECharts auto-scale.
-  const visibleCount = visibleIds.length;
-  let rawDataMax = -Infinity;
-  for (const id of visibleIds) {
-    const curve = state.curves[id];
-    const offset = state.offsets[id] ?? { xOffset: 0, yOffset: 0 };
-    for (const [x, yVal] of curve.data) {
-      if (x + offset.xOffset >= xRange[0] && x + offset.xOffset <= xRange[1]) {
-        const adjusted = yVal + offset.yOffset;
-        if (adjusted > rawDataMax) rawDataMax = adjusted;
-      }
-    }
-  }
-  if (!isFinite(rawDataMax) || rawDataMax <= 0) rawDataMax = 1;
-  const spacingBudget = (visibleCount - 1) * state.layerSpacing;
-  // Match WaterfallChart: include label padding so maxY reflects the reserved
-  // top region, not just the curve peak.
-  const maxY = (spacingBudget >= 1 ? rawDataMax * 10 : rawDataMax / (1 - spacingBudget))
-    * (1 + LABEL_PADDING_RATIO);
+  const { maxY } = computeYAxisRange(
+    visibleIds,
+    state.curves,
+    state.offsets,
+    xRange,
+    state.layerSpacing,
+  );
 
   const gridBottom = 60;
   const yPixelRange = chartHeight - gridTop - gridBottom;
