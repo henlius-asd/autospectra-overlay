@@ -124,10 +124,8 @@ export default function WaterfallChart() {
 
     const visibleCount = visibleIds.length;
 
-    // ── Compute explicit Y-axis bounds using fixed-point formula ──
-    // We want: layerYOffset = layerIndex × layerSpacing × yRange
-    // AND:     yRange = rawDataMax + (visibleCount-1) × layerSpacing × yRange
-    // Solving: yRange = rawDataMax / (1 - (visibleCount-1) × layerSpacing)
+    // ── Compute explicit Y-axis bounds ──
+    // Delegates to computeYAxisRange (see that module for formula derivation).
     // This gives a STABLE, deterministic yRange that does NOT depend on
     // ECharts auto-scale, breaking the positive-feedback loop.
     const { yRangeForLayer, yAxisMin, yAxisMax } = computeYAxisRange(
