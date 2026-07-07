@@ -1,5 +1,6 @@
 import localforage from 'localforage';
 import { useCurveStore } from '@/store';
+import { useUiStore } from '@/store';
 
 // Initialize localForage instance
 const persistenceStore = localforage.createInstance({
@@ -8,6 +9,7 @@ const persistenceStore = localforage.createInstance({
 });
 
 const PERSISTENCE_KEY = 'current_workspace';
+const UI_PERSISTENCE_KEY = 'current_ui';
 
 // Debounce timer
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
@@ -33,6 +35,11 @@ function saveWorkspace() {
     };
     persistenceStore.setItem(PERSISTENCE_KEY, snapshot).catch((err) => {
       console.warn('Failed to persist workspace:', err);
+    });
+    const uiState = useUiStore.getState();
+    const uiSnapshot = { showGrid: uiState.showGrid, showAxes: uiState.showAxes };
+    persistenceStore.setItem(UI_PERSISTENCE_KEY, uiSnapshot).catch((err) => {
+      console.warn('Failed to persist UI state:', err);
     });
   }, 500);
 }
@@ -71,6 +78,10 @@ export async function restoreWorkspace(): Promise<boolean> {
         visibleCurves: snapshot.visibleCurves ?? {},
         layerSpacing,
       });
+      const uiSnapshot = await persistenceStore.getItem<{ showGrid?: boolean; showAxes?: boolean }>(UI_PERSISTENCE_KEY);
+      if (uiSnapshot) {
+        useUiStore.setState({ showGrid: uiSnapshot.showGrid ?? true, showAxes: uiSnapshot.showAxes ?? true });
+      }
       return true;
     }
   } catch (err) {
@@ -83,8 +94,9 @@ export async function restoreWorkspace(): Promise<boolean> {
  * Initialize auto-save: subscribe to curveStore changes and persist to IndexedDB.
  */
 export function initPersistence() {
-  useCurveStore.subscribe(() => {
-    saveWorkspace();
+  useCurveStore.subscribe(() => { saveWorkspace(); });
+  useUiStore.subscribe((state, prev) => {
+    if (state.showGrid !== prev.showGrid || state.showAxes !== prev.showAxes) { saveWorkspace(); }
   });
 }
 
