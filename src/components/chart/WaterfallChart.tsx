@@ -3,6 +3,7 @@ import ReactECharts from 'echarts-for-react';
 import { useCurveStore, useUiStore } from '@/store';
 import { CURVE_COLORS } from '@/lib/colors';
 import BraceOverlay from './BraceOverlay';
+import PointLabelOverlay from './PointLabelOverlay';
 import type { EChartsOption } from 'echarts';
 import type { EChartsInstance } from 'echarts-for-react';
 
@@ -265,6 +266,8 @@ export default function WaterfallChart() {
     convertYToPixel(maxY) - 18,
   );
 
+  const topCurvePixelY = convertYToPixel(maxY);
+
   return (
     <div className="relative w-full h-full">
       <ReactECharts
@@ -282,6 +285,15 @@ export default function WaterfallChart() {
         xRange={xRange}
         gridTop={visibleIds.length > 1 ? 50 : 20}
         braceY={braceY}
+      />
+      <PointLabelOverlay
+        width={chartInstance?.getWidth() ?? 800}
+        height={chartInstance?.getHeight() ?? 600}
+        convertXToPixel={convertXToPixel}
+        convertPixelToX={convertPixelToX}
+        xRange={xRange}
+        topCurvePixelY={topCurvePixelY}
+        gridTop={visibleIds.length > 1 ? 50 : 20}
       />
       <div className="absolute top-1/2 right-1 -translate-y-1/2 flex flex-col items-center gap-1.5 pointer-events-none">
         <span className="text-[10px] text-gray-500 font-mono tabular-nums">
