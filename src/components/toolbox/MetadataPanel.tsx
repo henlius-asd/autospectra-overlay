@@ -17,7 +17,7 @@ export default function MetadataPanel() {
       ) : (
         <div className="flex flex-col gap-1">
           <p className="text-xs text-gray-500 mb-1">
-            曲线: {selectedCurve.displayName || selectedCurve.name}
+            曲线: {selectedCurve.displayName || selectedCurve.name || metadata?.fileName}
           </p>
           <div className="max-h-40 overflow-y-auto">
             {Object.entries(metadata).map(([key, value]) => (

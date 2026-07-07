@@ -1,6 +1,5 @@
 import { useUiStore } from '@/store';
 import MetadataPanel from '@/components/toolbox/MetadataPanel';
-import AutoLayerControl from '@/components/toolbox/AutoLayerControl';
 import AlignmentControls from '@/components/toolbox/AlignmentControls';
 
 export default function RightPanel() {
@@ -31,8 +30,6 @@ export default function RightPanel() {
           <MetadataPanel />
           <div className="border-t border-gray-200" />
           <AlignmentControls />
-          <div className="border-t border-gray-200" />
-          <AutoLayerControl />
         </div>
       )}
     </div>

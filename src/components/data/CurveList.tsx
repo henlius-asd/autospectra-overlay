@@ -1,13 +1,8 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useCurveStore, useUiStore } from '@/store';
+import { CURVE_COLORS } from '@/lib/colors';
 import ContextMenu from './ContextMenu';
-
-const CURVE_COLORS = [
-  '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728',
-  '#9467bd', '#8c564b', '#e377c2', '#7f7f7f',
-  '#bcbd22', '#17becf',
-];
-
+  
 interface CurveListProps {
   visibleCurves: Record<string, boolean>;
   errors: { name: string; error: string }[];
@@ -149,10 +144,10 @@ export default function CurveList({
     [selectedCurveId, setSelectedCurveId],
   );
 
-  // Get display name for a curve
+  // Get display name for a curve: displayName → name (SampleName) → fileName
   const getDisplayName = (id: string): string => {
     const c = curves[id];
-    return c?.displayName || c?.name || '';
+    return c?.displayName || c?.name || c?.metadata?.fileName || '';
   };
 
   // Render a single curve row
@@ -160,7 +155,6 @@ export default function CurveList({
     const curve = curves[id];
     if (!curve) return null;
     const isVisible = !!visibleCurves[id];
-    const isBaseline = id === baselineId;
     const isSelected = id === selectedCurveId;
 
     return (
@@ -186,13 +180,19 @@ export default function CurveList({
           onChange={() => onToggleVisibility(id)}
           className="w-3.5 h-3.5 rounded border-gray-300 text-blue-500 focus:ring-blue-400 flex-shrink-0"
         />
-        {isBaseline && (
-          <span className="text-yellow-500 text-sm flex-shrink-0" title="当前基准线">★</span>
-        )}
-        <span
-          className="w-3 h-3 rounded-full flex-shrink-0"
-          style={{ backgroundColor: CURVE_COLORS[id.split('').reduce((sum, c) => sum + c.charCodeAt(0), 0) % CURVE_COLORS.length] }}
-        />
+        {(() => {
+          const visibleIds = stagingOrder.filter((sid) => visibleCurves[sid]);
+          const visibleIndex = visibleIds.indexOf(id);
+          const color = visibleIndex >= 0
+            ? CURVE_COLORS[visibleIndex % CURVE_COLORS.length]
+            : '#ccc';
+          return (
+            <span
+              className="w-3 h-3 rounded-full flex-shrink-0"
+              style={{ backgroundColor: color }}
+            />
+          );
+        })()}
         {editingId === id ? (
           <input
             type="text"
@@ -216,9 +216,6 @@ export default function CurveList({
             {getDisplayName(id)}
           </span>
         )}
-        <span className="text-gray-400 text-xs flex-shrink-0">
-          {curve.data.length.toLocaleString()} 点
-        </span>
         <button
           onClick={(e) => {
             e.stopPropagation();

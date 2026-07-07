@@ -1,12 +1,18 @@
 import { useCurveStore } from '@/store';
 import { useUiStore } from '@/store';
-import { getChartInstance } from '@/components/chart/WaterfallChart';
+import { exportChartImage } from '@/components/chart/exportImage';
 
 export default function Toolbar() {
   const temporal = useCurveStore.temporal;
   const curves = useCurveStore((s) => s.curves);
   const bracePlacementMode = useUiStore((s) => s.bracePlacementMode);
   const setBracePlacementMode = useUiStore((s) => s.setBracePlacementMode);
+  const pointLabelPlacementMode = useUiStore((s) => s.pointLabelPlacementMode);
+  const setPointLabelPlacementMode = useUiStore((s) => s.setPointLabelPlacementMode);
+  const showGrid = useUiStore((s) => s.showGrid);
+  const showAxes = useUiStore((s) => s.showAxes);
+  const toggleShowGrid = useUiStore((s) => s.toggleShowGrid);
+  const toggleShowAxes = useUiStore((s) => s.toggleShowAxes);
 
   const hasCurves = Object.keys(curves).length > 0;
 
@@ -27,26 +33,33 @@ export default function Toolbar() {
   };
 
   const handleToggleBraceMode = () => {
-    setBracePlacementMode(!bracePlacementMode);
+    if (!bracePlacementMode) {
+      setPointLabelPlacementMode(false);
+      setBracePlacementMode(true);
+    } else {
+      setBracePlacementMode(false);
+    }
   };
 
-  const handleExportPNG = () => {
-    const instance = getChartInstance();
-    if (instance) {
-      const url = instance.getDataURL({ type: 'png', pixelRatio: 2, backgroundColor: '#fff' });
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'chromatogram.png';
-      a.click();
+  const handleTogglePointLabelMode = () => {
+    if (!pointLabelPlacementMode) {
+      setBracePlacementMode(false);
+      setPointLabelPlacementMode(true);
     } else {
-      alert('图表尚未渲染');
+      setPointLabelPlacementMode(false);
     }
+  };
+
+  const handleExportImage = () => {
+    exportChartImage().catch(() => {
+      alert('导出图片失败');
+    });
   };
 
   const handleExportJSON = () => {
     const state = useCurveStore.getState();
     const blob = new Blob(
-      [JSON.stringify({ curves: state.curves, offsets: state.offsets, baselineId: state.baselineId, braces: state.braces, stagingOrder: state.stagingOrder, visibleCurves: state.visibleCurves, layerSpacing: state.layerSpacing }, null, 2)],
+      [JSON.stringify({ curves: state.curves, offsets: state.offsets, baselineId: state.baselineId, braces: state.braces, stagingOrder: state.stagingOrder, visibleCurves: state.visibleCurves, layerSpacing: state.layerSpacing, pointLabels: state.pointLabels }, null, 2)],
       { type: 'application/json' },
     );
     const url = URL.createObjectURL(blob);
@@ -76,6 +89,7 @@ export default function Toolbar() {
             stagingOrder: data.stagingOrder ?? [],
             visibleCurves: data.visibleCurves ?? {},
             layerSpacing: data.layerSpacing ?? 0,
+            pointLabels: data.pointLabels ?? [],
           });
         } catch {
           alert('工作区文件解析失败');
@@ -111,17 +125,49 @@ export default function Toolbar() {
             ? 'bg-blue-500 text-white'
             : 'hover:bg-gray-200 text-gray-600'
         } disabled:text-gray-300 disabled:cursor-not-allowed`}
-        title={bracePlacementMode ? '点击取消大括号放置模式' : '插入大括号：点击图表两端放置'}
+        title={bracePlacementMode ? '点击取消区间标签放置模式' : '插入区间标签：拖拽图表区域选择区间'}
       >
-        {bracePlacementMode ? '放置中...' : '大括号'}
+        {bracePlacementMode ? '放置中...' : '区间标签'}
+      </button>
+      <button
+        onClick={handleTogglePointLabelMode}
+        disabled={!hasCurves}
+        className={`text-xs px-2 py-1 rounded ${
+          pointLabelPlacementMode
+            ? 'bg-blue-500 text-white'
+            : 'hover:bg-gray-200 text-gray-600'
+        } disabled:text-gray-300 disabled:cursor-not-allowed`}
+        title={pointLabelPlacementMode ? '点击取消点标签放置模式' : '插入点标签：点击图表放置'}
+      >
+        {pointLabelPlacementMode ? '放置中...' : '点标签'}
       </button>
       <div className="w-px h-5 bg-gray-300" />
       <button
-        onClick={handleExportPNG}
+        onClick={toggleShowGrid}
+        className={`text-xs px-2 py-1 rounded ${
+          showGrid ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-200 text-gray-400'
+        }`}
+        title={showGrid ? '隐藏网格' : '显示网格'}
+      >
+        网格
+      </button>
+      <button
+        onClick={toggleShowAxes}
+        className={`text-xs px-2 py-1 rounded ${
+          showAxes ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-200 text-gray-400'
+        }`}
+        title={showAxes ? '隐藏坐标轴' : '显示坐标轴'}
+      >
+        坐标轴
+      </button>
+      <div className="w-px h-5 bg-gray-300" />
+      <button
+        onClick={handleExportImage}
         className="text-xs px-2 py-1 rounded hover:bg-gray-200 text-gray-600"
         disabled={!hasCurves}
+        title="导出当前渲染图层为 PNG"
       >
-        截图
+        导出图片
       </button>
       <button
         onClick={handleExportJSON}

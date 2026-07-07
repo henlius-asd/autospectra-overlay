@@ -18,3 +18,42 @@ body {
 #root {
   min-height: 100vh;
 }
+
+/* Custom vertical layer-spacing slider */
+.layer-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  writing-mode: vertical-lr;
+  direction: rtl;
+  background: transparent;
+  cursor: pointer;
+}
+.layer-slider::-webkit-slider-runnable-track {
+  width: 4px;
+  background: #e2e8f0;
+  border-radius: 2px;
+}
+.layer-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #3b82f6;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  margin-left: -5px;
+}
+.layer-slider::-moz-range-track {
+  width: 4px;
+  background: #e2e8f0;
+  border-radius: 2px;
+}
+.layer-slider::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: #3b82f6;
+  border: 2px solid #fff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+}

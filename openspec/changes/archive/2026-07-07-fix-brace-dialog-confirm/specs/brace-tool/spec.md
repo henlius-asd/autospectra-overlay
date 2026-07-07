@@ -1,9 +1,4 @@
-# brace-tool Specification
-
-## Purpose
-区间标签标注工具（原"大括号"工具）。通过工具栏按钮触发放置模式，在图表上拖拽选择区间创建区间标签，支持标签编辑和 dataZoom 联动。
-
-## ADDED Requirements
+## MODIFIED Requirements
 
 ### Requirement: 大括号插入工具按钮
 
@@ -33,26 +28,3 @@
 
 - **WHEN** 图表中没有曲线数据
 - **THEN** "插入区间标签"按钮显示为禁用状态
-
-### Requirement: 大括号点击编辑
-
-已创建的区间标签 SHALL 支持点击后编辑标签文字或删除。
-
-#### Scenario: 点击区间标签编辑标签
-
-- **WHEN** 用户点击已有区间标签的标签文字
-- **THEN** 弹出编辑对话框，显示当前标签文字，用户可修改或删除
-
-#### Scenario: 删除区间标签
-
-- **WHEN** 用户在编辑对话框中点击删除
-- **THEN** 该区间标签从 store 中移除，图表中不再显示
-
-### Requirement: 大括号随 dataZoom 联动
-
-区间标签 SHALL 在 dataZoom 缩放/平移时保持与曲线的相对位置不变。区间标签的像素坐标 SHALL 通过 ECharts `convertToPixel` API 实时计算。
-
-#### Scenario: 缩放时区间标签位置同步
-
-- **WHEN** 用户通过 dataZoom 缩放图表
-- **THEN** 区间标签的像素位置随缩放比例同步更新，与曲线无可见脱节（视觉误差 < 2px）
