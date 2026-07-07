@@ -49,6 +49,8 @@ export default function WaterfallChart() {
   const xRange = useUiStore((s) => s.xRange);
   const yRange = useUiStore((s) => s.yRange);
   const bracePlacementMode = useUiStore((s) => s.bracePlacementMode);
+  const showGrid = useUiStore((s) => s.showGrid);
+  const showAxes = useUiStore((s) => s.showAxes);
 
   // visibleIds follows stagingOrder (only IDs that are in stagingOrder AND visible)
   // visibleIds[0] = top of list = top of chart; visibleIds[last] = bottom (baseline)
@@ -175,17 +177,27 @@ export default function WaterfallChart() {
       },
       xAxis: {
         type: 'value',
-        name: '时间',
+        show: showAxes,
+        name: showAxes ? '时间' : '',
         nameLocation: 'center',
         nameGap: 35,
         min: xMin,
         max: xMax,
+        axisLine: { show: showAxes },
+        axisTick: { show: showAxes },
+        axisLabel: { show: showAxes },
+        splitLine: { show: showGrid },
       },
       yAxis: {
         type: 'value',
-        name: '强度',
+        show: showAxes,
+        name: showAxes ? '强度' : '',
         nameLocation: 'center',
         nameGap: 45,
+        axisLine: { show: showAxes },
+        axisTick: { show: showAxes },
+        axisLabel: { show: showAxes },
+        splitLine: { show: showGrid },
       },
       dataZoom: bracePlacementMode
         ? [{ type: 'slider', xAxisIndex: 0, bottom: 10 }]
@@ -197,7 +209,7 @@ export default function WaterfallChart() {
       series,
       animation: false,
     };
-  }, [curves, offsets, visibleCurves, layerSpacing, stagingOrder, visibleIds, yRange, bracePlacementMode]);
+  }, [curves, offsets, visibleCurves, layerSpacing, stagingOrder, visibleIds, yRange, bracePlacementMode, showGrid, showAxes]);
 
   const convertXToPixel = (xVal: number): number => {
     if (!chartInstance) return 0;
@@ -236,19 +248,18 @@ export default function WaterfallChart() {
         xRange={xRange}
         gridTop={visibleIds.length > 1 ? 50 : 20}
       />
-      <div className="absolute top-1/2 right-0 -translate-y-1/2 flex flex-col items-center gap-1 pointer-events-none">
-        <span className="text-[10px] text-gray-500 font-mono">
-          {layerSpacing.toFixed(2)}
+      <div className="absolute top-1/2 right-1 -translate-y-1/2 flex flex-col items-center gap-1.5 pointer-events-none">
+        <span className="text-[10px] text-gray-500 font-mono tabular-nums">
+          {layerSpacing.toFixed(3)}
         </span>
         <input
           type="range"
-          min={-0.5}
+          min={0}
           max={0.5}
-          step={0.01}
+          step={0.001}
           value={layerSpacing}
           onChange={(e) => setLayerSpacing(parseFloat(e.target.value))}
-          className="h-3/5 w-3 pointer-events-auto"
-          style={{ writingMode: 'vertical-lr', direction: 'rtl', accentColor: '#3b82f6' }}
+          className="layer-slider h-3/5 w-3 pointer-events-auto"
           title="Y 轴层间距（占可见范围比例）"
         />
       </div>
