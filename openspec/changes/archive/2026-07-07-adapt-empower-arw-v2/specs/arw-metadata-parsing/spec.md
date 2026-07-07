@@ -1,8 +1,5 @@
-# arw-metadata-parsing Specification
+## MODIFIED Requirements
 
-## Purpose
-Waters Empower ARW 文件元数据键值对解析。
-## Requirements
 ### Requirement: ARW metadata key-value parsing
 The system SHALL parse Waters Empower ARW V1 file metadata lines in `"Key"\t"Value"` format and store them as a structured `Record<string, string>` dictionary. For ARW V2 files (无引号、行串联式元数据)，系统 SHALL 走独立的 `parseEmpowerV2` 分支，不经过 `detectFormat.extractMetadata`；V2 元数据重组规则见 `arw-v2-parsing` capability。两条分支最终都写入 `ParsedFile.metadata`，下游消费方无需感知版本差异。
 
@@ -21,4 +18,3 @@ The system SHALL parse Waters Empower ARW V1 file metadata lines in `"Key"\t"Val
 #### Scenario: ARW V2 file metadata
 - **WHEN** an ARW file is identified as V2 (see `arw-v2-parsing` for识别规则)
 - **THEN** metadata is parsed by `parseEmpowerV2` using the 7-key ordered重组算法, including the additional `SamplingInterval` key; V1 `extractMetadata` is not invoked for this file
-

@@ -1,8 +1,5 @@
-# robust-data-detection Specification
+## MODIFIED Requirements
 
-## Purpose
-鲁棒的数据起始行检测，支持任意长度的元数据头部。
-## Requirements
 ### Requirement: Data start line detection beyond 5-line sample window
 The system SHALL search the entire file to locate the first numeric data line, rather than limiting the search to a fixed 5-line sample window. When the file is identified as ARW V2 at `parseFileContent` entry, the system SHALL skip the generic `findDataStartLine` path entirely and use the V2-specific data-start detection defined in `arw-v2-parsing` (first line matching the two-column numeric pattern after the metadata block).
 
@@ -43,4 +40,3 @@ The system SHALL strip surrounding double quotes from metadata keys and values b
 #### Scenario: Unquoted value preserved
 - **WHEN** a metadata value is already unquoted (e.g., `au`)
 - **THEN** the value is stored as-is
-
