@@ -231,6 +231,40 @@ export default function WaterfallChart() {
     return xRange[0] + ((px - gridLeft) / (chartWidth - gridLeft - gridRight)) * range;
   };
 
+  const convertYToPixel = (yVal: number): number => {
+    if (!chartInstance) return 0;
+    const option = chartInstance.getOption() as Record<string, unknown>;
+    const grid = (option.grid as { top?: number; bottom?: number }[])?.[0];
+    const gridTop = typeof grid?.top === 'number' ? grid.top : (visibleIds.length > 1 ? 50 : 20);
+    const gridBottom = typeof grid?.bottom === 'number' ? grid.bottom : 60;
+    const chartHeight = chartInstance.getHeight();
+    const range = yRange[1] - yRange[0] || 1;
+    return gridTop + ((yRange[1] - yVal) / range) * (chartHeight - gridTop - gridBottom);
+  };
+
+  const maxY = useMemo(() => {
+    let max = -Infinity;
+    for (let vi = 0; vi < visibleIds.length; vi++) {
+      const id = visibleIds[vi];
+      const curve = curves[id];
+      const offset = offsets[id] ?? { xOffset: 0, yOffset: 0 };
+      const layerIndex = visibleIds.length - 1 - vi;
+      const layerYOffset = layerIndex * layerSpacing * ((yRange[1] - yRange[0]) || 1);
+      for (const [x, yVal] of curve.data) {
+        if (x + offset.xOffset >= xRange[0] && x + offset.xOffset <= xRange[1]) {
+          const rendered = yVal + layerYOffset + offset.yOffset;
+          if (rendered > max) max = rendered;
+        }
+      }
+    }
+    return isFinite(max) ? max : yRange[1];
+  }, [curves, offsets, visibleIds, layerSpacing, yRange, xRange]);
+
+  const braceY = Math.max(
+    (visibleIds.length > 1 ? 50 : 20) + 5,
+    convertYToPixel(maxY) - 18,
+  );
+
   return (
     <div className="relative w-full h-full">
       <ReactECharts
@@ -247,6 +281,7 @@ export default function WaterfallChart() {
         convertPixelToX={convertPixelToX}
         xRange={xRange}
         gridTop={visibleIds.length > 1 ? 50 : 20}
+        braceY={braceY}
       />
       <div className="absolute top-1/2 right-1 -translate-y-1/2 flex flex-col items-center gap-1.5 pointer-events-none">
         <span className="text-[10px] text-gray-500 font-mono tabular-nums">
