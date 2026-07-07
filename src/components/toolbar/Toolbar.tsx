@@ -7,6 +7,8 @@ export default function Toolbar() {
   const curves = useCurveStore((s) => s.curves);
   const bracePlacementMode = useUiStore((s) => s.bracePlacementMode);
   const setBracePlacementMode = useUiStore((s) => s.setBracePlacementMode);
+  const pointLabelPlacementMode = useUiStore((s) => s.pointLabelPlacementMode);
+  const setPointLabelPlacementMode = useUiStore((s) => s.setPointLabelPlacementMode);
   const showGrid = useUiStore((s) => s.showGrid);
   const showAxes = useUiStore((s) => s.showAxes);
   const toggleShowGrid = useUiStore((s) => s.toggleShowGrid);
@@ -31,7 +33,21 @@ export default function Toolbar() {
   };
 
   const handleToggleBraceMode = () => {
-    setBracePlacementMode(!bracePlacementMode);
+    if (!bracePlacementMode) {
+      setPointLabelPlacementMode(false);
+      setBracePlacementMode(true);
+    } else {
+      setBracePlacementMode(false);
+    }
+  };
+
+  const handleTogglePointLabelMode = () => {
+    if (!pointLabelPlacementMode) {
+      setBracePlacementMode(false);
+      setPointLabelPlacementMode(true);
+    } else {
+      setPointLabelPlacementMode(false);
+    }
   };
 
   const handleExportImage = () => {
@@ -112,6 +128,18 @@ export default function Toolbar() {
         title={bracePlacementMode ? '点击取消大括号放置模式' : '插入大括号：拖拽图表区域选择区间'}
       >
         {bracePlacementMode ? '放置中...' : '大括号'}
+      </button>
+      <button
+        onClick={handleTogglePointLabelMode}
+        disabled={!hasCurves}
+        className={`text-xs px-2 py-1 rounded ${
+          pointLabelPlacementMode
+            ? 'bg-blue-500 text-white'
+            : 'hover:bg-gray-200 text-gray-600'
+        } disabled:text-gray-300 disabled:cursor-not-allowed`}
+        title={pointLabelPlacementMode ? '点击取消点标签放置模式' : '插入点标签：点击图表放置'}
+      >
+        {pointLabelPlacementMode ? '放置中...' : '点标签'}
       </button>
       <div className="w-px h-5 bg-gray-300" />
       <button
