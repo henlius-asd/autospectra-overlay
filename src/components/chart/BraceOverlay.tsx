@@ -153,83 +153,86 @@ export default function BraceOverlay({
     : width / 2 - 100;
 
   return (
-    <div className="absolute top-0 left-0 w-full h-full" style={{ pointerEvents: 'none' }}>
-      <svg
-        ref={svgRef}
-        width={width}
-        height={height}
-        className="absolute top-0 left-0"
-        style={{
-          cursor: bracePlacementMode ? 'crosshair' : 'default',
-          pointerEvents: bracePlacementMode ? 'auto' : 'none',
-        }}
-        onPointerDown={handlePointerDown}
-        onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-      >
-        {/* Render existing braces */}
-        {visibleBraces.map((brace) => {
-          const px1 = convertXToPixel(brace.startX);
-          const px2 = convertXToPixel(brace.endX);
-          return (
-            <g
-              key={brace.id}
-              style={{ pointerEvents: 'auto', cursor: 'pointer' }}
-              onPointerDown={(e) => e.stopPropagation()}
-            >
+    <>
+      {/* SVG overlay — wrapper has pointerEvents:none so dataZoom slider is not blocked */}
+      <div className="absolute top-0 left-0 w-full h-full" style={{ pointerEvents: 'none' }}>
+        <svg
+          ref={svgRef}
+          width={width}
+          height={height}
+          className="absolute top-0 left-0"
+          style={{
+            cursor: bracePlacementMode ? 'crosshair' : 'default',
+            pointerEvents: bracePlacementMode ? 'auto' : 'none',
+          }}
+          onPointerDown={handlePointerDown}
+          onPointerMove={handlePointerMove}
+          onPointerUp={handlePointerUp}
+        >
+          {/* Render existing braces */}
+          {visibleBraces.map((brace) => {
+            const px1 = convertXToPixel(brace.startX);
+            const px2 = convertXToPixel(brace.endX);
+            return (
+              <g
+                key={brace.id}
+                style={{ pointerEvents: 'auto', cursor: 'pointer' }}
+                onPointerDown={(e) => e.stopPropagation()}
+              >
+                <path
+                  d={bracePath(px1, px2, y)}
+                  fill="none"
+                  stroke={BRACE_COLOR}
+                  strokeWidth={2}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleBraceClick(brace);
+                  }}
+                />
+                <text
+                  x={(px1 + px2) / 2}
+                  y={y - 10}
+                  textAnchor="middle"
+                  fontSize={11}
+                  fill={BRACE_COLOR}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleBraceClick(brace);
+                  }}
+                >
+                  {brace.label || '未命名'}
+                </text>
+              </g>
+            );
+          })}
+
+          {/* Drag preview */}
+          {dragStart !== null && previewLeft !== null && previewRight !== null && (
+            <g pointerEvents="none">
+              <rect
+                x={previewLeft}
+                y={0}
+                width={previewRight - previewLeft}
+                height={height}
+                fill={BRACE_COLOR}
+                fillOpacity={0.08}
+                stroke={BRACE_COLOR}
+                strokeWidth={1}
+                strokeDasharray="4 2"
+              />
               <path
-                d={bracePath(px1, px2, y)}
+                d={bracePath(previewLeft, previewRight, y)}
                 fill="none"
                 stroke={BRACE_COLOR}
                 strokeWidth={2}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleBraceClick(brace);
-                }}
+                strokeDasharray="4 2"
               />
-              <text
-                x={(px1 + px2) / 2}
-                y={y - 10}
-                textAnchor="middle"
-                fontSize={11}
-                fill={BRACE_COLOR}
-                onClick={(e) => {
-                  e.stopPropagation();
-                  handleBraceClick(brace);
-                }}
-              >
-                {brace.label || '未命名'}
-              </text>
             </g>
-          );
-        })}
+          )}
+        </svg>
+      </div>
 
-        {/* Drag preview */}
-        {dragStart !== null && previewLeft !== null && previewRight !== null && (
-          <g pointerEvents="none">
-            <rect
-              x={previewLeft}
-              y={0}
-              width={previewRight - previewLeft}
-              height={height}
-              fill={BRACE_COLOR}
-              fillOpacity={0.08}
-              stroke={BRACE_COLOR}
-              strokeWidth={1}
-              strokeDasharray="4 2"
-            />
-            <path
-              d={bracePath(previewLeft, previewRight, y)}
-              fill="none"
-              stroke={BRACE_COLOR}
-              strokeWidth={2}
-              strokeDasharray="4 2"
-            />
-          </g>
-        )}
-      </svg>
-
-      {/* Label editing dialog — HTML floating layer */}
+      {/* Label editing dialog — rendered OUTSIDE pointerEvents:none wrapper */}
       {editingBrace && (
         <div
           className="absolute bg-white border border-gray-200 rounded-lg shadow-xl p-3 flex flex-col gap-2 z-50"
@@ -278,6 +281,6 @@ export default function BraceOverlay({
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
