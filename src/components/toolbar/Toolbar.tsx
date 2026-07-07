@@ -7,6 +7,10 @@ export default function Toolbar() {
   const curves = useCurveStore((s) => s.curves);
   const bracePlacementMode = useUiStore((s) => s.bracePlacementMode);
   const setBracePlacementMode = useUiStore((s) => s.setBracePlacementMode);
+  const showGrid = useUiStore((s) => s.showGrid);
+  const showAxes = useUiStore((s) => s.showAxes);
+  const toggleShowGrid = useUiStore((s) => s.toggleShowGrid);
+  const toggleShowAxes = useUiStore((s) => s.toggleShowAxes);
 
   const hasCurves = Object.keys(curves).length > 0;
 
@@ -107,6 +111,25 @@ export default function Toolbar() {
         title={bracePlacementMode ? '点击取消大括号放置模式' : '插入大括号：拖拽图表区域选择区间'}
       >
         {bracePlacementMode ? '放置中...' : '大括号'}
+      </button>
+      <div className="w-px h-5 bg-gray-300" />
+      <button
+        onClick={toggleShowGrid}
+        className={`text-xs px-2 py-1 rounded ${
+          showGrid ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-200 text-gray-400'
+        }`}
+        title={showGrid ? '隐藏网格' : '显示网格'}
+      >
+        网格
+      </button>
+      <button
+        onClick={toggleShowAxes}
+        className={`text-xs px-2 py-1 rounded ${
+          showAxes ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-200 text-gray-400'
+        }`}
+        title={showAxes ? '隐藏坐标轴' : '显示坐标轴'}
+      >
+        坐标轴
       </button>
       <div className="w-px h-5 bg-gray-300" />
       <button
