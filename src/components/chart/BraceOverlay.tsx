@@ -153,7 +153,7 @@ export default function BraceOverlay({
     : width / 2 - 100;
 
   return (
-    <div className="absolute top-0 left-0 w-full h-full">
+    <div className="absolute top-0 left-0 w-full h-full" style={{ pointerEvents: 'none' }}>
       <svg
         ref={svgRef}
         width={width}

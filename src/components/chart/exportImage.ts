@@ -56,7 +56,14 @@ export async function exportChartImage(): Promise<void> {
   const state = useCurveStore.getState();
   const { braces, visibleCurves, stagingOrder } = state;
   const xRange = useUiStore.getState().xRange;
-  const yRange = useUiStore.getState().yRange;
+
+  // Read Y-axis extent from ECharts model (not stale store)
+  const chart = instance as any;
+  const yExtent = chart.getModel()?.getComponent?.('yAxis', 0)?.axis?.scale?.getExtent?.();
+  const yRange: [number, number] = yExtent?.length === 2
+    ? [yExtent[0] as number, yExtent[1] as number]
+    : useUiStore.getState().yRange;
+
   const visibleIds = stagingOrder.filter((id) => visibleCurves[id]);
   const visibleBraces = braces.filter(
     (b) => b.startX <= xRange[1] && b.endX >= xRange[0],

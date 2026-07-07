@@ -125,9 +125,9 @@ export default function Toolbar() {
             ? 'bg-blue-500 text-white'
             : 'hover:bg-gray-200 text-gray-600'
         } disabled:text-gray-300 disabled:cursor-not-allowed`}
-        title={bracePlacementMode ? '点击取消大括号放置模式' : '插入大括号：拖拽图表区域选择区间'}
+        title={bracePlacementMode ? '点击取消区间标签放置模式' : '插入区间标签：拖拽图表区域选择区间'}
       >
-        {bracePlacementMode ? '放置中...' : '大括号'}
+        {bracePlacementMode ? '放置中...' : '区间标签'}
       </button>
       <button
         onClick={handleTogglePointLabelMode}

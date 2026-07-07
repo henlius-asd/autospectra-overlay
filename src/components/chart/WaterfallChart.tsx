@@ -234,13 +234,15 @@ export default function WaterfallChart() {
 
   const convertYToPixel = (yVal: number): number => {
     if (!chartInstance) return 0;
+    const yExtent = getYAxisExtent();
+    if (!yExtent) return 0;
     const option = chartInstance.getOption() as Record<string, unknown>;
     const grid = (option.grid as { top?: number; bottom?: number }[])?.[0];
     const gridTop = typeof grid?.top === 'number' ? grid.top : (visibleIds.length > 1 ? 50 : 20);
     const gridBottom = typeof grid?.bottom === 'number' ? grid.bottom : 60;
     const chartHeight = chartInstance.getHeight();
-    const range = yRange[1] - yRange[0] || 1;
-    return gridTop + ((yRange[1] - yVal) / range) * (chartHeight - gridTop - gridBottom);
+    const range = yExtent[1] - yExtent[0] || 1;
+    return gridTop + ((yExtent[1] - yVal) / range) * (chartHeight - gridTop - gridBottom);
   };
 
   const maxY = useMemo(() => {
