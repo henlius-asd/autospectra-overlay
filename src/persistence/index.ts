@@ -31,6 +31,7 @@ function saveWorkspace() {
       stagingOrder: state.stagingOrder,
       visibleCurves: state.visibleCurves,
       layerSpacing: state.layerSpacing,
+      pointLabels: state.pointLabels,
       savedAt: Date.now(),
     };
     persistenceStore.setItem(PERSISTENCE_KEY, snapshot).catch((err) => {
@@ -59,6 +60,7 @@ export async function restoreWorkspace(): Promise<boolean> {
       stagingOrder: string[];
       visibleCurves: Record<string, boolean>;
       layerSpacing: number;
+      pointLabels: unknown[];
       savedAt: number;
     }>(PERSISTENCE_KEY);
 
@@ -77,6 +79,7 @@ export async function restoreWorkspace(): Promise<boolean> {
         stagingOrder: snapshot.stagingOrder ?? [],
         visibleCurves: snapshot.visibleCurves ?? {},
         layerSpacing,
+        pointLabels: (snapshot.pointLabels ?? []) as ReturnType<typeof useCurveStore.getState>['pointLabels'],
       });
       const uiSnapshot = await persistenceStore.getItem<{ showGrid?: boolean; showAxes?: boolean }>(UI_PERSISTENCE_KEY);
       if (uiSnapshot) {
