@@ -1,8 +1,9 @@
-import { useMemo, useCallback, useEffect, useRef } from 'react';
+import { useMemo, useCallback, useEffect, useRef, useState } from 'react';
 import ReactECharts from 'echarts-for-react';
 import { useCurveStore, useUiStore } from '@/store';
 import BraceOverlay from './BraceOverlay';
 import PointLabelOverlay from './PointLabelOverlay';
+import ScaleHandle from './ScaleHandle';
 import type { EChartsOption } from 'echarts';
 import type { EChartsInstance } from 'echarts-for-react';
 import { computeYAxisRange } from './computeYAxisRange';
@@ -57,10 +58,14 @@ export default function WaterfallChart() {
   const layerSpacing = useCurveStore((s) => s.layerSpacing);
   const setLayerSpacing = useCurveStore((s) => s.setLayerSpacing);
   const curveScales = useCurveStore((s) => s.curveScales);
+  const setCurveScale = useCurveStore((s) => s.setCurveScale);
   const xRange = useUiStore((s) => s.xRange);
   const bracePlacementMode = useUiStore((s) => s.bracePlacementMode);
   const showGrid = useUiStore((s) => s.showGrid);
   const showAxes = useUiStore((s) => s.showAxes);
+  const yScaleToolMode = useUiStore((s) => s.yScaleToolMode);
+  const activeScaledCurveId = useUiStore((s) => s.activeScaledCurveId);
+  const setActiveScaledCurveId = useUiStore((s) => s.setActiveScaledCurveId);
 
   // visibleIds follows stagingOrder (only IDs that are in stagingOrder AND visible)
   // visibleIds[0] = top of list = top of chart; visibleIds[last] = bottom (baseline)
@@ -97,8 +102,11 @@ export default function WaterfallChart() {
     }
   }, [curves, visibleCurves]);
 
+  const [chartDims, setChartDims] = useState({ width: 800, height: 600 });
+
   const onChartReady = useCallback((instance: EChartsInstance) => {
     chartInstance = instance;
+    setChartDims({ width: instance.getWidth(), height: instance.getHeight() });
     // Chart is fully initialized, refine xRange to actual visible range.
     const xExtent = getXAxisExtent();
     if (xExtent) useUiStore.getState().setXRange(xExtent);
@@ -110,6 +118,19 @@ export default function WaterfallChart() {
     const xExtent = getXAxisExtent();
     if (xExtent) useUiStore.getState().setXRange(xExtent);
   }, []);
+
+  const onChartClick = useCallback(
+    (params: { seriesIndex?: number }) => {
+      if (!yScaleToolMode) return;
+      if (params.seriesIndex != null && params.seriesIndex < visibleIds.length) {
+        const curveId = visibleIds[params.seriesIndex];
+        setActiveScaledCurveId(curveId === activeScaledCurveId ? null : curveId);
+      } else {
+        setActiveScaledCurveId(null);
+      }
+    },
+    [yScaleToolMode, visibleIds, activeScaledCurveId, setActiveScaledCurveId],
+  );
 
   const option: EChartsOption = useMemo(() => {
     if (visibleIds.length === 0) {
@@ -304,7 +325,7 @@ export default function WaterfallChart() {
         replaceMerge={['series']}
         style={{ width: '100%', height: '100%' }}
         onChartReady={onChartReady}
-        onEvents={{ dataZoom: onDataZoom }}
+        onEvents={{ dataZoom: onDataZoom, click: onChartClick }}
       />
       <BraceOverlay
         width={chartInstance?.getWidth() ?? 800}
@@ -328,6 +349,24 @@ export default function WaterfallChart() {
         gridLeft={gridLeft}
         gridRight={gridRight}
       />
+      {yScaleToolMode && activeScaledCurveId && (
+        <ScaleHandle
+          curveId={activeScaledCurveId}
+          curves={curves}
+          offsets={offsets}
+          curveScales={curveScales}
+          xRange={xRange}
+          chartWidth={chartDims.width}
+          chartHeight={chartDims.height}
+          gridTop={gridTop}
+          gridBottom={gridBottom}
+          gridLeft={gridLeft}
+          gridRight={gridRight}
+          convertYToPixel={convertYToPixel}
+          setCurveScale={setCurveScale}
+          onDeselect={() => setActiveScaledCurveId(null)}
+        />
+      )}
       <div className="absolute top-1/2 right-1 -translate-y-1/2 flex flex-col items-center gap-1.5 pointer-events-none">
         <span className="text-[10px] text-gray-500 font-mono tabular-nums">
           {layerSpacing.toFixed(3)}
