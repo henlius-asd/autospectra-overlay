@@ -3,7 +3,7 @@ export interface PointLabel {
   id: string;
   /** Data coordinate X */
   x: number;
-  /** Pixel offset from the top curve's maxY pixel position (negative = above) */
+  /** Pixel offset from the top curve's pixel Y at this label's X position (negative = above) */
   yOffset: number;
   /** Display label text */
   label: string;

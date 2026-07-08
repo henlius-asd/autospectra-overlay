@@ -16,10 +16,10 @@ export function getChartInstance() {
 }
 
 /**
- * Proportion of the Y-axis reserved above the highest curve for labels
- * (brace text, point label boxes). Applied to both yMaxForAxis (yAxis max)
- * and maxY (label positioning baseline) so labels land in the reserved area.
- * Shared with exportImage.ts to keep export and on-screen rendering identical.
+ * Proportion of the Y-axis reserved above the highest curve so labels and
+ * braces have room above the data. Applied to yAxisMax inside
+ * computeYAxisRange; the label baselines themselves are computed separately
+ * via getTopCurvePixelYAtX (point labels) and topCurvePeak (braces).
  */
 export const LABEL_PADDING_RATIO = 0.15;
 
