@@ -9,6 +9,8 @@ export default function Toolbar() {
   const setBracePlacementMode = useUiStore((s) => s.setBracePlacementMode);
   const pointLabelPlacementMode = useUiStore((s) => s.pointLabelPlacementMode);
   const setPointLabelPlacementMode = useUiStore((s) => s.setPointLabelPlacementMode);
+  const yScaleToolMode = useUiStore((s) => s.yScaleToolMode);
+  const setYScaleToolMode = useUiStore((s) => s.setYScaleToolMode);
   const showGrid = useUiStore((s) => s.showGrid);
   const showAxes = useUiStore((s) => s.showAxes);
   const toggleShowGrid = useUiStore((s) => s.toggleShowGrid);
@@ -35,6 +37,7 @@ export default function Toolbar() {
   const handleToggleBraceMode = () => {
     if (!bracePlacementMode) {
       setPointLabelPlacementMode(false);
+      setYScaleToolMode(false);
       setBracePlacementMode(true);
     } else {
       setBracePlacementMode(false);
@@ -44,9 +47,20 @@ export default function Toolbar() {
   const handleTogglePointLabelMode = () => {
     if (!pointLabelPlacementMode) {
       setBracePlacementMode(false);
+      setYScaleToolMode(false);
       setPointLabelPlacementMode(true);
     } else {
       setPointLabelPlacementMode(false);
+    }
+  };
+
+  const handleToggleYScaleMode = () => {
+    if (!yScaleToolMode) {
+      setBracePlacementMode(false);
+      setPointLabelPlacementMode(false);
+      setYScaleToolMode(true);
+    } else {
+      setYScaleToolMode(false);
     }
   };
 
@@ -140,6 +154,18 @@ export default function Toolbar() {
         title={pointLabelPlacementMode ? '点击取消点标签放置模式' : '插入点标签：点击图表放置'}
       >
         {pointLabelPlacementMode ? '放置中...' : '点标签'}
+      </button>
+      <button
+        onClick={handleToggleYScaleMode}
+        disabled={!hasCurves}
+        className={`text-xs px-2 py-1 rounded ${
+          yScaleToolMode
+            ? 'bg-blue-500 text-white'
+            : 'hover:bg-gray-200 text-gray-600'
+        } disabled:text-gray-300 disabled:cursor-not-allowed`}
+        title={yScaleToolMode ? '点击取消Y轴缩放模式' : 'Y轴缩放：点击曲线选中，拖拽手柄缩放'}
+      >
+        {yScaleToolMode ? '缩放中...' : 'Y缩放'}
       </button>
       <div className="w-px h-5 bg-gray-300" />
       <button
