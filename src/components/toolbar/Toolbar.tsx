@@ -74,7 +74,7 @@ export default function Toolbar() {
     const state = useCurveStore.getState();
     const uiState = useUiStore.getState();
     const blob = new Blob(
-      [JSON.stringify({ curves: state.curves, offsets: state.offsets, baselineId: state.baselineId, braces: state.braces, stagingOrder: state.stagingOrder, visibleCurves: state.visibleCurves, layerSpacing: state.layerSpacing, pointLabels: state.pointLabels, curveScales: state.curveScales, colorHistory: uiState.colorHistory }, null, 2)],
+      [JSON.stringify({ curves: state.curves, offsets: state.offsets, baselineId: state.baselineId, braces: state.braces, stagingOrder: state.stagingOrder, visibleCurves: state.visibleCurves, layerSpacing: state.layerSpacing, pointLabels: state.pointLabels, curveScales: state.curveScales, curveScaleOffsets: state.curveScaleOffsets, colorHistory: uiState.colorHistory }, null, 2)],
       { type: 'application/json' },
     );
     const url = URL.createObjectURL(blob);
@@ -106,6 +106,7 @@ export default function Toolbar() {
             layerSpacing: data.layerSpacing ?? 0,
             pointLabels: data.pointLabels ?? [],
             curveScales: data.curveScales ?? {},
+            curveScaleOffsets: data.curveScaleOffsets ?? {},
           });
           useUiStore.setState({ colorHistory: data.colorHistory ?? [] });
         } catch {

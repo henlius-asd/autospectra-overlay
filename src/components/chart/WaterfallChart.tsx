@@ -58,6 +58,7 @@ export default function WaterfallChart() {
   const layerSpacing = useCurveStore((s) => s.layerSpacing);
   const setLayerSpacing = useCurveStore((s) => s.setLayerSpacing);
   const curveScales = useCurveStore((s) => s.curveScales);
+  const curveScaleOffsets = useCurveStore((s) => s.curveScaleOffsets);
   const setCurveScale = useCurveStore((s) => s.setCurveScale);
   const xRange = useUiStore((s) => s.xRange);
   const bracePlacementMode = useUiStore((s) => s.bracePlacementMode);
@@ -153,9 +154,10 @@ export default function WaterfallChart() {
       const layerYOffset = layerIndex * layerSpacing * yRangeForLayer;
 
       const scale = curveScales[id] ?? 1;
+      const scaleOffset = curveScaleOffsets[id] ?? 0;
       const renderedData = curve.data.map(([x, y]) => [
         x + offset.xOffset,
-        y * scale + layerYOffset + offset.yOffset,
+        y * scale + scaleOffset + layerYOffset + offset.yOffset,
       ]);
 
       return {
@@ -349,6 +351,7 @@ export default function WaterfallChart() {
           curves={curves}
           offsets={offsets}
           curveScales={curveScales}
+          curveScaleOffsets={curveScaleOffsets}
           xRange={xRange}
           chartWidth={chartDims.width}
           chartHeight={chartDims.height}
@@ -358,6 +361,7 @@ export default function WaterfallChart() {
           layerYOffset={selectedLayerYOffset}
           convertYToPixel={convertYToPixel}
           setCurveScale={setCurveScale}
+          setCurveScaleOffset={useCurveStore((s) => s.setCurveScaleOffset)}
           onDeselect={() => setActiveScaledCurveId(null)}
         />
       )}
