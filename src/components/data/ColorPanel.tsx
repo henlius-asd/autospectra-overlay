@@ -26,6 +26,7 @@ export default function ColorPanel({
   const panelRef = useRef<HTMLDivElement>(null);
   const customInputRef = useRef<HTMLInputElement>(null);
   const originalColor = useRef(color);
+  const colorPickerOpen = useRef(false);
   const [previewColor, setPreviewColor] = useState(color);
 
   const handlePreview = useCallback(
@@ -50,6 +51,7 @@ export default function ColorPanel({
     const input = customInputRef.current;
     if (!input) return;
     const onChangeEvent = () => {
+      colorPickerOpen.current = false;
       if (input.value) {
         handlePreview(input.value);
       }
@@ -60,6 +62,7 @@ export default function ColorPanel({
 
   useEffect(() => {
     const onMouseDown = (e: MouseEvent) => {
+      if (colorPickerOpen.current) return;
       if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
         handleCancel();
       }
@@ -134,7 +137,7 @@ export default function ColorPanel({
 
       <div className="text-xs font-medium text-gray-500 mb-1.5">当前颜色</div>
       <button
-        onClick={() => customInputRef.current?.click()}
+        onClick={() => { colorPickerOpen.current = true; customInputRef.current?.click(); }}
         className="w-full h-8 rounded border border-gray-300 mb-2 relative overflow-hidden text-xs text-white font-medium hover:opacity-90 transition-opacity"
         style={{ backgroundColor: previewColor }}
       >
