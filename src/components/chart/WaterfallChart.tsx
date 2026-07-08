@@ -143,7 +143,6 @@ export default function WaterfallChart() {
       offsets,
       xRange,
       layerSpacing,
-      curveScales,
     );
 
     const series = visibleIds.map((id, visibleIndex) => {
@@ -171,6 +170,7 @@ export default function WaterfallChart() {
         },
         large: true,
         sampling: 'lttb' as const,
+        clip: false,
       };
     });
 
@@ -243,7 +243,7 @@ export default function WaterfallChart() {
       series,
       animation: false,
     };
-  }, [curves, offsets, visibleCurves, layerSpacing, stagingOrder, visibleIds, xRange, bracePlacementMode, showGrid, showAxes, curveScales]);
+  }, [curves, offsets, visibleCurves, layerSpacing, stagingOrder, visibleIds, xRange, bracePlacementMode, showGrid, showAxes]);
 
   const convertXToPixel = (xVal: number): number => {
     if (!chartInstance) return 0;
@@ -279,8 +279,8 @@ export default function WaterfallChart() {
   };
 
   const rangeResult = useMemo(
-    () => computeYAxisRange(visibleIds, curves, offsets, xRange, layerSpacing, curveScales),
-    [visibleIds, curves, offsets, xRange, layerSpacing, curveScales],
+    () => computeYAxisRange(visibleIds, curves, offsets, xRange, layerSpacing),
+    [visibleIds, curves, offsets, xRange, layerSpacing],
   );
   const selectedLayerYOffset = useMemo(() => {
     if (!activeScaledCurveId) return 0;
@@ -308,7 +308,6 @@ export default function WaterfallChart() {
         offsets,
         layerSpacing,
         yRangeForLayer: rangeResult.yRangeForLayer,
-        curveScales,
       },
       convertYToPixel,
     );

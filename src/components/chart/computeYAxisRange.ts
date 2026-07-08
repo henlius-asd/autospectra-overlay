@@ -5,13 +5,14 @@ import { LABEL_PADDING_RATIO } from './WaterfallChart';
 /**
  * Compute Y-axis range parameters for waterfall chart rendering.
  * Tracks both rawDataMin and rawDataMax to support negative values.
+ * Y-axis range is based on raw data only — per-curve scaling is applied
+ * in rendering with clip: false so scaled curves can overflow the axis.
  *
  * @param visibleIds - Array of visible curve IDs in display order
  * @param curves - Map of curve ID to curve data
  * @param offsets - Map of curve ID to offsets
  * @param xRange - Current X-axis visible range [min, max]
  * @param layerSpacing - Layer spacing multiplier from UI slider
- * @param curveScales - Map of curve ID to per-curve Y scale factor
  * @returns Object containing all computed Y-axis range parameters
  */
 export function computeYAxisRange(
@@ -20,7 +21,6 @@ export function computeYAxisRange(
   offsets: Record<string, CurveOffsets>,
   xRange: [number, number],
   layerSpacing: number,
-  curveScales: Record<string, number> = {},
 ): {
   rawDataMin: number;
   rawDataMax: number;
@@ -39,8 +39,7 @@ export function computeYAxisRange(
     const offset = offsets[id] ?? { xOffset: 0, yOffset: 0 };
     for (const [x, yVal] of curve.data) {
       if (x + offset.xOffset >= xRange[0] && x + offset.xOffset <= xRange[1]) {
-        const scale = curveScales[id] ?? 1;
-        const adjusted = yVal * scale + offset.yOffset;
+        const adjusted = yVal + offset.yOffset;
         if (adjusted < rawDataMin) rawDataMin = adjusted;
         if (adjusted > rawDataMax) rawDataMax = adjusted;
       }

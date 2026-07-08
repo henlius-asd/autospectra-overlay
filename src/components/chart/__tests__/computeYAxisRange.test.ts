@@ -92,48 +92,4 @@ describe('computeYAxisRange', () => {
     // yRangeForLayer = 100 / (1 - 0.3) = 142.857...
     expect(result.yRangeForLayer).toBeCloseTo(142.857, 2);
   });
-
-  it('should account for per-curve Y scale', () => {
-    const curves: Record<string, CurveData> = {
-      c1: { name: 'c1', data: [[0, 10], [1, 20]] },
-      c2: { name: 'c2', data: [[0, 5], [1, 10]] },
-    };
-    const offsets = {
-      c1: { xOffset: 0, yOffset: 0 },
-      c2: { xOffset: 0, yOffset: 0 },
-    };
-    const curveScales = { c1: 2.0, c2: 1.0 };
-    const result = computeYAxisRange(
-      ['c1', 'c2'],
-      curves,
-      offsets,
-      [0, 1],
-      0,
-      curveScales,
-    );
-
-    // c1 data scaled: [10, 20] → [20, 40]
-    // c2 data scaled: [5, 10] → [5, 10]
-    expect(result.rawDataMin).toBe(5);
-    expect(result.rawDataMax).toBe(40);
-    expect(result.dataSpan).toBe(35);
-  });
-
-  it('should handle missing curveScales entry as default 1.0', () => {
-    const curves: Record<string, CurveData> = {
-      c1: { name: 'c1', data: [[0, 10], [1, 20]] },
-    };
-    const offsets = { c1: { xOffset: 0, yOffset: 0 } };
-    const result = computeYAxisRange(
-      ['c1'],
-      curves,
-      offsets,
-      [0, 1],
-      0,
-      {},
-    );
-
-    expect(result.rawDataMin).toBe(10);
-    expect(result.rawDataMax).toBe(20);
-  });
 });

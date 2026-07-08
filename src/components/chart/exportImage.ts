@@ -101,7 +101,7 @@ export async function exportChartImage(): Promise<void> {
     const gridBottom = typeof grid?.bottom === 'number' ? grid.bottom : (showAxes ? 40 : 8);
 
     const state = useCurveStore.getState();
-    const { braces, visibleCurves, stagingOrder, curveScales } = state;
+    const { braces, visibleCurves, stagingOrder } = state;
     const xRange = useUiStore.getState().xRange;
 
     const chart = instance as any;
@@ -118,7 +118,6 @@ export async function exportChartImage(): Promise<void> {
       state.offsets,
       xRange,
       state.layerSpacing,
-      curveScales,
     );
     const peak = topCurvePeak(rangeResult.rawDataMin, rangeResult.yRangeForLayer);
 
@@ -180,7 +179,6 @@ export async function exportChartImage(): Promise<void> {
       offsets: state.offsets,
       layerSpacing: state.layerSpacing,
       yRangeForLayer: rangeResult.yRangeForLayer,
-      curveScales: state.curveScales,
     };
     for (const pl of visiblePointLabels) {
       const labelText = pl.label || '未命名';

@@ -8,7 +8,6 @@ export interface TopCurveContext {
   offsets: Record<string, CurveOffsets>;
   layerSpacing: number;
   yRangeForLayer: number;
-  curveScales: Record<string, number>;
 }
 
 /**
@@ -37,7 +36,6 @@ export function getTopCurvePixelYAtX(
   const curve = curves[topId];
   if (!curve || curve.data.length === 0) return 0 + yToPixel(0);
 
-  const scale = ctx.curveScales[topId] ?? 1;
   const offset = offsets[topId] ?? { xOffset: 0, yOffset: 0 };
   const visibleCount = visibleIds.length;
   const layerIndex = visibleCount - 1; // top curve sits on the highest layer
@@ -48,11 +46,11 @@ export function getTopCurvePixelYAtX(
 
   // data is sorted ascending by x; binary search the bracketing pair
   if (target <= data[0][0]) {
-    return 0 + yToPixel(data[0][1] * scale + layerYOffset + offset.yOffset);
+    return 0 + yToPixel(data[0][1] + layerYOffset + offset.yOffset);
   }
   const last = data.length - 1;
   if (target >= data[last][0]) {
-    return 0 + yToPixel(data[last][1] * scale + layerYOffset + offset.yOffset);
+    return 0 + yToPixel(data[last][1] + layerYOffset + offset.yOffset);
   }
   let lo = 0;
   let hi = last;
@@ -65,5 +63,5 @@ export function getTopCurvePixelYAtX(
   const [x1, y1] = data[hi];
   const t = (target - x0) / (x1 - x0 || 1);
   const y = y0 + (y1 - y0) * t;
-  return 0 + yToPixel(y * scale + layerYOffset + offset.yOffset);
+  return 0 + yToPixel(y + layerYOffset + offset.yOffset);
 }
