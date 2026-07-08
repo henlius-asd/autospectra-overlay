@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { getTopCurvePixelYAtX, topCurvePeak } from '../labelGeometry';
-import type { CurveData } from '@/types';
+import type { CurveData, DataPoint } from '@/types';
 import type { CurveOffsets } from '@/store/curveStore';
 
 const curves: Record<string, CurveData> = {
@@ -52,7 +52,7 @@ describe('getTopCurvePixelYAtX', () => {
     // 2 visible → top curve layerIndex = 1, layerYOffset = 1*0.1*100 = 10
     const ctx2 = {
       visibleIds: ['top', 'bot'],
-      curves: { ...curves, bot: { name: 'bot', data: [[0, 0], [10, 100]] } },
+      curves: { ...curves, bot: { name: 'bot', data: [[0, 0], [10, 100]] as DataPoint[] } },
       offsets: { ...offsets, bot: { xOffset: 0, yOffset: 0 } },
       layerSpacing: 0.1,
       yRangeForLayer: 100,

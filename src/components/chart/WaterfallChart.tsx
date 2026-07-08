@@ -7,6 +7,7 @@ import PointLabelOverlay from './PointLabelOverlay';
 import type { EChartsOption } from 'echarts';
 import type { EChartsInstance } from 'echarts-for-react';
 import { computeYAxisRange } from './computeYAxisRange';
+import { getTopCurvePixelYAtX, topCurvePeak } from './labelGeometry';
 
 // Shared chart instance for PNG export
 let chartInstance: EChartsInstance | null = null;
@@ -265,25 +266,31 @@ export default function WaterfallChart() {
     return gridTop + ((yExtent[1] - yVal) / range) * (chartHeight - gridTop - gridBottom);
   };
 
-  // maxY for label positioning — uses the same fixed-point formula as the
-  // option useMemo so labels always sit at the top of the highest curve.
-  const maxY = useMemo(() => {
-    const { maxY } = computeYAxisRange(
-      visibleIds,
-      curves,
-      offsets,
-      xRange,
-      layerSpacing,
-    );
-    return maxY;
-  }, [curves, offsets, visibleIds, layerSpacing, xRange]);
-
-  const braceY = Math.max(
-    (visibleIds.length > 1 ? 50 : 20) + 5,
-    convertYToPixel(maxY) - 18,
+  const rangeResult = useMemo(
+    () => computeYAxisRange(visibleIds, curves, offsets, xRange, layerSpacing),
+    [visibleIds, curves, offsets, xRange, layerSpacing],
   );
+  const peak = topCurvePeak(rangeResult.rawDataMin, rangeResult.yRangeForLayer);
 
-  const topCurvePixelY = convertYToPixel(maxY);
+  const gridTop = visibleIds.length > 1 ? 50 : 20;
+  const gridBottom = 60;
+  const gridLeft = 60;
+  const gridRight = 48;
+
+  const braceY = Math.max(gridTop + 8, convertYToPixel(peak) - 14);
+
+  const getLabelBaseYAtX = (xVal: number) =>
+    getTopCurvePixelYAtX(
+      xVal,
+      {
+        visibleIds,
+        curves,
+        offsets,
+        layerSpacing,
+        yRangeForLayer: rangeResult.yRangeForLayer,
+      },
+      convertYToPixel,
+    );
 
   return (
     <div className="relative w-full h-full">
@@ -300,7 +307,7 @@ export default function WaterfallChart() {
         convertXToPixel={convertXToPixel}
         convertPixelToX={convertPixelToX}
         xRange={xRange}
-        gridTop={visibleIds.length > 1 ? 50 : 20}
+        gridTop={gridTop}
         braceY={braceY}
       />
       <PointLabelOverlay
@@ -309,8 +316,12 @@ export default function WaterfallChart() {
         convertXToPixel={convertXToPixel}
         convertPixelToX={convertPixelToX}
         xRange={xRange}
-        topCurvePixelY={topCurvePixelY}
-        gridTop={visibleIds.length > 1 ? 50 : 20}
+        getLabelBaseYAtX={getLabelBaseYAtX}
+        gridTop={gridTop}
+        gridBottom={gridBottom}
+        chartWidth={chartInstance?.getWidth() ?? 800}
+        gridLeft={gridLeft}
+        gridRight={gridRight}
       />
       <div className="absolute top-1/2 right-1 -translate-y-1/2 flex flex-col items-center gap-1.5 pointer-events-none">
         <span className="text-[10px] text-gray-500 font-mono tabular-nums">

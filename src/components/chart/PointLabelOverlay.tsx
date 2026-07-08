@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { useCurveStore, useUiStore } from '@/store';
 import type { PointLabel } from '@/types';
+import { clampLabelX, clampLabelY, estimateTextWidth } from './labelClamp';
 
 interface PointLabelOverlayProps {
   width: number;
@@ -9,8 +10,12 @@ interface PointLabelOverlayProps {
   convertXToPixel: (xVal: number) => number;
   convertPixelToX: (px: number) => number;
   xRange: [number, number];
-  topCurvePixelY: number;
+  getLabelBaseYAtX: (xVal: number) => number;
   gridTop: number;
+  gridBottom: number;
+  chartWidth: number;
+  gridLeft: number;
+  gridRight: number;
 }
 
 export default function PointLabelOverlay({
@@ -19,8 +24,12 @@ export default function PointLabelOverlay({
   convertXToPixel,
   convertPixelToX,
   xRange,
-  topCurvePixelY,
+  getLabelBaseYAtX,
   gridTop,
+  gridBottom,
+  chartWidth,
+  gridLeft,
+  gridRight,
 }: PointLabelOverlayProps) {
   const pointLabels = useCurveStore((s) => s.pointLabels);
   const addPointLabel = useCurveStore((s) => s.addPointLabel);
@@ -49,7 +58,7 @@ export default function PointLabelOverlay({
       const newLabel: PointLabel = {
         id: `pl_${Date.now()}`,
         x: dataX,
-        yOffset: -20,
+        yOffset: -10,
         label: '',
       };
       addPointLabel(newLabel);
@@ -142,34 +151,18 @@ export default function PointLabelOverlay({
         onPointerUp={handlePointerUp}
       >
         {visibleLabels.map((pl) => {
-          const px = convertXToPixel(pl.x);
-          const py = topCurvePixelY + pl.yOffset;
+          const labelText = pl.label || '未命名';
+          const textW = estimateTextWidth(labelText, 10);
+          const rawPx = convertXToPixel(pl.x);
+          const px = clampLabelX(rawPx, textW, gridLeft, gridRight, chartWidth);
+          const rawPy = getLabelBaseYAtX(pl.x) + pl.yOffset;
+          const py = clampLabelY(rawPy, 6, gridTop, height - gridBottom);
           return (
             <g
               key={pl.id}
               style={{ pointerEvents: 'auto', cursor: 'move' }}
               onPointerDown={(e) => handleLabelPointerDown(e, pl)}
             >
-              <line
-                x1={px}
-                y1={py + 8}
-                x2={px}
-                y2={topCurvePixelY}
-                stroke="#555"
-                strokeWidth={1}
-                strokeDasharray="3 2"
-              />
-              <circle cx={px} cy={topCurvePixelY} r={3} fill="#555" />
-              <rect
-                x={px - 30}
-                y={py - 10}
-                width={60}
-                height={18}
-                rx={3}
-                fill="white"
-                stroke="#ccc"
-                strokeWidth={1}
-              />
               <text
                 x={px}
                 y={py + 3}
@@ -181,7 +174,7 @@ export default function PointLabelOverlay({
                   handleLabelClick(pl);
                 }}
               >
-                {pl.label || '未命名'}
+                {labelText}
               </text>
             </g>
           );
