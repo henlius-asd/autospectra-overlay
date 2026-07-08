@@ -1,4 +1,4 @@
-import { useCallback, useRef, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CurveData } from '@/types';
 import type { CurveOffsets } from '@/store/curveStore';
 
@@ -10,10 +10,9 @@ interface ScaleHandleProps {
   xRange: [number, number];
   chartWidth: number;
   chartHeight: number;
-  gridTop: number;
-  gridBottom: number;
   gridLeft: number;
   gridRight: number;
+  layerYOffset: number;
   convertYToPixel: (y: number) => number;
   setCurveScale: (id: string, scale: number) => void;
   onDeselect: () => void;
@@ -29,18 +28,17 @@ export default function ScaleHandle({
   chartHeight,
   gridLeft,
   gridRight,
+  layerYOffset,
   convertYToPixel,
   setCurveScale,
   onDeselect,
 }: ScaleHandleProps) {
   const scale = curveScales[curveId] ?? 1;
   const [displayScale, setDisplayScale] = useState(scale);
+  const pendingScaleRef = useRef(scale);
 
   const curve = curves[curveId];
   const offset = offsets[curveId] ?? { xOffset: 0, yOffset: 0 };
-
-  const peakX = useRef(0);
-  const peakY = useRef(0);
 
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
@@ -48,17 +46,19 @@ export default function ScaleHandle({
       e.preventDefault();
       const startY = e.clientY;
       const startScale = curveScales[curveId] ?? 1;
+      pendingScaleRef.current = startScale;
 
       const onMouseMove = (ev: MouseEvent) => {
         const deltaY = startY - ev.clientY;
         const newScale = Math.max(0.1, Math.min(10, startScale * (1 + deltaY / (chartHeight * 0.5))));
+        pendingScaleRef.current = newScale;
         setDisplayScale(newScale);
-        setCurveScale(curveId, newScale);
       };
 
       const onMouseUp = () => {
         document.removeEventListener('mousemove', onMouseMove);
         document.removeEventListener('mouseup', onMouseUp);
+        setCurveScale(curveId, pendingScaleRef.current);
       };
 
       document.addEventListener('mousemove', onMouseMove);
@@ -88,7 +88,7 @@ export default function ScaleHandle({
   for (const [x, yVal] of curve.data) {
     const xAdj = x + offset.xOffset;
     if (xAdj >= xRange[0] && xAdj <= xRange[1]) {
-      const yAdj = yVal * scale + offset.yOffset;
+      const yAdj = yVal * scale + layerYOffset + offset.yOffset;
       if (yAdj > maxY) {
         maxY = yAdj;
         maxX = xAdj;
@@ -97,9 +97,6 @@ export default function ScaleHandle({
   }
 
   if (!isFinite(maxY)) return null;
-
-  peakX.current = maxX;
-  peakY.current = maxY;
 
   const range = xRange[1] - xRange[0] || 1;
   const px = gridLeft + ((maxX - xRange[0]) / range) * (chartWidth - gridLeft - gridRight);

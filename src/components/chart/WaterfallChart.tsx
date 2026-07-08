@@ -295,6 +295,14 @@ export default function WaterfallChart() {
     () => computeYAxisRange(visibleIds, curves, offsets, xRange, layerSpacing, curveScales),
     [visibleIds, curves, offsets, xRange, layerSpacing, curveScales],
   );
+  const selectedLayerYOffset = useMemo(() => {
+    if (!activeScaledCurveId) return 0;
+    const visibleIndex = visibleIds.indexOf(activeScaledCurveId);
+    if (visibleIndex < 0) return 0;
+    const layerIndex = visibleIds.length - 1 - visibleIndex;
+    return layerIndex * layerSpacing * rangeResult.yRangeForLayer;
+  }, [activeScaledCurveId, visibleIds, layerSpacing, rangeResult.yRangeForLayer]);
+
   const peak = topCurvePeak(rangeResult.rawDataMin, rangeResult.yRangeForLayer);
 
   const gridTop = visibleIds.length > 1 ? 50 : 20;
@@ -358,10 +366,9 @@ export default function WaterfallChart() {
           xRange={xRange}
           chartWidth={chartDims.width}
           chartHeight={chartDims.height}
-          gridTop={gridTop}
-          gridBottom={gridBottom}
           gridLeft={gridLeft}
           gridRight={gridRight}
+          layerYOffset={selectedLayerYOffset}
           convertYToPixel={convertYToPixel}
           setCurveScale={setCurveScale}
           onDeselect={() => setActiveScaledCurveId(null)}
