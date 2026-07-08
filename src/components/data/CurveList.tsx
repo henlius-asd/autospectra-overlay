@@ -1,6 +1,5 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useCurveStore, useUiStore } from '@/store';
-import { CURVE_COLORS } from '@/lib/colors';
 import ContextMenu from './ContextMenu';
   
 interface CurveListProps {
@@ -27,6 +26,7 @@ export default function CurveList({
   const setDisplayName = useCurveStore((s) => s.setDisplayName);
   const setBaseline = useCurveStore((s) => s.setBaseline);
   const baselineId = useCurveStore((s) => s.baselineId);
+  const setCurveColor = useCurveStore((s) => s.setCurveColor);
   const curves = useCurveStore((s) => s.curves);
   const selectedCurveId = useUiStore((s) => s.selectedCurveId);
   const setSelectedCurveId = useUiStore((s) => s.setSelectedCurveId);
@@ -181,16 +181,22 @@ export default function CurveList({
           className="w-3.5 h-3.5 rounded border-gray-300 text-blue-500 focus:ring-blue-400 flex-shrink-0"
         />
         {(() => {
-          const visibleIds = stagingOrder.filter((sid) => visibleCurves[sid]);
-          const visibleIndex = visibleIds.indexOf(id);
-          const color = visibleIndex >= 0
-            ? CURVE_COLORS[visibleIndex % CURVE_COLORS.length]
-            : '#ccc';
+          const color = curve.color || '#000000';
           return (
             <span
-              className="w-3 h-3 rounded-full flex-shrink-0"
+              className="relative w-3 h-3 rounded-full flex-shrink-0 cursor-pointer border border-gray-300"
               style={{ backgroundColor: color }}
-            />
+              onClick={(e) => e.stopPropagation()}
+              title="点击修改颜色"
+            >
+              <input
+                type="color"
+                value={color}
+                onChange={(e) => setCurveColor(id, e.target.value)}
+                className="absolute inset-0 opacity-0 cursor-pointer"
+                onClick={(e) => e.stopPropagation()}
+              />
+            </span>
           );
         })()}
         {editingId === id ? (
