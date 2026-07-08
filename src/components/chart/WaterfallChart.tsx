@@ -1,7 +1,6 @@
 import { useMemo, useCallback, useEffect, useRef } from 'react';
 import ReactECharts from 'echarts-for-react';
 import { useCurveStore, useUiStore } from '@/store';
-import { CURVE_COLORS } from '@/lib/colors';
 import BraceOverlay from './BraceOverlay';
 import PointLabelOverlay from './PointLabelOverlay';
 import type { EChartsOption } from 'echarts';
@@ -156,7 +155,7 @@ export default function WaterfallChart() {
         smooth: false,
         symbol: 'none',
         lineStyle: {
-          color: CURVE_COLORS[visibleIndex % CURVE_COLORS.length],
+          color: curve.color || '#000000',
           width: 1.5,
         },
         large: true,
