@@ -56,6 +56,7 @@ export default function WaterfallChart() {
   const stagingOrder = useCurveStore((s) => s.stagingOrder);
   const layerSpacing = useCurveStore((s) => s.layerSpacing);
   const setLayerSpacing = useCurveStore((s) => s.setLayerSpacing);
+  const curveScales = useCurveStore((s) => s.curveScales);
   const xRange = useUiStore((s) => s.xRange);
   const bracePlacementMode = useUiStore((s) => s.bracePlacementMode);
   const showGrid = useUiStore((s) => s.showGrid);
@@ -134,6 +135,7 @@ export default function WaterfallChart() {
       offsets,
       xRange,
       layerSpacing,
+      curveScales,
     );
 
     const series = visibleIds.map((id, visibleIndex) => {
@@ -143,9 +145,10 @@ export default function WaterfallChart() {
       const layerIndex = visibleCount - 1 - visibleIndex;
       const layerYOffset = layerIndex * layerSpacing * yRangeForLayer;
 
+      const scale = curveScales[id] ?? 1;
       const renderedData = curve.data.map(([x, y]) => [
         x + offset.xOffset,
-        y + layerYOffset + offset.yOffset,
+        y * scale + layerYOffset + offset.yOffset,
       ]);
 
       return {
@@ -232,7 +235,7 @@ export default function WaterfallChart() {
       series,
       animation: false,
     };
-  }, [curves, offsets, visibleCurves, layerSpacing, stagingOrder, visibleIds, xRange, bracePlacementMode, showGrid, showAxes]);
+  }, [curves, offsets, visibleCurves, layerSpacing, stagingOrder, visibleIds, xRange, bracePlacementMode, showGrid, showAxes, curveScales]);
 
   const convertXToPixel = (xVal: number): number => {
     if (!chartInstance) return 0;
@@ -268,8 +271,8 @@ export default function WaterfallChart() {
   };
 
   const rangeResult = useMemo(
-    () => computeYAxisRange(visibleIds, curves, offsets, xRange, layerSpacing),
-    [visibleIds, curves, offsets, xRange, layerSpacing],
+    () => computeYAxisRange(visibleIds, curves, offsets, xRange, layerSpacing, curveScales),
+    [visibleIds, curves, offsets, xRange, layerSpacing, curveScales],
   );
   const peak = topCurvePeak(rangeResult.rawDataMin, rangeResult.yRangeForLayer);
 
