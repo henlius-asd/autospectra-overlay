@@ -193,6 +193,7 @@ export default function WaterfallChart() {
       },
       xAxis: {
         type: 'value',
+        // @deprecated Axes hidden by default; will be removed in future version
         show: showAxes,
         name: showAxes ? '时间' : '',
         nameLocation: 'center',
@@ -206,6 +207,7 @@ export default function WaterfallChart() {
       },
       yAxis: {
         type: 'value',
+        // @deprecated Axes hidden by default; will be removed in future version
         show: showAxes,
         name: showAxes ? '强度' : '',
         nameLocation: 'center',

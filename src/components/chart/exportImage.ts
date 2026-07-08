@@ -38,6 +38,7 @@ export async function exportChartImage(): Promise<void> {
   }
 
   const uiState = useUiStore.getState();
+  // @deprecated Axes hidden by default; will be removed in future version
   const showAxes = uiState.showAxes;
 
   // Snapshot the live option so we can restore EXACTLY after export.
