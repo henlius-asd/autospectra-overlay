@@ -3,7 +3,7 @@ import ReactECharts from 'echarts-for-react';
 import { useCurveStore, useUiStore } from '@/store';
 import BraceOverlay from './BraceOverlay';
 import PointLabelOverlay from './PointLabelOverlay';
-import ScaleHandle from './ScaleHandle';
+import ScaleSlider from './ScaleSlider';
 import type { EChartsOption } from 'echarts';
 import type { EChartsInstance } from 'echarts-for-react';
 import { computeYAxisRange } from './computeYAxisRange';
@@ -118,19 +118,6 @@ export default function WaterfallChart() {
     const xExtent = getXAxisExtent();
     if (xExtent) useUiStore.getState().setXRange(xExtent);
   }, []);
-
-  const onChartClick = useCallback(
-    (params: { seriesIndex?: number }) => {
-      if (!yScaleToolMode) return;
-      if (params.seriesIndex != null && params.seriesIndex < visibleIds.length) {
-        const curveId = visibleIds[params.seriesIndex];
-        setActiveScaledCurveId(curveId === activeScaledCurveId ? null : curveId);
-      } else {
-        setActiveScaledCurveId(null);
-      }
-    },
-    [yScaleToolMode, visibleIds, activeScaledCurveId, setActiveScaledCurveId],
-  );
 
   const option: EChartsOption = useMemo(() => {
     if (visibleIds.length === 0) {
@@ -333,7 +320,7 @@ export default function WaterfallChart() {
         replaceMerge={['series']}
         style={{ width: '100%', height: '100%' }}
         onChartReady={onChartReady}
-        onEvents={{ dataZoom: onDataZoom, click: onChartClick }}
+        onEvents={{ dataZoom: onDataZoom }}
       />
       <BraceOverlay
         width={chartDims.width}
@@ -358,7 +345,7 @@ export default function WaterfallChart() {
         gridRight={gridRight}
       />
       {yScaleToolMode && activeScaledCurveId && (
-        <ScaleHandle
+        <ScaleSlider
           curveId={activeScaledCurveId}
           curves={curves}
           offsets={offsets}
@@ -366,8 +353,9 @@ export default function WaterfallChart() {
           xRange={xRange}
           chartWidth={chartDims.width}
           chartHeight={chartDims.height}
+          gridTop={gridTop}
+          gridBottom={gridBottom}
           gridLeft={gridLeft}
-          gridRight={gridRight}
           layerYOffset={selectedLayerYOffset}
           convertYToPixel={convertYToPixel}
           setCurveScale={setCurveScale}
