@@ -48,6 +48,67 @@ export default function ScaleSlider({
   const pendingScaleRef = useRef(scale);
   const pendingOffsetRef = useRef(scaleOffset);
   const trackRef = useRef<HTMLDivElement>(null);
+  const geomRef = useRef({
+    gridTop, gridBottom, chartHeight, layerYOffset, offsetY: 0,
+    handleTopY: 0, handleBottomY: 0, trackHeight: 0,
+    originalMin: 0, originalMax: 0,
+    currentBottom: 0,
+  });
+
+  const createDragHandler = useCallback(
+    (isTop: boolean) => (e: React.MouseEvent) => {
+      e.stopPropagation();
+      e.preventDefault();
+      const g = geomRef.current;
+      const startY = e.clientY;
+      const startScale = scale;
+      const startOffset = scaleOffset;
+      const startHandleY = isTop ? g.handleTopY : g.handleBottomY;
+      const otherHandleY = isTop ? g.handleBottomY : g.handleTopY;
+
+      pendingScaleRef.current = startScale;
+      pendingOffsetRef.current = startOffset;
+
+      const onMouseMove = (ev: MouseEvent) => {
+        const deltaY = startY - ev.clientY;
+        const newHandleY = Math.max(g.gridTop, Math.min(g.chartHeight - g.gridBottom, startHandleY - deltaY));
+        const pixelSpan = isTop
+          ? otherHandleY - newHandleY
+          : newHandleY - otherHandleY;
+
+        const newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, pixelSpan / (g.trackHeight || 1) * scale));
+        pendingScaleRef.current = newScale;
+        setDisplayScale(newScale);
+
+        if (isTop) {
+          pendingOffsetRef.current = g.currentBottom - g.originalMin * newScale;
+        }
+      };
+
+      const onMouseUp = () => {
+        document.removeEventListener('mousemove', onMouseMove);
+        document.removeEventListener('mouseup', onMouseUp);
+        setCurveScale(curveId, pendingScaleRef.current);
+        setCurveScaleOffset(curveId, pendingOffsetRef.current);
+      };
+
+      document.addEventListener('mousemove', onMouseMove);
+      document.addEventListener('mouseup', onMouseUp);
+    },
+    [curveId, scale, scaleOffset, setCurveScale, setCurveScaleOffset],
+  );
+
+  useEffect(() => {
+    setDisplayScale(scale);
+  }, [scale]);
+
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onDeselect();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => document.removeEventListener('keydown', onKeyDown);
+  }, [onDeselect]);
 
   const curve = curves[curveId];
   const offset = offsets[curveId] ?? { xOffset: 0, yOffset: 0 };
@@ -78,67 +139,14 @@ export default function ScaleSlider({
   const trackBottom = Math.max(handleTopY, handleBottomY);
   const trackHeight = trackBottom - trackTop;
 
+  geomRef.current = {
+    gridTop, gridBottom, chartHeight, layerYOffset, offsetY: offset.yOffset,
+    handleTopY, handleBottomY, trackHeight,
+    originalMin, originalMax,
+    currentBottom,
+  };
+
   if (trackHeight <= 0) return null;
-
-  const createDragHandler = useCallback(
-    (isTop: boolean) => (e: React.MouseEvent) => {
-      e.stopPropagation();
-      e.preventDefault();
-      const startY = e.clientY;
-      const startScale = scale;
-      const startOffset = scaleOffset;
-      const startHandleY = isTop ? handleTopY : handleBottomY;
-      const otherHandleY = isTop ? handleBottomY : handleTopY;
-
-      pendingScaleRef.current = startScale;
-      pendingOffsetRef.current = startOffset;
-
-      const onMouseMove = (ev: MouseEvent) => {
-        const deltaY = startY - ev.clientY;
-        const newHandleY = Math.max(gridTop, Math.min(chartHeight - gridBottom, startHandleY - deltaY));
-        const pixelSpan = isTop
-          ? otherHandleY - newHandleY
-          : newHandleY - otherHandleY;
-
-        const newScale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, pixelSpan / (trackHeight || 1) * scale));
-        pendingScaleRef.current = newScale;
-        setDisplayScale(newScale);
-
-        if (isTop) {
-          pendingOffsetRef.current = currentBottom - originalMin * newScale;
-        } else {
-          pendingOffsetRef.current = currentBottom + (currentBottom - newHandleY) - originalMin * newScale;
-        }
-      };
-
-      const onMouseUp = () => {
-        document.removeEventListener('mousemove', onMouseMove);
-        document.removeEventListener('mouseup', onMouseUp);
-        setCurveScale(curveId, pendingScaleRef.current);
-        setCurveScaleOffset(curveId, pendingOffsetRef.current);
-      };
-
-      document.addEventListener('mousemove', onMouseMove);
-      document.addEventListener('mouseup', onMouseUp);
-    },
-    [curveId, scale, scaleOffset, handleTopY, handleBottomY, trackHeight,
-      gridTop, chartHeight, gridBottom, currentBottom, originalMin,
-      setCurveScale, setCurveScaleOffset],
-  );
-
-  useEffect(() => {
-    setDisplayScale(scale);
-  }, [scale]);
-
-  useEffect(() => {
-    const onKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        onDeselect();
-      }
-    };
-    document.addEventListener('keydown', onKeyDown);
-    return () => document.removeEventListener('keydown', onKeyDown);
-  }, [onDeselect]);
 
   const sliderLeft = gridLeft - 22;
   const midY = (handleTopY + handleBottomY) / 2;
