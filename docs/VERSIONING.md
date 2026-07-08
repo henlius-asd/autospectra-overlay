@@ -96,7 +96,7 @@ git push origin v0.3.1          # 触发部署该 commit
 
 给历史版本留档的安全方式：
 - **本地打 tag，不推远端**：`git tag -a v0.1.0 0922261 -m "..."`（仅本地参考）。
-- 或用**非 `v*` 前缀**的 tag：`git tag -a history-0.1 0922261 -m "..."`（不触发部署，可在远端留记录）。
+- 或用**非 `v*` 前缀**的 tag 推远端留记录：本项目 v0.1.0 即采用 `history-v0.1.0`（`git tag -a history-v0.1.0 0922261 -m "..."` → `git push origin history-v0.1.0`），不触发部署，GitHub 上可作 release 锚点。
 - 或在 GitHub Releases 面板手动建一个 release 指向该 commit，但**不要**让其创建 `v*` tag。
 
 ## 7. CHANGELOG 维护
@@ -135,6 +135,6 @@ git push origin v0.3.1          # 触发部署该 commit
 ---
 
 历史发布：
-- `v0.1.0` @ `0922261`（2026-07-07）— 首个 Pages 自动部署
-- `v0.2.0` @ `ed50887`（2026-07-07）— 移除 gh-pages 分支依赖
+- `0.1.0` @ `0922261`（2026-07-07）— 首个 Pages 自动部署。远端 tag 为 `history-v0.1.0`（非 `v*`，回溯留档、不触发部署）。
+- `0.2.0` @ `ed50887`（2026-07-07）— 移除 gh-pages 分支依赖。远端 tag 为 `v0.2.0`（同款重建，安全）。
 - 下一个：`v0.3.0` — 标注 / 导出优化（当前 `master` 未发布）
