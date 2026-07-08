@@ -349,7 +349,8 @@ export default function CurveList({
           color={curves[panelCurveId]?.color || '#000000'}
           colorHistory={colorHistory}
           triggerRect={panelTriggerRect}
-          onSelect={(c) => {
+          onChange={(c) => setCurveColor(panelCurveId, c)}
+          onConfirm={(c) => {
             setCurveColor(panelCurveId, c);
             addColorToHistory(c);
           }}

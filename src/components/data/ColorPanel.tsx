@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 
 const PRESET_COLORS = [
   '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728',
@@ -10,7 +10,8 @@ interface ColorPanelProps {
   color: string;
   colorHistory: string[];
   triggerRect: DOMRect;
-  onSelect: (color: string) => void;
+  onChange: (color: string) => void;
+  onConfirm: (color: string) => void;
   onClose: () => void;
 }
 
@@ -18,45 +19,54 @@ export default function ColorPanel({
   color,
   colorHistory,
   triggerRect,
-  onSelect,
+  onChange,
+  onConfirm,
   onClose,
 }: ColorPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const customInputRef = useRef<HTMLInputElement>(null);
+  const originalColor = useRef(color);
+  const [previewColor, setPreviewColor] = useState(color);
 
-  const handleSelect = useCallback(
+  const handlePreview = useCallback(
     (c: string) => {
-      onSelect(c);
-      onClose();
+      setPreviewColor(c);
+      onChange(c);
     },
-    [onSelect, onClose],
+    [onChange],
   );
 
-  const handleCustomClick = useCallback(() => {
-    customInputRef.current?.click();
-  }, []);
+  const handleCancel = useCallback(() => {
+    onChange(originalColor.current);
+    onClose();
+  }, [onChange, onClose]);
+
+  const handleConfirm = useCallback(() => {
+    onConfirm(previewColor);
+    onClose();
+  }, [previewColor, onConfirm, onClose]);
 
   useEffect(() => {
     const input = customInputRef.current;
     if (!input) return;
-    const onChange = () => {
+    const onChangeEvent = () => {
       if (input.value) {
-        handleSelect(input.value);
+        handlePreview(input.value);
       }
     };
-    input.addEventListener('change', onChange);
-    return () => input.removeEventListener('change', onChange);
-  }, [handleSelect]);
+    input.addEventListener('change', onChangeEvent);
+    return () => input.removeEventListener('change', onChangeEvent);
+  }, [handlePreview]);
 
   useEffect(() => {
     const onMouseDown = (e: MouseEvent) => {
       if (panelRef.current && !panelRef.current.contains(e.target as Node)) {
-        onClose();
+        handleCancel();
       }
     };
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onClose();
+        handleCancel();
       }
     };
     document.addEventListener('mousedown', onMouseDown);
@@ -65,10 +75,10 @@ export default function ColorPanel({
       document.removeEventListener('mousedown', onMouseDown);
       document.removeEventListener('keydown', onKeyDown);
     };
-  }, [onClose]);
+  }, [handleCancel]);
 
   const spaceBelow = window.innerHeight - triggerRect.bottom;
-  const panelHeight = 170;
+  const panelHeight = 220;
   const top = spaceBelow >= panelHeight + 8
     ? triggerRect.bottom + 4
     : triggerRect.top - panelHeight - 4;
@@ -80,14 +90,22 @@ export default function ColorPanel({
       className="fixed z-50 bg-white rounded-lg shadow-lg border border-gray-200 p-3 w-56"
       style={{ top, left }}
     >
+      <button
+        onClick={handleCancel}
+        className="absolute top-1.5 right-1.5 w-5 h-5 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded text-xs leading-none"
+        title="关闭"
+      >
+        ✕
+      </button>
+
       <div className="text-xs font-medium text-gray-500 mb-2">预设颜色</div>
       <div className="flex flex-wrap gap-1.5 mb-3">
         {PRESET_COLORS.map((c) => (
           <button
             key={c}
-            onClick={() => handleSelect(c)}
+            onClick={() => handlePreview(c)}
             className={`w-6 h-6 rounded border-2 transition-transform hover:scale-110 ${
-              c === color ? 'border-blue-500 ring-1 ring-blue-300' : 'border-gray-300'
+              c === previewColor ? 'border-blue-500 ring-1 ring-blue-300' : 'border-gray-300'
             }`}
             style={{ backgroundColor: c }}
             title={c}
@@ -102,9 +120,9 @@ export default function ColorPanel({
             {colorHistory.map((c) => (
               <button
                 key={c}
-                onClick={() => handleSelect(c)}
+                onClick={() => handlePreview(c)}
                 className={`w-6 h-6 rounded border-2 transition-transform hover:scale-110 ${
-                  c === color ? 'border-blue-500 ring-1 ring-blue-300' : 'border-gray-300'
+                  c === previewColor ? 'border-blue-500 ring-1 ring-blue-300' : 'border-gray-300'
                 }`}
                 style={{ backgroundColor: c }}
                 title={c}
@@ -114,11 +132,13 @@ export default function ColorPanel({
         </>
       )}
 
+      <div className="text-xs font-medium text-gray-500 mb-1.5">当前颜色</div>
       <button
-        onClick={handleCustomClick}
-        className="w-full text-xs text-blue-500 hover:text-blue-700 py-1 border border-dashed border-gray-300 rounded hover:border-blue-300"
+        onClick={() => customInputRef.current?.click()}
+        className="w-full h-8 rounded border border-gray-300 mb-2 relative overflow-hidden text-xs text-white font-medium hover:opacity-90 transition-opacity"
+        style={{ backgroundColor: previewColor }}
       >
-        自定义...
+        自定义
       </button>
       <input
         ref={customInputRef}
@@ -126,6 +146,21 @@ export default function ColorPanel({
         className="hidden"
         defaultValue={color}
       />
+
+      <div className="flex gap-2 mt-1">
+        <button
+          onClick={handleCancel}
+          className="flex-1 text-xs text-gray-500 hover:text-gray-700 py-1 border border-gray-200 rounded hover:bg-gray-50"
+        >
+          取消
+        </button>
+        <button
+          onClick={handleConfirm}
+          className="flex-1 text-xs bg-blue-500 text-white py-1 rounded hover:bg-blue-600"
+        >
+          确认
+        </button>
+      </div>
     </div>
   );
 }
