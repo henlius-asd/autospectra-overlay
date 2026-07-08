@@ -13,6 +13,7 @@ interface CurveState {
   visibleCurves: Record<string, boolean>;
   stagingOrder: string[];
   layerSpacing: number;
+  curveScales: Record<string, number>;
   baselineId: string | null;
   braces: BraceAnnotation[];
   pointLabels: PointLabel[];
@@ -24,6 +25,7 @@ interface CurveState {
   toggleCurveVisibility: (id: string) => void;
   setAllCurvesVisibility: (visible: boolean) => void;
   setLayerSpacing: (spacing: number) => void;
+  setCurveScale: (id: string, scale: number) => void;
   setStagingOrder: (order: string[]) => void;
   setDisplayName: (id: string, displayName: string) => void;
   addPointLabel: (label: PointLabel) => void;
@@ -60,6 +62,7 @@ export const useCurveStore = create<CurveState>()(
       visibleCurves: {},
       stagingOrder: [],
       layerSpacing: 0,
+      curveScales: {},
       baselineId: null,
       braces: [],
       pointLabels: [],
@@ -84,14 +87,17 @@ export const useCurveStore = create<CurveState>()(
         set((state) => {
           const curves = { ...state.curves };
           const offsets = { ...state.offsets };
+          const curveScales = { ...state.curveScales };
           const visibleCurves = { ...state.visibleCurves };
           const stagingOrder = state.stagingOrder.filter((oid) => oid !== id);
           delete curves[id];
           delete offsets[id];
+          delete curveScales[id];
           delete visibleCurves[id];
           return {
             curves,
             offsets,
+            curveScales,
             visibleCurves,
             stagingOrder,
             baselineId: deriveBaseline(stagingOrder, visibleCurves),
@@ -102,6 +108,7 @@ export const useCurveStore = create<CurveState>()(
         set((state) => {
           const curves = { ...state.curves };
           const offsets = { ...state.offsets };
+          const curveScales = { ...state.curveScales };
           const visibleCurves = { ...state.visibleCurves };
           const removedIds = new Set<string>();
 
@@ -109,6 +116,7 @@ export const useCurveStore = create<CurveState>()(
             if (visibleCurves[id]) {
               delete curves[id];
               delete offsets[id];
+              delete curveScales[id];
               delete visibleCurves[id];
               removedIds.add(id);
             }
@@ -119,6 +127,7 @@ export const useCurveStore = create<CurveState>()(
           return {
             curves,
             offsets,
+            curveScales,
             visibleCurves,
             stagingOrder,
             baselineId: deriveBaseline(stagingOrder, visibleCurves),
@@ -174,7 +183,12 @@ export const useCurveStore = create<CurveState>()(
           return { visibleCurves: {}, stagingOrder: [], baselineId: null };
         }),
 
-      setLayerSpacing: (spacing) => set({ layerSpacing: spacing }),
+        setLayerSpacing: (spacing) => set({ layerSpacing: spacing }),
+
+      setCurveScale: (id, scale) =>
+        set((state) => ({
+          curveScales: { ...state.curveScales, [id]: scale },
+        })),
 
       setStagingOrder: (order) =>
         set((state) => ({

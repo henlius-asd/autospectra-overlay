@@ -30,6 +30,25 @@ describe('deriveBaseline', () => {
   });
 });
 
+describe('setCurveScale', () => {
+  it('sets scale for a curve', () => {
+    useCurveStore.setState({ curveScales: {} });
+    useCurveStore.getState().setCurveScale('c1', 2.0);
+    expect(useCurveStore.getState().curveScales).toEqual({ c1: 2.0 });
+  });
+
+  it('cleans up scale when curve is removed', () => {
+    useCurveStore.setState({
+      curves: { c1: { name: 'c1', data: [] } },
+      curveScales: { c1: 2.0 },
+      visibleCurves: { c1: true },
+      stagingOrder: ['c1'],
+    });
+    useCurveStore.getState().removeCurve('c1');
+    expect(useCurveStore.getState().curveScales).toEqual({});
+  });
+});
+
 describe('updateBrace', () => {
   it('updates the matching brace and leaves others untouched', () => {
     useCurveStore.setState({
