@@ -80,6 +80,13 @@ export default function ColorPanel({
       className="fixed z-50 bg-white rounded-lg shadow-lg border border-gray-200 p-3 w-56"
       style={{ top, left }}
     >
+      <button
+        onClick={onClose}
+        className="absolute top-1 right-1.5 w-5 h-5 flex items-center justify-center text-gray-400 hover:text-gray-600 rounded text-xs leading-none"
+        title="关闭"
+      >
+        ✕
+      </button>
       <div className="text-xs font-medium text-gray-500 mb-2">预设颜色</div>
       <div className="flex flex-wrap gap-1.5 mb-3">
         {PRESET_COLORS.map((c) => (
