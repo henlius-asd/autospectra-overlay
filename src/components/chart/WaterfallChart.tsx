@@ -336,8 +336,8 @@ export default function WaterfallChart() {
         onEvents={{ dataZoom: onDataZoom, click: onChartClick }}
       />
       <BraceOverlay
-        width={chartInstance?.getWidth() ?? 800}
-        height={chartInstance?.getHeight() ?? 600}
+        width={chartDims.width}
+        height={chartDims.height}
         convertXToPixel={convertXToPixel}
         convertPixelToX={convertPixelToX}
         xRange={xRange}
@@ -345,15 +345,15 @@ export default function WaterfallChart() {
         braceY={braceY}
       />
       <PointLabelOverlay
-        width={chartInstance?.getWidth() ?? 800}
-        height={chartInstance?.getHeight() ?? 600}
+        width={chartDims.width}
+        height={chartDims.height}
         convertXToPixel={convertXToPixel}
         convertPixelToX={convertPixelToX}
         xRange={xRange}
         getLabelBaseYAtX={getLabelBaseYAtX}
         gridTop={gridTop}
         gridBottom={gridBottom}
-        chartWidth={chartInstance?.getWidth() ?? 800}
+        chartWidth={chartDims.width}
         gridLeft={gridLeft}
         gridRight={gridRight}
       />
