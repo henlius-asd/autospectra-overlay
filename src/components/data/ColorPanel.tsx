@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 
 const PRESET_COLORS = [
   '#1f77b4', '#ff7f0e', '#2ca02c', '#d62728',
@@ -23,6 +23,7 @@ export default function ColorPanel({
 }: ColorPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const customInputRef = useRef<HTMLInputElement>(null);
+  const [pendingColor, setPendingColor] = useState<string | null>(null);
 
   const handleSelect = useCallback(
     (c: string) => {
@@ -31,6 +32,13 @@ export default function ColorPanel({
     },
     [onSelect, onClose],
   );
+
+  const handleConfirm = useCallback(() => {
+    if (pendingColor) {
+      onSelect(pendingColor);
+    }
+    onClose();
+  }, [pendingColor, onSelect, onClose]);
 
   const handleCustomClick = useCallback(() => {
     customInputRef.current?.click();
@@ -41,12 +49,12 @@ export default function ColorPanel({
     if (!input) return;
     const onChange = () => {
       if (input.value) {
-        handleSelect(input.value);
+        setPendingColor(input.value);
       }
     };
     input.addEventListener('change', onChange);
     return () => input.removeEventListener('change', onChange);
-  }, [handleSelect]);
+  }, []);
 
   useEffect(() => {
     const onMouseDown = (e: MouseEvent) => {
@@ -68,7 +76,7 @@ export default function ColorPanel({
   }, [onClose]);
 
   const spaceBelow = window.innerHeight - triggerRect.bottom;
-  const panelHeight = 170;
+  const panelHeight = 220;
   const top = spaceBelow >= panelHeight + 8
     ? triggerRect.bottom + 4
     : triggerRect.top - panelHeight - 4;
@@ -82,11 +90,12 @@ export default function ColorPanel({
     >
       <button
         onClick={onClose}
-        className="absolute top-1 right-1.5 w-5 h-5 flex items-center justify-center text-gray-400 hover:text-gray-600 rounded text-xs leading-none"
+        className="absolute top-1.5 right-1.5 w-5 h-5 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded text-xs leading-none"
         title="关闭"
       >
         ✕
       </button>
+
       <div className="text-xs font-medium text-gray-500 mb-2">预设颜色</div>
       <div className="flex flex-wrap gap-1.5 mb-3">
         {PRESET_COLORS.map((c) => (
@@ -121,18 +130,47 @@ export default function ColorPanel({
         </>
       )}
 
-      <button
-        onClick={handleCustomClick}
-        className="w-full text-xs text-blue-500 hover:text-blue-700 py-1 border border-dashed border-gray-300 rounded hover:border-blue-300"
-      >
-        自定义...
-      </button>
+      <div className="flex items-center gap-2 mb-2">
+        <button
+          onClick={handleCustomClick}
+          className="flex-1 text-xs text-blue-500 hover:text-blue-700 py-1 border border-dashed border-gray-300 rounded hover:border-blue-300"
+        >
+          自定义...
+        </button>
+        {pendingColor && (
+          <span
+            className="w-5 h-5 rounded border border-gray-300 flex-shrink-0"
+            style={{ backgroundColor: pendingColor }}
+            title="待确认"
+          />
+        )}
+      </div>
       <input
         ref={customInputRef}
         type="color"
         className="hidden"
         defaultValue={color}
       />
+
+      <div className="flex gap-2 mt-1">
+        <button
+          onClick={onClose}
+          className="flex-1 text-xs text-gray-500 hover:text-gray-700 py-1 border border-gray-200 rounded hover:bg-gray-50"
+        >
+          取消
+        </button>
+        <button
+          onClick={handleConfirm}
+          disabled={!pendingColor}
+          className={`flex-1 text-xs py-1 rounded ${
+            pendingColor
+              ? 'bg-blue-500 text-white hover:bg-blue-600'
+              : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+          }`}
+        >
+          确认
+        </button>
+      </div>
     </div>
   );
 }
