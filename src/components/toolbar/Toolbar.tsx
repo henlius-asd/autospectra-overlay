@@ -182,6 +182,12 @@ export default function Toolbar() {
       >
         导入工作区
       </button>
+      <span
+        className="ml-auto text-[10px] text-gray-400 font-mono tabular-nums select-none"
+        title="当前构建版本（来自 package.json，与发布 tag 对应）"
+      >
+        v{__APP_VERSION__}
+      </span>
     </div>
   );
 }
