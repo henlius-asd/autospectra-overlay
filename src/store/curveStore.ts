@@ -29,6 +29,7 @@ interface CurveState {
   addPointLabel: (label: PointLabel) => void;
   updatePointLabel: (id: string, updates: Partial<PointLabel>) => void;
   removePointLabel: (id: string) => void;
+  updateBrace: (id: string, updates: Partial<BraceAnnotation>) => void;
 }
 
 // For zundo temporal typing
@@ -207,6 +208,11 @@ export const useCurveStore = create<CurveState>()(
       removePointLabel: (id) =>
         set((state) => ({
           pointLabels: state.pointLabels.filter((pl) => pl.id !== id),
+        })),
+
+      updateBrace: (id, updates) =>
+        set((state) => ({
+          braces: state.braces.map((b) => (b.id === id ? { ...b, ...updates } : b)),
         })),
     }),
     { limit: 50 },

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { deriveBaseline } from '../curveStore';
+import { deriveBaseline, useCurveStore } from '../curveStore';
+import type { BraceAnnotation } from '@/types';
 
 describe('deriveBaseline', () => {
   it('returns null for empty stagingOrder', () => {
@@ -26,5 +27,29 @@ describe('deriveBaseline', () => {
 
   it('returns the first element when it is the only visible', () => {
     expect(deriveBaseline(['a', 'b', 'c'], { a: true })).toBe('a');
+  });
+});
+
+describe('updateBrace', () => {
+  it('updates the matching brace and leaves others untouched', () => {
+    useCurveStore.setState({
+      braces: [
+        { id: 'b1', type: 'horizontal', startX: 0, endX: 10, label: 'a' },
+        { id: 'b2', type: 'horizontal', startX: 20, endX: 30, label: 'b' },
+      ] as BraceAnnotation[],
+    });
+    useCurveStore.getState().updateBrace('b1', { startX: 5, endX: 15 });
+    const braces = useCurveStore.getState().braces;
+    expect(braces[0]).toEqual({ id: 'b1', type: 'horizontal', startX: 5, endX: 15, label: 'a' });
+    expect(braces[1]).toEqual({ id: 'b2', type: 'horizontal', startX: 20, endX: 30, label: 'b' });
+  });
+
+  it('is a no-op when the id is not found', () => {
+    useCurveStore.setState({
+      braces: [{ id: 'b1', type: 'horizontal', startX: 0, endX: 10, label: 'a' }] as BraceAnnotation[],
+    });
+    useCurveStore.getState().updateBrace('missing', { label: 'x' });
+    expect(useCurveStore.getState().braces).toHaveLength(1);
+    expect(useCurveStore.getState().braces[0].label).toBe('a');
   });
 });
