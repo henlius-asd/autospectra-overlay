@@ -2,6 +2,8 @@ import { getChartInstance } from './WaterfallChart';
 import { useCurveStore, useUiStore } from '@/store';
 import { bracePath, BRACE_COLOR } from './bracePath';
 import { computeYAxisRange } from './computeYAxisRange';
+import { getTopCurvePixelYAtX, topCurvePeak } from './labelGeometry';
+import { clampLabelX, clampLabelY, estimateTextWidth } from './labelClamp';
 
 /**
  * Local reimplementation of WaterfallChart's convertXToPixel.
@@ -21,6 +23,12 @@ function convertXToPixel(
 
 /**
  * Composite-export: ECharts canvas + brace SVG → single PNG download.
+ *
+ * Snapshots the live ECharts option, swaps to an export-only option
+ * (legend hidden, dataZoom slider removed but `start`/`end` zoom
+ * preserved via an `inside` zoom, grid tightened by `showAxes`),
+ * captures the canvas, composites the SVG overlay using the shared
+ * geometry helpers (no decorations, clamped), then restores in `finally`.
  */
 export async function exportChartImage(): Promise<void> {
   const instance = getChartInstance();
@@ -29,176 +37,199 @@ export async function exportChartImage(): Promise<void> {
     return;
   }
 
-  const pixelRatio = 2;
   const uiState = useUiStore.getState();
-  const url = instance.getDataURL({
-    type: 'png',
-    pixelRatio,
-    backgroundColor: (!uiState.showAxes) ? 'transparent' : '#fff',
-  });
+  const showAxes = uiState.showAxes;
 
-  const canvas = document.createElement('canvas');
-  const chartWidth = instance.getWidth();
-  const chartHeight = instance.getHeight();
-  canvas.width = chartWidth * pixelRatio;
-  canvas.height = chartHeight * pixelRatio;
-  const ctx = canvas.getContext('2d')!;
+  // Snapshot the live option so we can restore EXACTLY after export.
+  const snapshot = structuredClone(instance.getOption()) as Record<string, unknown>;
+  const origDataZoom = (Array.isArray(snapshot.dataZoom) ? snapshot.dataZoom : []) as Array<Record<string, unknown>>;
+  const zoomStart = origDataZoom[0]?.start;
+  const zoomEnd = origDataZoom[0]?.end;
+  const insideZoom: Record<string, unknown>[] = [{ type: 'inside', xAxisIndex: 0 }];
+  if (zoomStart != null) insideZoom[0].start = zoomStart;
+  if (zoomEnd != null) insideZoom[0].end = zoomEnd;
 
-  // 1. Draw ECharts PNG onto canvas.
-  const echartsImg = new Image();
-  await new Promise<void>((resolve, reject) => {
-    echartsImg.onload = () => resolve();
-    echartsImg.onerror = reject;
-    echartsImg.src = url;
-  });
-  ctx.drawImage(echartsImg, 0, 0, canvas.width, canvas.height);
-
-  // 2. Build a clean brace SVG (no foreignObject, no editing dialog).
-  const state = useCurveStore.getState();
-  const { braces, visibleCurves, stagingOrder } = state;
-  const xRange = useUiStore.getState().xRange;
-
-  // Read Y-axis extent from ECharts model for pixel conversion only.
-  // Layer offsets and maxY are computed deterministically from raw data +
-  // layerSpacing (same formula as WaterfallChart), NOT from yExtent.
-  const chart = instance as any;
-  const yExtentRaw = chart.getModel()?.getComponent?.('yAxis', 0)?.axis?.scale?.getExtent?.();
-  const yExtent: [number, number] = yExtentRaw?.length === 2
-    ? [yExtentRaw[0] as number, yExtentRaw[1] as number]
-    : [0, 1];
-  const yExtentRange = yExtent[1] - yExtent[0] || 1;
-
-  const visibleIds = stagingOrder.filter((id) => visibleCurves[id]);
-  const visibleBraces = braces.filter(
-    (b) => b.startX <= xRange[1] && b.endX >= xRange[0],
-  );
-
-  const option = instance.getOption() as {
-    grid?: { left?: number; right?: number; top?: number | string }[];
+  const exportOpt = {
+    legend: { show: false },
+    dataZoom: insideZoom,
+    grid: {
+      left: 60,
+      right: 48,
+      top: showAxes ? 20 : 8,
+      bottom: showAxes ? 40 : 8,
+    },
   };
-  const grid = option.grid?.[0];
-  const gridLeft = typeof grid?.left === 'number' ? grid.left : 60;
-  const gridRight = typeof grid?.right === 'number' ? grid.right : 48;
-  const gridTop = typeof grid?.top === 'number' ? grid.top : (visibleIds.length > 1 ? 50 : 20);
 
-  const ns = 'http://www.w3.org/2000/svg';
-  const svgEl = document.createElementNS(ns, 'svg');
-  svgEl.setAttribute('xmlns', ns);
-  svgEl.setAttribute('width', String(canvas.width));
-  svgEl.setAttribute('height', String(canvas.height));
-  svgEl.setAttribute(
-    'viewBox',
-    `0 0 ${canvas.width} ${canvas.height}`,
-  );
+  try {
+    instance.setOption(exportOpt, {
+      replaceMerge: ['legend', 'dataZoom', 'grid'],
+      lazyUpdate: false,
+    });
 
-  const { maxY } = computeYAxisRange(
-    visibleIds,
-    state.curves,
-    state.offsets,
-    xRange,
-    state.layerSpacing,
-  );
+    const pixelRatio = 2;
+    const url = instance.getDataURL({
+      type: 'png',
+      pixelRatio,
+      backgroundColor: showAxes ? '#fff' : 'transparent',
+    });
 
-  const gridBottom = 60;
-  const yPixelRange = chartHeight - gridTop - gridBottom;
-  const yPixel = gridTop + ((yExtent[1] - maxY) / yExtentRange) * yPixelRange;
-  const braceY = Math.max(gridTop + 5, yPixel - 18) * pixelRatio;
-  for (const brace of visibleBraces) {
-    const px1 = convertXToPixel(brace.startX, xRange, chartWidth, gridLeft, gridRight) * pixelRatio;
-    const px2 = convertXToPixel(brace.endX, xRange, chartWidth, gridLeft, gridRight) * pixelRatio;
+    const canvas = document.createElement('canvas');
+    const chartWidth = instance.getWidth();
+    const chartHeight = instance.getHeight();
+    canvas.width = chartWidth * pixelRatio;
+    canvas.height = chartHeight * pixelRatio;
+    const ctx = canvas.getContext('2d')!;
 
-    const pathEl = document.createElementNS(ns, 'path');
-    pathEl.setAttribute('d', bracePath(px1, px2, braceY));
-    pathEl.setAttribute('stroke', BRACE_COLOR);
-    pathEl.setAttribute('fill', 'none');
-    pathEl.setAttribute('stroke-width', String(2 * pixelRatio));
-    svgEl.appendChild(pathEl);
+    // 1. ECharts PNG.
+    const echartsImg = new Image();
+    await new Promise<void>((resolve, reject) => {
+      echartsImg.onload = () => resolve();
+      echartsImg.onerror = reject;
+      echartsImg.src = url;
+    });
+    ctx.drawImage(echartsImg, 0, 0, canvas.width, canvas.height);
 
-    const textEl = document.createElementNS(ns, 'text');
-    textEl.setAttribute('x', String((px1 + px2) / 2));
-    textEl.setAttribute('y', String(braceY - 10 * pixelRatio));
-    textEl.setAttribute('font-size', String(11 * pixelRatio));
-    textEl.setAttribute('fill', BRACE_COLOR);
-    textEl.setAttribute('text-anchor', 'middle');
-    textEl.textContent = brace.label || '未命名';
-    svgEl.appendChild(textEl);
+    // 2. Read the (now tightened) grid geometry from the live option.
+    const option = instance.getOption() as {
+      grid?: { left?: number; right?: number; top?: number; bottom?: number }[];
+    };
+    const grid = option.grid?.[0];
+    const gridLeft = typeof grid?.left === 'number' ? grid.left : 60;
+    const gridRight = typeof grid?.right === 'number' ? grid.right : 48;
+    const gridTop = typeof grid?.top === 'number' ? grid.top : (showAxes ? 20 : 8);
+    const gridBottom = typeof grid?.bottom === 'number' ? grid.bottom : (showAxes ? 40 : 8);
+
+    const state = useCurveStore.getState();
+    const { braces, visibleCurves, stagingOrder } = state;
+    const xRange = useUiStore.getState().xRange;
+
+    const chart = instance as any;
+    const yExtentRaw = chart.getModel()?.getComponent?.('yAxis', 0)?.axis?.scale?.getExtent?.();
+    const yExtent: [number, number] = yExtentRaw?.length === 2
+      ? [yExtentRaw[0] as number, yExtentRaw[1] as number]
+      : [0, 1];
+    const yExtentRange = yExtent[1] - yExtent[0] || 1;
+
+    const visibleIds = stagingOrder.filter((id) => visibleCurves[id]);
+    const rangeResult = computeYAxisRange(
+      visibleIds,
+      state.curves,
+      state.offsets,
+      xRange,
+      state.layerSpacing,
+    );
+    const peak = topCurvePeak(rangeResult.rawDataMin, rangeResult.yRangeForLayer);
+
+    const yPixelRange = chartHeight - gridTop - gridBottom;
+    const yToPixelExport = (yVal: number) =>
+      gridTop + ((yExtent[1] - yVal) / yExtentRange) * yPixelRange;
+
+    const ns = 'http://www.w3.org/2000/svg';
+    const svgEl = document.createElementNS(ns, 'svg');
+    svgEl.setAttribute('xmlns', ns);
+    svgEl.setAttribute('width', String(canvas.width));
+    svgEl.setAttribute('height', String(canvas.height));
+    svgEl.setAttribute('viewBox', `0 0 ${canvas.width} ${canvas.height}`);
+
+    // Braces — baseline hugs the top curve peak, clamped to gridTop+8.
+    const visibleBraces = braces.filter(
+      (b) => b.startX <= xRange[1] && b.endX >= xRange[0],
+    );
+    const braceYUnscaled = Math.max(gridTop + 8, yToPixelExport(peak) - 14);
+    const braceYScaled = braceYUnscaled * pixelRatio;
+    for (const brace of visibleBraces) {
+      const px1 = convertXToPixel(brace.startX, xRange, chartWidth, gridLeft, gridRight) * pixelRatio;
+      const px2 = convertXToPixel(brace.endX, xRange, chartWidth, gridLeft, gridRight) * pixelRatio;
+
+      const pathEl = document.createElementNS(ns, 'path');
+      pathEl.setAttribute('d', bracePath(px1, px2, braceYScaled));
+      pathEl.setAttribute('stroke', BRACE_COLOR);
+      pathEl.setAttribute('fill', 'none');
+      pathEl.setAttribute('stroke-width', String(2 * pixelRatio));
+      svgEl.appendChild(pathEl);
+
+      const labelText = brace.label || '未命名';
+      const textWScaled = estimateTextWidth(labelText, 11) * pixelRatio;
+      const textXScaled = clampLabelX(
+        (px1 + px2) / 2,
+        textWScaled,
+        gridLeft * pixelRatio,
+        gridRight * pixelRatio,
+        canvas.width,
+      );
+      const textEl = document.createElementNS(ns, 'text');
+      textEl.setAttribute('x', String(textXScaled));
+      textEl.setAttribute('y', String(braceYScaled - 10 * pixelRatio));
+      textEl.setAttribute('font-size', String(11 * pixelRatio));
+      textEl.setAttribute('fill', BRACE_COLOR);
+      textEl.setAttribute('text-anchor', 'middle');
+      textEl.textContent = labelText;
+      svgEl.appendChild(textEl);
+    }
+
+    // Point labels — text only, baseline = top curve at pl.x, clamped.
+    const { pointLabels } = state;
+    const visiblePointLabels = pointLabels.filter(
+      (pl) => pl.x >= xRange[0] && pl.x <= xRange[1],
+    );
+    const geometryCtx = {
+      visibleIds,
+      curves: state.curves,
+      offsets: state.offsets,
+      layerSpacing: state.layerSpacing,
+      yRangeForLayer: rangeResult.yRangeForLayer,
+    };
+    for (const pl of visiblePointLabels) {
+      const labelText = pl.label || '未命名';
+      const textW = estimateTextWidth(labelText, 10);
+      const rawPx = convertXToPixel(pl.x, xRange, chartWidth, gridLeft, gridRight);
+      const px = clampLabelX(rawPx, textW, gridLeft, gridRight, chartWidth);
+      const rawPy = getTopCurvePixelYAtX(pl.x, geometryCtx, yToPixelExport) + pl.yOffset;
+      const py = clampLabelY(rawPy, 6, gridTop, chartHeight - gridBottom);
+
+      const textEl = document.createElementNS(ns, 'text');
+      textEl.setAttribute('x', String(px * pixelRatio));
+      textEl.setAttribute('y', String((py + 3) * pixelRatio));
+      textEl.setAttribute('font-size', String(10 * pixelRatio));
+      textEl.setAttribute('fill', '#333');
+      textEl.setAttribute('text-anchor', 'middle');
+      textEl.textContent = labelText;
+      svgEl.appendChild(textEl);
+    }
+
+    const svgStr = new XMLSerializer().serializeToString(svgEl);
+    const svgUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgStr);
+
+    const braceImg = new Image();
+    await new Promise<void>((resolve, reject) => {
+      braceImg.onload = () => resolve();
+      braceImg.onerror = reject;
+      braceImg.src = svgUrl;
+    });
+    ctx.drawImage(braceImg, 0, 0, canvas.width, canvas.height);
+
+    // 3. Download.
+    const finalUrl = canvas.toDataURL('image/png');
+    const a = document.createElement('a');
+    a.href = finalUrl;
+    const ts = new Date()
+      .toISOString()
+      .replace(/[:.]/g, '-')
+      .replace('T', '_')
+      .slice(0, 19);
+    a.download = `chromatogram_${ts}.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+  } finally {
+    // Restore the live option exactly (legend, dataZoom slider + zoom, grid).
+    instance.setOption(
+      {
+        legend: snapshot.legend,
+        dataZoom: snapshot.dataZoom,
+        grid: snapshot.grid,
+      },
+      { replaceMerge: ['legend', 'dataZoom', 'grid'], lazyUpdate: false },
+    );
   }
-
-  // Render point labels
-  const { pointLabels } = state;
-  const visiblePointLabels = pointLabels.filter(
-    (pl) => pl.x >= xRange[0] && pl.x <= xRange[1],
-  );
-
-  const topCurvePixelYExport = gridTop + ((yExtent[1] - maxY) / yExtentRange) * yPixelRange;
-
-  for (const pl of visiblePointLabels) {
-    const px = convertXToPixel(pl.x, xRange, chartWidth, gridLeft, gridRight) * pixelRatio;
-    const py = (topCurvePixelYExport + pl.yOffset) * pixelRatio;
-    const curveY = topCurvePixelYExport * pixelRatio;
-
-    const lineEl = document.createElementNS(ns, 'line');
-    lineEl.setAttribute('x1', String(px));
-    lineEl.setAttribute('y1', String(py + 8 * pixelRatio));
-    lineEl.setAttribute('x2', String(px));
-    lineEl.setAttribute('y2', String(curveY));
-    lineEl.setAttribute('stroke', '#555');
-    lineEl.setAttribute('stroke-width', String(1 * pixelRatio));
-    lineEl.setAttribute('stroke-dasharray', `${3 * pixelRatio} ${2 * pixelRatio}`);
-    svgEl.appendChild(lineEl);
-
-    const dotEl = document.createElementNS(ns, 'circle');
-    dotEl.setAttribute('cx', String(px));
-    dotEl.setAttribute('cy', String(curveY));
-    dotEl.setAttribute('r', String(3 * pixelRatio));
-    dotEl.setAttribute('fill', '#555');
-    svgEl.appendChild(dotEl);
-
-    const labelW = 60 * pixelRatio;
-    const labelH = 18 * pixelRatio;
-    const rectEl = document.createElementNS(ns, 'rect');
-    rectEl.setAttribute('x', String(px - labelW / 2));
-    rectEl.setAttribute('y', String(py - 10 * pixelRatio));
-    rectEl.setAttribute('width', String(labelW));
-    rectEl.setAttribute('height', String(labelH));
-    rectEl.setAttribute('rx', String(3 * pixelRatio));
-    rectEl.setAttribute('fill', 'white');
-    rectEl.setAttribute('stroke', '#ccc');
-    rectEl.setAttribute('stroke-width', String(1 * pixelRatio));
-    svgEl.appendChild(rectEl);
-
-    const textEl = document.createElementNS(ns, 'text');
-    textEl.setAttribute('x', String(px));
-    textEl.setAttribute('y', String(py + 3 * pixelRatio));
-    textEl.setAttribute('font-size', String(10 * pixelRatio));
-    textEl.setAttribute('fill', '#333');
-    textEl.setAttribute('text-anchor', 'middle');
-    textEl.textContent = pl.label || '未命名';
-    svgEl.appendChild(textEl);
-  }
-
-  const svgStr = new XMLSerializer().serializeToString(svgEl);
-  const svgUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svgStr);
-
-  const braceImg = new Image();
-  await new Promise<void>((resolve, reject) => {
-    braceImg.onload = () => resolve();
-    braceImg.onerror = reject;
-    braceImg.src = svgUrl;
-  });
-  ctx.drawImage(braceImg, 0, 0, canvas.width, canvas.height);
-
-  // 3. Download the composite PNG.
-  const finalUrl = canvas.toDataURL('image/png');
-  const a = document.createElement('a');
-  a.href = finalUrl;
-  const ts = new Date()
-    .toISOString()
-    .replace(/[:.]/g, '-')
-    .replace('T', '_')
-    .slice(0, 19);
-  a.download = `chromatogram_${ts}.png`;
-  document.body.appendChild(a);
-  a.click();
-  document.body.removeChild(a);
 }
