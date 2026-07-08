@@ -14,6 +14,10 @@ interface UiState {
   pointLabelPlacementMode: boolean;
   showGrid: boolean;
   showAxes: boolean;
+  yScaleToolMode: boolean;
+  activeScaledCurveId: string | null;
+  setYScaleToolMode: (active: boolean) => void;
+  setActiveScaledCurveId: (id: string | null) => void;
   toggleLeftPanel: () => void;
   toggleRightPanel: () => void;
   setSelectionMode: (mode: SelectionMode) => void;
@@ -38,7 +42,9 @@ export const useUiStore = create<UiState>((set) => ({
   bracePlacementMode: false,
   pointLabelPlacementMode: false,
   showGrid: true,
-  showAxes: true,
+  yScaleToolMode: false,
+  activeScaledCurveId: null,
+  showAxes: false,
   toggleLeftPanel: () =>
     set((s) => ({ leftPanelCollapsed: !s.leftPanelCollapsed })),
   toggleRightPanel: () =>
@@ -52,4 +58,6 @@ export const useUiStore = create<UiState>((set) => ({
   setPointLabelPlacementMode: (active) => set({ pointLabelPlacementMode: active }),
   toggleShowGrid: () => set((s) => ({ showGrid: !s.showGrid })),
   toggleShowAxes: () => set((s) => ({ showAxes: !s.showAxes })),
+  setYScaleToolMode: (active) => set({ yScaleToolMode: active }),
+  setActiveScaledCurveId: (id) => set({ activeScaledCurveId: id }),
 }));
