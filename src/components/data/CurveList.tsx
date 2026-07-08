@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import { useCurveStore, useUiStore } from '@/store';
 import ContextMenu from './ContextMenu';
+import ColorPanel from './ColorPanel';
   
 interface CurveListProps {
   visibleCurves: Record<string, boolean>;
@@ -30,11 +31,15 @@ export default function CurveList({
   const curves = useCurveStore((s) => s.curves);
   const selectedCurveId = useUiStore((s) => s.selectedCurveId);
   const setSelectedCurveId = useUiStore((s) => s.setSelectedCurveId);
+  const colorHistory = useUiStore((s) => s.colorHistory);
+  const addColorToHistory = useUiStore((s) => s.addColorToHistory);
 
   const [filterText, setFilterText] = useState('');
   const [contextMenu, setContextMenu] = useState<{
     x: number; y: number; curveId: string;
   } | null>(null);
+  const [panelCurveId, setPanelCurveId] = useState<string | null>(null);
+  const [panelTriggerRect, setPanelTriggerRect] = useState<DOMRect | null>(null);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState('');
   const [dragOverId, setDragOverId] = useState<string | null>(null);
@@ -186,17 +191,13 @@ export default function CurveList({
             <span
               className="relative w-3 h-3 rounded-full flex-shrink-0 cursor-pointer border border-gray-300"
               style={{ backgroundColor: color }}
-              onClick={(e) => e.stopPropagation()}
+              onClick={(e) => {
+                e.stopPropagation();
+                setPanelTriggerRect((e.target as HTMLElement).getBoundingClientRect());
+                setPanelCurveId(id);
+              }}
               title="点击修改颜色"
-            >
-              <input
-                type="color"
-                value={color}
-                onChange={(e) => setCurveColor(id, e.target.value)}
-                className="absolute inset-0 opacity-0 cursor-pointer"
-                onClick={(e) => e.stopPropagation()}
-              />
-            </span>
+            />
           );
         })()}
         {editingId === id ? (
@@ -341,6 +342,18 @@ export default function CurveList({
           onSetBaseline={() => setBaseline(contextMenu.curveId)}
           onDelete={() => onRemoveCurve(contextMenu.curveId)}
           onClose={() => setContextMenu(null)}
+        />
+      )}
+      {panelCurveId && panelTriggerRect && (
+        <ColorPanel
+          color={curves[panelCurveId]?.color || '#000000'}
+          colorHistory={colorHistory}
+          triggerRect={panelTriggerRect}
+          onSelect={(c) => {
+            setCurveColor(panelCurveId, c);
+            addColorToHistory(c);
+          }}
+          onClose={() => setPanelCurveId(null)}
         />
       )}
     </div>
