@@ -26,6 +26,7 @@ interface CurveState {
   setAllCurvesVisibility: (visible: boolean) => void;
   setLayerSpacing: (spacing: number) => void;
   setCurveScale: (id: string, scale: number) => void;
+  setCurveColor: (id: string, color: string) => void;
   setStagingOrder: (order: string[]) => void;
   setDisplayName: (id: string, displayName: string) => void;
   addPointLabel: (label: PointLabel) => void;
@@ -74,7 +75,7 @@ export const useCurveStore = create<CurveState>()(
 
           for (let i = 0; i < newCurves.length; i++) {
             const id = `${newCurves[i].name}_${Date.now()}_${i}`;
-            curves[id] = newCurves[i];
+            curves[id] = { ...newCurves[i], color: '#000000' };
             offsets[id] = { xOffset: 0, yOffset: 0 };
           }
 
@@ -189,6 +190,15 @@ export const useCurveStore = create<CurveState>()(
         set((state) => ({
           curveScales: { ...state.curveScales, [id]: scale },
         })),
+
+      setCurveColor: (id, color) =>
+        set((state) => {
+          const curve = state.curves[id];
+          if (!curve) return state;
+          return {
+            curves: { ...state.curves, [id]: { ...curve, color } },
+          };
+        }),
 
       setStagingOrder: (order) =>
         set((state) => ({

@@ -49,6 +49,16 @@ describe('setCurveScale', () => {
   });
 });
 
+describe('setCurveColor', () => {
+  it('sets color for a curve', () => {
+    useCurveStore.setState({
+      curves: { c1: { name: 'c1', data: [], color: '#000000' } },
+    });
+    useCurveStore.getState().setCurveColor('c1', '#FF0000');
+    expect(useCurveStore.getState().curves.c1.color).toBe('#FF0000');
+  });
+});
+
 describe('updateBrace', () => {
   it('updates the matching brace and leaves others untouched', () => {
     useCurveStore.setState({
