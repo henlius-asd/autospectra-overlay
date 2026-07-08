@@ -292,6 +292,7 @@ export default function WaterfallChart() {
         offsets,
         layerSpacing,
         yRangeForLayer: rangeResult.yRangeForLayer,
+        curveScales,
       },
       convertYToPixel,
     );

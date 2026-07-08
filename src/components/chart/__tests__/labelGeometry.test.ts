@@ -21,6 +21,7 @@ describe('getTopCurvePixelYAtX', () => {
     offsets,
     layerSpacing: 0,
     yRangeForLayer: 100,
+    curveScales: {},
   };
   // identity converter: pixel y == data y (for test clarity we invert to match
   // screen-down convention by negating)
@@ -56,6 +57,7 @@ describe('getTopCurvePixelYAtX', () => {
       offsets: { ...offsets, bot: { xOffset: 0, yOffset: 0 } },
       layerSpacing: 0.1,
       yRangeForLayer: 100,
+      curveScales: {},
     };
     // at x=10, y=100 + layerYOffset 10 = 110 → -110
     expect(getTopCurvePixelYAtX(10, ctx2, yToPixel)).toBe(-110);

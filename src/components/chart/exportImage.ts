@@ -179,6 +179,7 @@ export async function exportChartImage(): Promise<void> {
       offsets: state.offsets,
       layerSpacing: state.layerSpacing,
       yRangeForLayer: rangeResult.yRangeForLayer,
+      curveScales: state.curveScales,
     };
     for (const pl of visiblePointLabels) {
       const labelText = pl.label || '未命名';
