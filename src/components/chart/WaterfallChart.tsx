@@ -3,10 +3,12 @@ import ReactECharts from 'echarts-for-react';
 import { useCurveStore, useUiStore } from '@/store';
 import BraceOverlay from './BraceOverlay';
 import PointLabelOverlay from './PointLabelOverlay';
-import ScaleSlider from './ScaleSlider';
+import YRangeSlider from './YRangeSlider';
 import type { EChartsOption } from 'echarts';
 import type { EChartsInstance } from 'echarts-for-react';
 import { computeYAxisRange } from './computeYAxisRange';
+import { resolveYAxis } from './resolveYAxis';
+import { yToPixel } from './yPixelMath';
 import { getTopCurvePixelYAtX, topCurvePeak } from './labelGeometry';
 
 // Shared chart instance for PNG export
@@ -38,18 +40,6 @@ function getXAxisExtent(): [number, number] | null {
   return null;
 }
 
-/** Read current Y-axis visible range from ECharts model */
-function getYAxisExtent(): [number, number] | null {
-  if (!chartInstance) return null;
-  try {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const chart = chartInstance as any;
-    const extent = chart.getModel()?.getComponent?.('yAxis', 0)?.axis?.scale?.getExtent?.();
-    if (extent && extent.length === 2) return [extent[0] as number, extent[1] as number];
-  } catch { /* fall through */ }
-  return null;
-}
-
 export default function WaterfallChart() {
   const curves = useCurveStore((s) => s.curves);
   const offsets = useCurveStore((s) => s.offsets);
@@ -59,15 +49,13 @@ export default function WaterfallChart() {
   const setLayerSpacing = useCurveStore((s) => s.setLayerSpacing);
   const curveScales = useCurveStore((s) => s.curveScales);
   const curveScaleOffsets = useCurveStore((s) => s.curveScaleOffsets);
-  const setCurveScale = useCurveStore((s) => s.setCurveScale);
-  const setCurveScaleOffset = useCurveStore((s) => s.setCurveScaleOffset);
   const xRange = useUiStore((s) => s.xRange);
   const bracePlacementMode = useUiStore((s) => s.bracePlacementMode);
   const showGrid = useUiStore((s) => s.showGrid);
   const showAxes = useUiStore((s) => s.showAxes);
-  const yScaleToolMode = useUiStore((s) => s.yScaleToolMode);
-  const activeScaledCurveId = useUiStore((s) => s.activeScaledCurveId);
-  const setActiveScaledCurveId = useUiStore((s) => s.setActiveScaledCurveId);
+  const yZoomRange = useUiStore((s) => s.yZoomRange);
+  const setYZoomRange = useUiStore((s) => s.setYZoomRange);
+  const resetYZoomRange = useUiStore((s) => s.resetYZoomRange);
 
   // visibleIds follows stagingOrder (only IDs that are in stagingOrder AND visible)
   // visibleIds[0] = top of list = top of chart; visibleIds[last] = bottom (baseline)
@@ -139,13 +127,15 @@ export default function WaterfallChart() {
     // Delegates to computeYAxisRange (see that module for formula derivation).
     // This gives a STABLE, deterministic yRange that does NOT depend on
     // ECharts auto-scale, breaking the positive-feedback loop.
-    const { yRangeForLayer, yAxisMin, yAxisMax } = computeYAxisRange(
+    const fullRange = computeYAxisRange(
       visibleIds,
       curves,
       offsets,
       xRange,
       layerSpacing,
     );
+    const { yRangeForLayer } = fullRange;
+    const resolved = resolveYAxis(fullRange, yZoomRange);
 
     const series = visibleIds.map((id, visibleIndex) => {
       const curve = curves[id];
@@ -173,7 +163,7 @@ export default function WaterfallChart() {
         },
         large: true,
         sampling: 'lttb' as const,
-        clip: false,
+        clip: true,
       };
     });
 
@@ -227,8 +217,8 @@ export default function WaterfallChart() {
         nameLocation: 'center',
         nameGap: 45,
         // Explicit bounds — prevents ECharts auto-scale from drifting.
-        min: yAxisMin,
-        max: yAxisMax,
+        min: resolved.yMin,
+        max: resolved.yMax,
         axisLine: { show: showAxes },
         axisTick: { show: showAxes },
         axisLabel: { show: showAxes },
@@ -246,7 +236,7 @@ export default function WaterfallChart() {
       series,
       animation: false,
     };
-  }, [curves, offsets, visibleCurves, layerSpacing, stagingOrder, visibleIds, xRange, bracePlacementMode, showGrid, showAxes]);
+  }, [curves, offsets, visibleCurves, layerSpacing, stagingOrder, visibleIds, xRange, yZoomRange, bracePlacementMode, showGrid, showAxes]);
 
   const convertXToPixel = (xVal: number): number => {
     if (!chartInstance) return 0;
@@ -268,31 +258,22 @@ export default function WaterfallChart() {
     return xRange[0] + ((px - gridLeft) / (chartWidth - gridLeft - gridRight)) * range;
   };
 
-  const convertYToPixel = (yVal: number): number => {
-    if (!chartInstance) return 0;
-    const yExtent = getYAxisExtent();
-    if (!yExtent) return 0;
-    const option = chartInstance.getOption() as Record<string, unknown>;
-    const grid = (option.grid as { top?: number; bottom?: number }[])?.[0];
-    const gridTop = typeof grid?.top === 'number' ? grid.top : (visibleIds.length > 1 ? 50 : 20);
-    const gridBottom = typeof grid?.bottom === 'number' ? grid.bottom : 60;
-    const chartHeight = chartInstance.getHeight();
-    const range = yExtent[1] - yExtent[0] || 1;
-    return gridTop + ((yExtent[1] - yVal) / range) * (chartHeight - gridTop - gridBottom);
-  };
-
   const rangeResult = useMemo(
     () => computeYAxisRange(visibleIds, curves, offsets, xRange, layerSpacing),
     [visibleIds, curves, offsets, xRange, layerSpacing],
   );
-  const selectedLayerYOffset = useMemo(() => {
-    if (!activeScaledCurveId) return 0;
-    const visibleIndex = visibleIds.indexOf(activeScaledCurveId);
-    if (visibleIndex < 0) return 0;
-    const layerIndex = visibleIds.length - 1 - visibleIndex;
-    return layerIndex * layerSpacing * rangeResult.yRangeForLayer;
-  }, [activeScaledCurveId, visibleIds, layerSpacing, rangeResult.yRangeForLayer]);
-
+  const resolvedFrame = useMemo(
+    () => resolveYAxis(rangeResult, yZoomRange),
+    [rangeResult, yZoomRange],
+  );
+  const convertYToPixel = (yVal: number): number =>
+    yToPixel(yVal, {
+      yMin: resolvedFrame.yMin,
+      yMax: resolvedFrame.yMax,
+      gridTop,
+      gridBottom,
+      chartHeight: chartDims.height,
+    });
   const peak = topCurvePeak(rangeResult.rawDataMin, rangeResult.yRangeForLayer);
 
   const gridTop = visibleIds.length > 1 ? 50 : 20;
@@ -346,26 +327,18 @@ export default function WaterfallChart() {
         gridLeft={gridLeft}
         gridRight={gridRight}
       />
-      {yScaleToolMode && activeScaledCurveId && (
-        <ScaleSlider
-          curveId={activeScaledCurveId}
-          curves={curves}
-          offsets={offsets}
-          curveScales={curveScales}
-          curveScaleOffsets={curveScaleOffsets}
-          xRange={xRange}
-          chartWidth={chartDims.width}
-          chartHeight={chartDims.height}
-          gridTop={gridTop}
-          gridBottom={gridBottom}
-          gridLeft={gridLeft}
-          layerYOffset={selectedLayerYOffset}
-          convertYToPixel={convertYToPixel}
-          setCurveScale={setCurveScale}
-          setCurveScaleOffset={setCurveScaleOffset}
-          onDeselect={() => setActiveScaledCurveId(null)}
-        />
-      )}
+      <YRangeSlider
+        chartWidth={chartDims.width}
+        chartHeight={chartDims.height}
+        gridTop={gridTop}
+        gridBottom={gridBottom}
+        gridLeft={gridLeft}
+        resolvedFrame={resolvedFrame}
+        fullRange={rangeResult}
+        yZoomRange={yZoomRange}
+        setYZoomRange={setYZoomRange}
+        resetYZoomRange={resetYZoomRange}
+      />
       <div className="absolute top-1/2 right-1 -translate-y-1/2 h-3/5 flex flex-col items-center gap-1.5 pointer-events-none">
         <span className="text-[10px] text-gray-500 font-mono tabular-nums">
           {layerSpacing.toFixed(3)}
