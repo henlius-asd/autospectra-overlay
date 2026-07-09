@@ -74,7 +74,7 @@ export default function Toolbar() {
     const state = useCurveStore.getState();
     const uiState = useUiStore.getState();
     const blob = new Blob(
-      [JSON.stringify({ curves: state.curves, offsets: state.offsets, baselineId: state.baselineId, braces: state.braces, stagingOrder: state.stagingOrder, visibleCurves: state.visibleCurves, layerSpacing: state.layerSpacing, pointLabels: state.pointLabels, curveScales: state.curveScales, curveScaleOffsets: state.curveScaleOffsets, colorHistory: uiState.colorHistory }, null, 2)],
+      [JSON.stringify({ curves: state.curves, offsets: state.offsets, baselineId: state.baselineId, braces: state.braces, stagingOrder: state.stagingOrder, visibleCurves: state.visibleCurves, layerSpacing: state.layerSpacing, pointLabels: state.pointLabels, curveScales: state.curveScales, curveScaleOffsets: state.curveScaleOffsets, yZoomRange: uiState.yZoomRange, colorHistory: uiState.colorHistory }, null, 2)],
       { type: 'application/json' },
     );
     const url = URL.createObjectURL(blob);
@@ -108,7 +108,10 @@ export default function Toolbar() {
             curveScales: data.curveScales ?? {},
             curveScaleOffsets: data.curveScaleOffsets ?? {},
           });
-          useUiStore.setState({ colorHistory: data.colorHistory ?? [] });
+          useUiStore.setState({
+            colorHistory: data.colorHistory ?? [],
+            yZoomRange: data.yZoomRange ?? null,
+          });
         } catch {
           alert('工作区文件解析失败');
         }
@@ -167,7 +170,7 @@ export default function Toolbar() {
             ? 'bg-blue-500 text-white'
             : 'hover:bg-gray-200 text-gray-600'
         } disabled:text-gray-300 disabled:cursor-not-allowed`}
-        title={yScaleToolMode ? '点击取消Y轴缩放模式' : 'Y轴缩放：点击曲线选中，拖拽手柄缩放'}
+        title={yScaleToolMode ? '点击取消Y轴缩放模式' : 'Y轴缩放：点曲线选中，滚轮/拖拽缩放，Shift+拖拽平移，双击复位'}
       >
         {yScaleToolMode ? '缩放中...' : 'Y缩放'}
       </button>
