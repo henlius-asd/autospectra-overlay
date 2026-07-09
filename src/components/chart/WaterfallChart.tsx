@@ -115,6 +115,15 @@ export default function WaterfallChart() {
     if (xExtent) useUiStore.getState().setXRange(xExtent);
   }, []);
 
+  const rangeResult = useMemo(
+    () => computeYAxisRange(visibleIds, curves, offsets, xRange, layerSpacing),
+    [visibleIds, curves, offsets, xRange, layerSpacing],
+  );
+  const resolvedFrame = useMemo(
+    () => resolveYAxis(rangeResult, yZoomRange),
+    [rangeResult, yZoomRange],
+  );
+
   const option: EChartsOption = useMemo(() => {
     if (visibleIds.length === 0) {
       return {
@@ -129,19 +138,7 @@ export default function WaterfallChart() {
 
     const visibleCount = visibleIds.length;
 
-    // ── Compute explicit Y-axis bounds ──
-    // Delegates to computeYAxisRange (see that module for formula derivation).
-    // This gives a STABLE, deterministic yRange that does NOT depend on
-    // ECharts auto-scale, breaking the positive-feedback loop.
-    const fullRange = computeYAxisRange(
-      visibleIds,
-      curves,
-      offsets,
-      xRange,
-      layerSpacing,
-    );
-    const { yRangeForLayer } = fullRange;
-    const resolved = resolveYAxis(fullRange, yZoomRange);
+    const { yRangeForLayer } = rangeResult;
 
     const series = visibleIds.map((id, visibleIndex) => {
       const curve = curves[id];
@@ -223,8 +220,8 @@ export default function WaterfallChart() {
         nameLocation: 'center',
         nameGap: 45,
         // Explicit bounds — prevents ECharts auto-scale from drifting.
-        min: resolved.yMin,
-        max: resolved.yMax,
+        min: resolvedFrame.yMin,
+        max: resolvedFrame.yMax,
         axisLine: { show: showAxes },
         axisTick: { show: showAxes },
         axisLabel: { show: showAxes },
@@ -242,7 +239,7 @@ export default function WaterfallChart() {
       series,
       animation: false,
     };
-  }, [curves, offsets, visibleCurves, layerSpacing, stagingOrder, visibleIds, xRange, yZoomRange, bracePlacementMode, showGrid, showAxes]);
+  }, [curves, offsets, visibleCurves, layerSpacing, stagingOrder, visibleIds, xRange, yZoomRange, bracePlacementMode, showGrid, showAxes, rangeResult, resolvedFrame]);
 
   const convertXToPixel = (xVal: number): number => {
     if (!chartInstance) return 0;
@@ -264,14 +261,6 @@ export default function WaterfallChart() {
     return xRange[0] + ((px - gridLeft) / (chartWidth - gridLeft - gridRight)) * range;
   };
 
-  const rangeResult = useMemo(
-    () => computeYAxisRange(visibleIds, curves, offsets, xRange, layerSpacing),
-    [visibleIds, curves, offsets, xRange, layerSpacing],
-  );
-  const resolvedFrame = useMemo(
-    () => resolveYAxis(rangeResult, yZoomRange),
-    [rangeResult, yZoomRange],
-  );
   const convertYToPixel = (yVal: number): number =>
     yToPixel(yVal, {
       yMin: resolvedFrame.yMin,

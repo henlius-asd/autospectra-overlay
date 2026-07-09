@@ -54,29 +54,33 @@ export default function CurveScaleOverlay({
     setDisplayScale(next);
   }, [curveId, scale, originalMin, originalMax, setCurveScale]);
 
-  const onMouseDown = useCallback((e: React.MouseEvent) => {
+  const onMouseDown = (e: React.MouseEvent) => {
     if (!isFinite(originalMin) || !isFinite(originalMax)) return;
     e.stopPropagation();
     e.preventDefault();
     dragRef.current = { startY: e.clientY, startScale: scale, startOffset: scaleOffset, shift: e.shiftKey };
-  }, [scale, scaleOffset, originalMin, originalMax]);
-
-  const onMouseMove = useCallback((e: React.MouseEvent) => {
-    const d = dragRef.current;
-    if (!d) return;
-    const deltaPx = e.clientY - d.startY;
     const frame = { yMin: resolvedFrame.yMin, yMax: resolvedFrame.yMax, gridTop, gridBottom, chartHeight };
-    if (d.shift) {
-      const next = offsetByDrag(d.startOffset, d.startY, e.clientY, frame);
-      setCurveScaleOffset(curveId, next);
-    } else {
-      const next = scaleByDrag(d.startScale, deltaPx);
-      setCurveScale(curveId, next);
-      setDisplayScale(next);
-    }
-  }, [curveId, resolvedFrame, gridTop, gridBottom, chartHeight, setCurveScale, setCurveScaleOffset]);
-
-  const onMouseUp = useCallback(() => { dragRef.current = null; }, []);
+    const onMove = (ev: MouseEvent) => {
+      const d = dragRef.current;
+      if (!d) return;
+      const deltaPx = ev.clientY - d.startY;
+      if (d.shift) {
+        const next = offsetByDrag(d.startOffset, d.startY, ev.clientY, frame);
+        setCurveScaleOffset(curveId, next);
+      } else {
+        const next = scaleByDrag(d.startScale, deltaPx);
+        setCurveScale(curveId, next);
+        setDisplayScale(next);
+      }
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      dragRef.current = null;
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  };
   const onDoubleClick = useCallback(() => {
     setCurveScale(curveId, 1);
     setCurveScaleOffset(curveId, 0);
@@ -105,8 +109,6 @@ export default function CurveScaleOverlay({
       style={{ pointerEvents: 'auto' }}
       onWheel={onWheel}
       onMouseDown={onMouseDown}
-      onMouseMove={onMouseMove}
-      onMouseUp={onMouseUp}
       onDoubleClick={onDoubleClick}
     >
       {valid && (
