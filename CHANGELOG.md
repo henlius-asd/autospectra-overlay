@@ -8,8 +8,7 @@ Release workflow: see [docs/VERSIONING.md](docs/VERSIONING.md).
 
 ## [Unreleased]
 
-Pending release as `v0.3.0` — the annotation/export polish work currently on
-`master` but not yet deployed to GitHub Pages.
+## [0.3.0] - 2026-07-09
 
 ### Added
 - 点标签贴近最高曲线上方（`getTopCurvePixelYAtX` 基线 + 默认 `yOffset = -10`），去除外框 / 对齐原点 / 虚线，仅保留文字。
@@ -32,6 +31,7 @@ Pending release as `v0.3.0` — the annotation/export polish work currently on
 ### Added
 - 首个 GitHub Pages 自动部署工作流（push to master 触发构建并发布）。
 
-[Unreleased]: https://github.com/henlius-asd/autospectra-overlay/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/henlius-asd/autospectra-overlay/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/henlius-asd/autospectra-overlay/releases/tag/v0.3.0
 [0.2.0]: https://github.com/henlius-asd/autospectra-overlay/releases/tag/v0.2.0
 [0.1.0]: https://github.com/henlius-asd/autospectra-overlay/releases/tag/history-v0.1.0
