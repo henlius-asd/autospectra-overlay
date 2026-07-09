@@ -366,7 +366,7 @@ export default function WaterfallChart() {
           onDeselect={() => setActiveScaledCurveId(null)}
         />
       )}
-      <div className="absolute top-1/2 right-1 -translate-y-1/2 flex flex-col items-center gap-1.5 pointer-events-none">
+      <div className="absolute top-1/2 right-1 -translate-y-1/2 h-3/5 flex flex-col items-center gap-1.5 pointer-events-none">
         <span className="text-[10px] text-gray-500 font-mono tabular-nums">
           {layerSpacing.toFixed(3)}
         </span>
@@ -377,7 +377,7 @@ export default function WaterfallChart() {
           step={0.001}
           value={layerSpacing}
           onChange={(e) => setLayerSpacing(parseFloat(e.target.value))}
-          className="layer-slider h-3/5 w-3 pointer-events-auto"
+          className="layer-slider flex-1 w-3 pointer-events-auto"
           title="Y 轴层间距（占可见范围比例）"
         />
       </div>

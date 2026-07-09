@@ -8,6 +8,11 @@ Release workflow: see [docs/VERSIONING.md](docs/VERSIONING.md).
 
 ## [Unreleased]
 
+## [0.3.1] - 2026-07-09
+
+### Fixed
+- 修复 Y 轴层间距滑块在部分机器上轨道高度塌缩为圆点、无法拖动的问题：将百分比高度 `h-3/5` 从 `<input>` 移到包裹层 div（absolutely positioned，百分比解析到确定高度的定位祖先），input 改用 `flex-1` 填充剩余空间。
+
 ## [0.3.0] - 2026-07-09
 
 ### Added
@@ -31,7 +36,8 @@ Release workflow: see [docs/VERSIONING.md](docs/VERSIONING.md).
 ### Added
 - 首个 GitHub Pages 自动部署工作流（push to master 触发构建并发布）。
 
-[Unreleased]: https://github.com/henlius-asd/autospectra-overlay/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/henlius-asd/autospectra-overlay/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/henlius-asd/autospectra-overlay/releases/tag/v0.3.1
 [0.3.0]: https://github.com/henlius-asd/autospectra-overlay/releases/tag/v0.3.0
 [0.2.0]: https://github.com/henlius-asd/autospectra-overlay/releases/tag/v0.2.0
 [0.1.0]: https://github.com/henlius-asd/autospectra-overlay/releases/tag/history-v0.1.0
