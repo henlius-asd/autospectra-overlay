@@ -16,9 +16,12 @@ interface UiState {
   showAxes: boolean;
   yScaleToolMode: boolean;
   activeScaledCurveId: string | null;
+  yZoomRange: [number, number] | null;
   colorHistory: string[];
   setYScaleToolMode: (active: boolean) => void;
   setActiveScaledCurveId: (id: string | null) => void;
+  setYZoomRange: (range: [number, number]) => void;
+  resetYZoomRange: () => void;
   addColorToHistory: (color: string) => void;
   toggleLeftPanel: () => void;
   toggleRightPanel: () => void;
@@ -46,6 +49,7 @@ export const useUiStore = create<UiState>((set) => ({
   showGrid: true,
   yScaleToolMode: false,
   activeScaledCurveId: null,
+  yZoomRange: null,
   colorHistory: [],
   showAxes: false,
   toggleLeftPanel: () =>
@@ -63,6 +67,8 @@ export const useUiStore = create<UiState>((set) => ({
   toggleShowAxes: () => set((s) => ({ showAxes: !s.showAxes })),
   setYScaleToolMode: (active) => set({ yScaleToolMode: active }),
   setActiveScaledCurveId: (id) => set({ activeScaledCurveId: id }),
+  setYZoomRange: (range) => set({ yZoomRange: range }),
+  resetYZoomRange: () => set({ yZoomRange: null }),
   addColorToHistory: (color) =>
     set((s) => {
       const filtered = s.colorHistory.filter((c) => c !== color);
