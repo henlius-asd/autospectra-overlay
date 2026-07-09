@@ -16,7 +16,7 @@
 - 测试约定：新测试放 `src/components/chart/__tests__/`（与现有 `computeYAxisRange.test.ts` 同目录），命名 `<module>.test.ts`；store 测试放 `src/store/__tests__/`。`vitest.config.ts` 已 include `src/**/*.test.ts` 与 `test/**/*.test.ts`。
 - 无 React 组件测试栈（无 `@testing-library`、未配 jsdom）→ 可测逻辑抽成纯函数单测；组件层靠 `tsc --noEmit` + `npm run build` + 人工验证。
 - 验证命令：测试 `npx vitest run`；类型 `npx tsc --noEmit`；构建 `npm run build`（= `tsc --noEmit && vite build`）。无独立 lint script。
-- 代码风格：跟随现有文件（无分号、单引号、2 空格、ES 模块）。本仓库代码**不加注释**（除非复刻现有 JSDoc 风格的公共 API 文档，且仅在已有注释的文件中延续）。
+- 代码风格：跟随现有文件（**使用分号**、单引号、2 空格、ES 模块——见 `labelClamp.ts`/`computeYAxisRange.ts`）。本仓库代码**不加注释**（除非复刻现有 JSDoc 风格的公共 API 文档，且仅在已有注释的文件中延续）。
 - 提交粒度：每个 Task 末尾一次 commit，信息用 `feat:`/`refactor:`/`test:`/`chore:` 前缀，匹配 `git log` 既有风格。
 - 不要提交与本功能无关的 WIP 改动（`docs/ISSUES/*`、`WaterfallChart.tsx` 的 layer-slider 布局微调）——这些留在工作区不动。
 
@@ -555,12 +555,21 @@ export default function YRangeSlider({
   resolvedFrame, fullRange, yZoomRange, setYZoomRange, resetYZoomRange,
 }: Props) {
   const trackRef = useRef<HTMLDivElement>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
   const frame = {
     yMin: resolvedFrame.yMin,
     yMax: resolvedFrame.yMax,
     gridTop, gridBottom, chartHeight,
   };
   const { rawDataMin, rawDataMax } = fullRange;
+
+  // Convert viewport clientY → container-local pixel Y (overlay div sits at
+  // the chart container's top-left, whose page offset must be subtracted;
+  // handle render positions are container-local, so input must match).
+  const localY = (clientY: number): number => {
+    const rect = containerRef.current?.getBoundingClientRect();
+    return rect ? clientY - rect.top : clientY;
+  };
 
   const clampRange = useCallback(
     (lo: number, hi: number): [number, number] => {
@@ -576,7 +585,6 @@ export default function YRangeSlider({
   const dragHandle = (which: 'lo' | 'hi') => (e: React.MouseEvent) => {
     e.stopPropagation();
     e.preventDefault();
-    const startClientY = e.clientY;
     const start = yZoomRange
       ? (which === 'lo' ? yZoomRange[0] : yZoomRange[1])
       : (which === 'lo' ? resolvedFrame.yMin : resolvedFrame.yMax);
@@ -585,7 +593,7 @@ export default function YRangeSlider({
       : (which === 'lo' ? resolvedFrame.yMax : resolvedFrame.yMin);
 
     const onMove = (ev: MouseEvent) => {
-      const y = pixelToY(ev.clientY, frame);
+      const y = pixelToY(localY(ev.clientY), frame);
       const next = which === 'lo'
         ? clampRange(y, other)
         : clampRange(other, y);
@@ -607,8 +615,9 @@ export default function YRangeSlider({
     const [startLo, startHi] = yZoomRange;
     const span = startHi - startLo;
     const onMove = (ev: MouseEvent) => {
-      const yStart = pixelToY(startClientY, frame);
-      const yNow = pixelToY(ev.clientY, frame);
+      // delta of pixelToY is offset-invariant, but use localY for clarity.
+      const yStart = pixelToY(localY(startClientY), frame);
+      const yNow = pixelToY(localY(ev.clientY), frame);
       const delta = yNow - yStart; // up drag => positive => range shifts up
       let lo = startLo + delta;
       let hi = startHi + delta;
@@ -631,7 +640,7 @@ export default function YRangeSlider({
   const trackX = gridLeft - TRACK_LEFT_OFFSET;
 
   return (
-    <div className="absolute z-10" style={{ left: 0, top: 0, width: '100%', height: chartHeight, pointerEvents: 'none' }}>
+    <div ref={containerRef} className="absolute z-10" style={{ left: 0, top: 0, width: '100%', height: chartHeight, pointerEvents: 'none' }}>
       <div
         ref={trackRef}
         className="absolute bg-gray-300 rounded-full pointer-events-auto"
@@ -814,7 +823,7 @@ import type { CurveData } from '@/types';
 import type { CurveOffsets } from '@/store/curveStore';
 import type { ResolvedYAxis } from './resolveYAxis';
 import { yToPixel } from './yPixelMath';
-import { scaleByWheel, scaleByDrag, offsetByDrag, clampScale } from './curveScaleMath';
+import { scaleByWheel, scaleByDrag, offsetByDrag } from './curveScaleMath';
 
 interface Props {
   curveId: string;
