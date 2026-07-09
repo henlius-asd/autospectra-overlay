@@ -8,7 +8,7 @@ export interface YPixelFrame {
 
 export function yToPixel(yVal: number, f: YPixelFrame): number {
   const range = f.yMax - f.yMin || 1;
-  const plotH = f.chartHeight - f.gridTop - f.gridBottom;
+  const plotH = f.chartHeight - f.gridTop - f.gridBottom || 1;
   return f.gridTop + ((f.yMax - yVal) / range) * plotH;
 }
 
