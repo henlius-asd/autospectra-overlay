@@ -2,6 +2,8 @@ import { getChartInstance } from './WaterfallChart';
 import { useCurveStore, useUiStore } from '@/store';
 import { bracePath, BRACE_COLOR } from './bracePath';
 import { computeYAxisRange } from './computeYAxisRange';
+import { resolveYAxis } from './resolveYAxis';
+import { yToPixel } from './yPixelMath';
 import { getTopCurvePixelYAtX, topCurvePeak } from './labelGeometry';
 import { clampLabelX, clampLabelY, estimateTextWidth } from './labelClamp';
 
@@ -104,13 +106,6 @@ export async function exportChartImage(): Promise<void> {
     const { braces, visibleCurves, stagingOrder } = state;
     const xRange = useUiStore.getState().xRange;
 
-    const chart = instance as any;
-    const yExtentRaw = chart.getModel()?.getComponent?.('yAxis', 0)?.axis?.scale?.getExtent?.();
-    const yExtent: [number, number] = yExtentRaw?.length === 2
-      ? [yExtentRaw[0] as number, yExtentRaw[1] as number]
-      : [0, 1];
-    const yExtentRange = yExtent[1] - yExtent[0] || 1;
-
     const visibleIds = stagingOrder.filter((id) => visibleCurves[id]);
     const rangeResult = computeYAxisRange(
       visibleIds,
@@ -121,9 +116,12 @@ export async function exportChartImage(): Promise<void> {
     );
     const peak = topCurvePeak(rangeResult.rawDataMin, rangeResult.yRangeForLayer);
 
-    const yPixelRange = chartHeight - gridTop - gridBottom;
+    const yZoomRange = useUiStore.getState().yZoomRange;
+    const resolved = resolveYAxis(rangeResult, yZoomRange);
     const yToPixelExport = (yVal: number) =>
-      gridTop + ((yExtent[1] - yVal) / yExtentRange) * yPixelRange;
+      yToPixel(yVal, {
+        yMin: resolved.yMin, yMax: resolved.yMax, gridTop, gridBottom, chartHeight,
+      });
 
     const ns = 'http://www.w3.org/2000/svg';
     const svgEl = document.createElementNS(ns, 'svg');
