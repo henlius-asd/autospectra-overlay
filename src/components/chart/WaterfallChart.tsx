@@ -4,6 +4,7 @@ import { useCurveStore, useUiStore } from '@/store';
 import BraceOverlay from './BraceOverlay';
 import PointLabelOverlay from './PointLabelOverlay';
 import YRangeSlider from './YRangeSlider';
+import CurveScaleOverlay from './CurveScaleOverlay';
 import type { EChartsOption } from 'echarts';
 import type { EChartsInstance } from 'echarts-for-react';
 import { computeYAxisRange } from './computeYAxisRange';
@@ -49,7 +50,12 @@ export default function WaterfallChart() {
   const setLayerSpacing = useCurveStore((s) => s.setLayerSpacing);
   const curveScales = useCurveStore((s) => s.curveScales);
   const curveScaleOffsets = useCurveStore((s) => s.curveScaleOffsets);
+  const setCurveScale = useCurveStore((s) => s.setCurveScale);
+  const setCurveScaleOffset = useCurveStore((s) => s.setCurveScaleOffset);
   const xRange = useUiStore((s) => s.xRange);
+  const yScaleToolMode = useUiStore((s) => s.yScaleToolMode);
+  const activeScaledCurveId = useUiStore((s) => s.activeScaledCurveId);
+  const setActiveScaledCurveId = useUiStore((s) => s.setActiveScaledCurveId);
   const bracePlacementMode = useUiStore((s) => s.bracePlacementMode);
   const showGrid = useUiStore((s) => s.showGrid);
   const showAxes = useUiStore((s) => s.showAxes);
@@ -339,6 +345,23 @@ export default function WaterfallChart() {
         setYZoomRange={setYZoomRange}
         resetYZoomRange={resetYZoomRange}
       />
+      {yScaleToolMode && activeScaledCurveId && (
+        <CurveScaleOverlay
+          curveId={activeScaledCurveId}
+          curves={curves}
+          offsets={offsets}
+          curveScales={curveScales}
+          curveScaleOffsets={curveScaleOffsets}
+          xRange={xRange}
+          chartHeight={chartDims.height}
+          gridTop={gridTop}
+          gridBottom={gridBottom}
+          resolvedFrame={resolvedFrame}
+          setCurveScale={setCurveScale}
+          setCurveScaleOffset={setCurveScaleOffset}
+          onDeselect={() => setActiveScaledCurveId(null)}
+        />
+      )}
       <div className="absolute top-1/2 right-1 -translate-y-1/2 h-3/5 flex flex-col items-center gap-1.5 pointer-events-none">
         <span className="text-[10px] text-gray-500 font-mono tabular-nums">
           {layerSpacing.toFixed(3)}
