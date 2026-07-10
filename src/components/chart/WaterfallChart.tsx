@@ -3,13 +3,13 @@ import ReactECharts from 'echarts-for-react';
 import { useCurveStore, useUiStore } from '@/store';
 import BraceOverlay from './BraceOverlay';
 import PointLabelOverlay from './PointLabelOverlay';
-import CurveScaleOverlay from './CurveScaleOverlay';
 import type { EChartsOption } from 'echarts';
 import type { EChartsInstance } from 'echarts-for-react';
 import { computeYAxisRange } from './computeYAxisRange';
 import { normalizeYZoomRange } from './yZoomRange';
 import { yToPixel } from './yPixelMath';
 import { getTopCurvePixelYAtX, topCurvePeak } from './labelGeometry';
+import { scaleByWheel, offsetByDrag } from './curveScaleMath';
 
 // Shared chart instance for PNG export
 let chartInstance: EChartsInstance | null = null;
@@ -55,9 +55,10 @@ export default function WaterfallChart() {
   const setCurveScaleOffset = useCurveStore((s) => s.setCurveScaleOffset);
   const setGlobalScale = useCurveStore((s) => s.setGlobalScale);
   const xRange = useUiStore((s) => s.xRange);
-  const scaleMode = useUiStore((s) => s.scaleMode);
-  const activeScaledCurveId = useUiStore((s) => s.activeScaledCurveId);
-  const setActiveScaledCurveId = useUiStore((s) => s.setActiveScaledCurveId);
+  const globalScaleMode = useUiStore((s) => s.globalScaleMode);
+  const perCurveScaleMode = useUiStore((s) => s.perCurveScaleMode);
+  const selectedCurveId = useUiStore((s) => s.selectedCurveId);
+  const setSelectedCurveId = useUiStore((s) => s.setSelectedCurveId);
   const bracePlacementMode = useUiStore((s) => s.bracePlacementMode);
   const showGrid = useUiStore((s) => s.showGrid);
   const showAxes = useUiStore((s) => s.showAxes);
@@ -200,6 +201,7 @@ export default function WaterfallChart() {
       ]);
 
       return {
+        id,
         name: curve.displayName || curve.name,
         type: 'line' as const,
         data: renderedData,
@@ -349,15 +351,110 @@ export default function WaterfallChart() {
       convertYToPixel,
     );
 
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+  const scaleModeActive = globalScaleMode || perCurveScaleMode;
+
+  // Native wheel listener for scaling (non-passive so preventDefault works)
+  useEffect(() => {
+    const container = chartContainerRef.current;
+    if (!container || !scaleModeActive) return;
+
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const perCurveActive = perCurveScaleMode && selectedCurveId;
+      if (perCurveActive) {
+        const cur = curveScales[selectedCurveId!] ?? 1;
+        setCurveScale(selectedCurveId!, scaleByWheel(cur, e.deltaY));
+      } else if (globalScaleMode) {
+        setGlobalScale(scaleByWheel(globalScale, e.deltaY));
+      }
+    };
+
+    container.addEventListener('wheel', onWheel, { passive: false });
+    return () => container.removeEventListener('wheel', onWheel);
+  }, [scaleModeActive, globalScaleMode, perCurveScaleMode, selectedCurveId, globalScale, curveScales, setCurveScale, setGlobalScale]);
+
+  // Native mousedown for shift+drag pan (per-curve mode only)
+  useEffect(() => {
+    const container = chartContainerRef.current;
+    if (!container || !perCurveScaleMode || !selectedCurveId) return;
+
+    const frame = {
+      yMin: visibleYRange[0], yMax: visibleYRange[1],
+      gridTop, gridBottom, chartHeight: chartDims.height,
+    };
+
+    const onMouseDown = (e: MouseEvent) => {
+      if (!e.shiftKey) return;
+      e.preventDefault();
+      const startY = e.clientY;
+      const startOffset = curveScaleOffsets[selectedCurveId!] ?? 0;
+
+      const onMove = (ev: MouseEvent) => {
+        const next = offsetByDrag(startOffset, startY, ev.clientY, frame);
+        setCurveScaleOffset(selectedCurveId!, next);
+      };
+      const onUp = () => {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+      };
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    };
+
+    container.addEventListener('mousedown', onMouseDown);
+    return () => container.removeEventListener('mousedown', onMouseDown);
+  }, [perCurveScaleMode, selectedCurveId, curveScaleOffsets, visibleYRange, gridTop, gridBottom, chartDims.height, setCurveScaleOffset]);
+
+  // Double-click handler for reset
+  const onChartDoubleClick = useCallback(() => {
+    if (perCurveScaleMode && selectedCurveId) {
+      setCurveScale(selectedCurveId, 1);
+      setCurveScaleOffset(selectedCurveId, 0);
+    } else if (globalScaleMode) {
+      setGlobalScale(1);
+    }
+  }, [perCurveScaleMode, globalScaleMode, selectedCurveId, setCurveScale, setCurveScaleOffset, setGlobalScale]);
+
+  const scaleBadge = scaleModeActive ? (
+    globalScaleMode && !(perCurveScaleMode && selectedCurveId)
+      ? `×${globalScale.toFixed(1)}`
+      : perCurveScaleMode && selectedCurveId
+      ? `×${((normalizeFactors[selectedCurveId] ?? 1) * globalScale * (curveScales[selectedCurveId] ?? 1)).toFixed(1)}`
+      : null
+  ) : null;
+
+  const scaleBadgeOffset = perCurveScaleMode && selectedCurveId
+    ? (curveScaleOffsets[selectedCurveId] ?? 0)
+    : 0;
+
   return (
-    <div className="relative w-full h-full">
+    <div className="relative w-full h-full" ref={chartContainerRef} onDoubleClick={scaleModeActive ? onChartDoubleClick : undefined}>
       <ReactECharts
         option={option}
         replaceMerge={['series', 'dataZoom']}
         style={{ width: '100%', height: '100%' }}
         onChartReady={onChartReady}
-        onEvents={{ dataZoom: onDataZoom }}
+        onEvents={{
+          dataZoom: onDataZoom,
+          click: (params: { seriesId?: string }) => {
+            if (params.seriesId) {
+              if (selectedCurveId === params.seriesId) {
+                setSelectedCurveId(null);
+              } else {
+                setSelectedCurveId(params.seriesId);
+              }
+            }
+          },
+        }}
       />
+      {scaleBadge && (
+        <div className="absolute text-[10px] font-mono text-blue-600 bg-white bg-opacity-80 px-1 rounded pointer-events-none"
+          style={{ left: 8, top: gridTop }}>
+          {scaleBadge}
+          {scaleBadgeOffset !== 0 ? ` Δ${scaleBadgeOffset.toFixed(0)}` : ''}
+        </div>
+      )}
       <BraceOverlay
         width={chartDims.width}
         height={chartDims.height}
@@ -380,32 +477,6 @@ export default function WaterfallChart() {
         gridLeft={gridLeft}
         gridRight={gridRight}
       />
-      {scaleMode !== 'off' && (
-        <CurveScaleOverlay
-          scaleMode={scaleMode}
-          curveId={activeScaledCurveId ?? ''}
-          curves={curves}
-          offsets={offsets}
-          curveScales={curveScales}
-          curveScaleOffsets={curveScaleOffsets}
-          normalizeFactors={normalizeFactors}
-          globalScale={globalScale}
-          xRange={xRange}
-          chartHeight={chartDims.height}
-          gridTop={gridTop}
-          gridBottom={gridBottom}
-          visibleFrame={{ yMin: visibleYRange[0], yMax: visibleYRange[1] }}
-          setCurveScale={setCurveScale}
-          setCurveScaleOffset={setCurveScaleOffset}
-          setGlobalScale={setGlobalScale}
-          onDeselect={() => {
-            setActiveScaledCurveId(null);
-            if (scaleMode === 'merge') {
-              useUiStore.getState().setScaleMode('off');
-            }
-          }}
-        />
-      )}
       <div className="absolute top-1/2 right-1 -translate-y-1/2 h-3/5 flex flex-col items-center gap-1.5 pointer-events-none">
         <span className="text-[10px] text-gray-500 font-mono tabular-nums">
           {layerSpacing.toFixed(3)}

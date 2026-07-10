@@ -12,9 +12,10 @@ export default function Toolbar() {
   const normalizeAllPeak = useCurveStore((s) => s.normalizeAllPeak);
   const clearNormalizeFactors = useCurveStore((s) => s.clearNormalizeFactors);
   const xRange = useUiStore((s) => s.xRange);
-  const scaleMode = useUiStore((s) => s.scaleMode);
-  const cycleScaleMode = useUiStore((s) => s.cycleScaleMode);
-  const setScaleMode = useUiStore((s) => s.setScaleMode);
+  const globalScaleMode = useUiStore((s) => s.globalScaleMode);
+  const perCurveScaleMode = useUiStore((s) => s.perCurveScaleMode);
+  const toggleGlobalScaleMode = useUiStore((s) => s.toggleGlobalScaleMode);
+  const togglePerCurveScaleMode = useUiStore((s) => s.togglePerCurveScaleMode);
   const showGrid = useUiStore((s) => s.showGrid);
   const showAxes = useUiStore((s) => s.showAxes);
   const toggleShowGrid = useUiStore((s) => s.toggleShowGrid);
@@ -41,7 +42,7 @@ export default function Toolbar() {
   const handleToggleBraceMode = () => {
     if (!bracePlacementMode) {
       setPointLabelPlacementMode(false);
-      setScaleMode('off');
+      useUiStore.setState({ globalScaleMode: false, perCurveScaleMode: false });
       setBracePlacementMode(true);
     } else {
       setBracePlacementMode(false);
@@ -51,19 +52,27 @@ export default function Toolbar() {
   const handleTogglePointLabelMode = () => {
     if (!pointLabelPlacementMode) {
       setBracePlacementMode(false);
-      setScaleMode('off');
+      useUiStore.setState({ globalScaleMode: false, perCurveScaleMode: false });
       setPointLabelPlacementMode(true);
     } else {
       setPointLabelPlacementMode(false);
     }
   };
 
-  const handleToggleYScaleMode = () => {
-    if (scaleMode === 'off') {
+  const handleToggleGlobalScale = () => {
+    if (!globalScaleMode) {
       setBracePlacementMode(false);
       setPointLabelPlacementMode(false);
     }
-    cycleScaleMode();
+    toggleGlobalScaleMode();
+  };
+
+  const handleTogglePerCurveScale = () => {
+    if (!perCurveScaleMode) {
+      setBracePlacementMode(false);
+      setPointLabelPlacementMode(false);
+    }
+    togglePerCurveScaleMode();
   };
 
   const handleExportImage = () => {
@@ -123,13 +132,6 @@ export default function Toolbar() {
     input.click();
   };
 
-  const scaleLabel = scaleMode === 'off' ? 'Y缩放' : scaleMode === 'split' ? '拆分' : '合并';
-  const scaleTitle = scaleMode === 'off'
-    ? 'Y轴缩放：滚轮缩放，Shift+拖拽平移，双击复位'
-    : scaleMode === 'split'
-    ? '拆分模式：点曲线选中，滚轮缩放单条曲线'
-    : '合并模式：滚轮缩放所有曲线';
-
   return (
     <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 border-b border-gray-200">
       <button
@@ -173,17 +175,30 @@ export default function Toolbar() {
       </button>
       <div className="w-px h-5 bg-gray-300" />
       <button
-        onClick={handleToggleYScaleMode}
+        onClick={handleToggleGlobalScale}
         disabled={!hasCurves}
         className={`text-xs px-2 py-1 rounded ${
-          scaleMode !== 'off'
+          globalScaleMode
             ? 'bg-blue-500 text-white'
             : 'hover:bg-gray-200 text-gray-600'
         } disabled:text-gray-300 disabled:cursor-not-allowed`}
-        title={scaleTitle}
+        title="全局缩放：滚轮缩放所有曲线，双击复位"
       >
-        {scaleLabel}
+        全局缩放
       </button>
+      <button
+        onClick={handleTogglePerCurveScale}
+        disabled={!hasCurves}
+        className={`text-xs px-2 py-1 rounded ${
+          perCurveScaleMode
+            ? 'bg-blue-500 text-white'
+            : 'hover:bg-gray-200 text-gray-600'
+        } disabled:text-gray-300 disabled:cursor-not-allowed`}
+        title="单曲线缩放：点曲线选中，滚轮缩放，Shift+拖拽平移，双击复位"
+      >
+        单曲线
+      </button>
+      <div className="w-px h-5 bg-gray-300" />
       <button
         disabled={!hasCurves}
         className={`px-2 py-1 text-xs rounded border border-gray-300 hover:bg-gray-100 disabled:text-gray-300 disabled:cursor-not-allowed`}
@@ -195,10 +210,10 @@ export default function Toolbar() {
       <button
         disabled={!hasCurves}
         className="px-2 py-1 text-xs rounded border border-gray-300 hover:bg-gray-100 disabled:text-gray-300 disabled:cursor-not-allowed"
-        title="清除归一化，恢复原始高度"
+        title="还原归一化，恢复原始高度"
         onClick={clearNormalizeFactors}
       >
-        清除归一
+        还原归一
       </button>
       <div className="w-px h-5 bg-gray-300" />
       <button
