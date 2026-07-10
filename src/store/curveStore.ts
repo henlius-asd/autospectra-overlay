@@ -221,7 +221,7 @@ export const useCurveStore = create<CurveState>()(
         })),
 
       setGlobalScale: (s) =>
-        set((state) => ({
+        set(() => ({
           globalScale: clampScale(s),
         })),
 

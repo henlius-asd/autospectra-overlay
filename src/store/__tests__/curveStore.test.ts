@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { deriveBaseline, useCurveStore } from '../curveStore';
-import type { BraceAnnotation } from '@/types';
+import type { BraceAnnotation, CurveData, DataPoint } from '@/types';
 
 describe('globalScale', () => {
   it('defaults to 1', () => {
@@ -41,8 +41,8 @@ describe('normalizeFactors', () => {
   });
 
   it('normalizeAllPeak sets factors relative to baseline peak', () => {
-    const curveA = { name: 'A', color: '#000', data: [[0, 50], [1, 100], [2, 80]] };
-    const curveB = { name: 'B', color: '#111', data: [[0, 200], [1, 150], [2, 180]] };
+    const curveA: CurveData = { name: 'A', color: '#000', data: [[0, 50], [1, 100], [2, 80]] as DataPoint[] };
+    const curveB: CurveData = { name: 'B', color: '#111', data: [[0, 200], [1, 150], [2, 180]] as DataPoint[] };
     useCurveStore.getState().addCurves([curveA, curveB]);
     const state = useCurveStore.getState();
     const ids = Object.keys(state.curves);
@@ -60,7 +60,7 @@ describe('normalizeFactors', () => {
   });
 
   it('removeCurve cleans up normalizeFactors', () => {
-    const curve = { name: 'C', color: '#000', data: [[0, 10]] };
+    const curve: CurveData = { name: 'C', color: '#000', data: [[0, 10]] as DataPoint[] };
     useCurveStore.getState().addCurves([curve]);
     const id = Object.keys(useCurveStore.getState().curves)[0];
     useCurveStore.getState().setNormalizeFactor(id, 3.0);

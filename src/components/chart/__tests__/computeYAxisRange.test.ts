@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { computeYAxisRange } from '../computeYAxisRange';
-import type { CurveData } from '@/types';
+import type { CurveData, DataPoint } from '@/types';
 
 describe('computeYAxisRange', () => {
   it('should handle all-positive data (backward compatibility)', () => {
@@ -71,7 +71,7 @@ describe('computeYAxisRange', () => {
 
   describe('computeYAxisRange with scale params', () => {
   it('computes rawDataMin/Max from scaled data', () => {
-    const curve = { name: 'A', color: '#000', data: [[0, 10], [1, 50], [2, 30]] };
+    const curve: CurveData = { name: 'A', color: '#000', data: [[0, 10], [1, 50], [2, 30]] as DataPoint[] };
     const curves: Record<string, CurveData> = { id1: curve };
     const offsets = { id1: { xOffset: 0, yOffset: 0 } };
     const normalizeFactors = { id1: 2 };
@@ -89,7 +89,7 @@ describe('computeYAxisRange', () => {
   });
 
   it('handles scaleOffset in range computation', () => {
-    const curve = { name: 'A', color: '#000', data: [[0, 10]] };
+    const curve: CurveData = { name: 'A', color: '#000', data: [[0, 10]] as DataPoint[] };
     const curves: Record<string, CurveData> = { id1: curve };
     const offsets = { id1: { xOffset: 0, yOffset: 0 } };
     const normalizeFactors = {};
