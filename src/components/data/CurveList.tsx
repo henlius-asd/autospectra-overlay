@@ -33,7 +33,7 @@ export default function CurveList({
   const setSelectedCurveId = useUiStore((s) => s.setSelectedCurveId);
   const colorHistory = useUiStore((s) => s.colorHistory);
   const addColorToHistory = useUiStore((s) => s.addColorToHistory);
-  const yScaleToolMode = useUiStore((s) => s.yScaleToolMode);
+  const scaleMode = useUiStore((s) => s.scaleMode);
   const activeScaledCurveId = useUiStore((s) => s.activeScaledCurveId);
   const setActiveScaledCurveId = useUiStore((s) => s.setActiveScaledCurveId);
 
@@ -142,7 +142,7 @@ export default function CurveList({
     (e: React.MouseEvent, id: string) => {
       const target = e.target as HTMLElement;
       if (target.tagName === 'INPUT' || target.tagName === 'BUTTON') return;
-      if (yScaleToolMode) {
+      if (scaleMode === 'split') {
         setActiveScaledCurveId(activeScaledCurveId === id ? null : id);
         return;
       }
@@ -152,7 +152,7 @@ export default function CurveList({
         setSelectedCurveId(id);
       }
     },
-    [selectedCurveId, setSelectedCurveId, yScaleToolMode, activeScaledCurveId, setActiveScaledCurveId],
+    [selectedCurveId, setSelectedCurveId, scaleMode, activeScaledCurveId, setActiveScaledCurveId],
   );
 
   // Get display name for a curve: displayName → name (SampleName) → fileName

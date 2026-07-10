@@ -9,8 +9,9 @@ export default function Toolbar() {
   const setBracePlacementMode = useUiStore((s) => s.setBracePlacementMode);
   const pointLabelPlacementMode = useUiStore((s) => s.pointLabelPlacementMode);
   const setPointLabelPlacementMode = useUiStore((s) => s.setPointLabelPlacementMode);
-  const yScaleToolMode = useUiStore((s) => s.yScaleToolMode);
-  const setYScaleToolMode = useUiStore((s) => s.setYScaleToolMode);
+  const scaleMode = useUiStore((s) => s.scaleMode);
+  const cycleScaleMode = useUiStore((s) => s.cycleScaleMode);
+  const setScaleMode = useUiStore((s) => s.setScaleMode);
   const showGrid = useUiStore((s) => s.showGrid);
   const showAxes = useUiStore((s) => s.showAxes);
   const toggleShowGrid = useUiStore((s) => s.toggleShowGrid);
@@ -37,7 +38,7 @@ export default function Toolbar() {
   const handleToggleBraceMode = () => {
     if (!bracePlacementMode) {
       setPointLabelPlacementMode(false);
-      setYScaleToolMode(false);
+      setScaleMode('off');
       setBracePlacementMode(true);
     } else {
       setBracePlacementMode(false);
@@ -47,7 +48,7 @@ export default function Toolbar() {
   const handleTogglePointLabelMode = () => {
     if (!pointLabelPlacementMode) {
       setBracePlacementMode(false);
-      setYScaleToolMode(false);
+      setScaleMode('off');
       setPointLabelPlacementMode(true);
     } else {
       setPointLabelPlacementMode(false);
@@ -55,13 +56,7 @@ export default function Toolbar() {
   };
 
   const handleToggleYScaleMode = () => {
-    if (!yScaleToolMode) {
-      setBracePlacementMode(false);
-      setPointLabelPlacementMode(false);
-      setYScaleToolMode(true);
-    } else {
-      setYScaleToolMode(false);
-    }
+    cycleScaleMode();
   };
 
   const handleExportImage = () => {
@@ -121,6 +116,13 @@ export default function Toolbar() {
     input.click();
   };
 
+  const scaleLabel = scaleMode === 'off' ? 'Y缩放' : scaleMode === 'split' ? '拆分' : '合并';
+  const scaleTitle = scaleMode === 'off'
+    ? 'Y轴缩放：滚轮缩放，Shift+拖拽平移，双击复位'
+    : scaleMode === 'split'
+    ? '拆分模式：点曲线选中，滚轮缩放单条曲线'
+    : '合并模式：滚轮缩放所有曲线';
+
   return (
     <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 border-b border-gray-200">
       <button
@@ -162,17 +164,18 @@ export default function Toolbar() {
       >
         {pointLabelPlacementMode ? '放置中...' : '点标签'}
       </button>
+      <div className="w-px h-5 bg-gray-300" />
       <button
         onClick={handleToggleYScaleMode}
         disabled={!hasCurves}
         className={`text-xs px-2 py-1 rounded ${
-          yScaleToolMode
+          scaleMode !== 'off'
             ? 'bg-blue-500 text-white'
             : 'hover:bg-gray-200 text-gray-600'
         } disabled:text-gray-300 disabled:cursor-not-allowed`}
-        title={yScaleToolMode ? '点击取消Y轴缩放模式' : 'Y轴缩放：点曲线选中，滚轮/拖拽缩放，Shift+拖拽平移，双击复位'}
+        title={scaleTitle}
       >
-        {yScaleToolMode ? '缩放中...' : 'Y缩放'}
+        {scaleLabel}
       </button>
       <div className="w-px h-5 bg-gray-300" />
       <button

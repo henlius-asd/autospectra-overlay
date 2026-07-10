@@ -14,11 +14,12 @@ interface UiState {
   pointLabelPlacementMode: boolean;
   showGrid: boolean;
   showAxes: boolean;
-  yScaleToolMode: boolean;
+  scaleMode: 'off' | 'split' | 'merge';
   activeScaledCurveId: string | null;
   yZoomRange: [number, number] | null;
   colorHistory: string[];
-  setYScaleToolMode: (active: boolean) => void;
+  setScaleMode: (mode: 'off' | 'split' | 'merge') => void;
+  cycleScaleMode: () => void;
   setActiveScaledCurveId: (id: string | null) => void;
   setYZoomRange: (range: [number, number]) => void;
   resetYZoomRange: () => void;
@@ -47,7 +48,7 @@ export const useUiStore = create<UiState>((set) => ({
   bracePlacementMode: false,
   pointLabelPlacementMode: false,
   showGrid: true,
-  yScaleToolMode: false,
+  scaleMode: 'off',
   activeScaledCurveId: null,
   yZoomRange: null,
   colorHistory: [],
@@ -65,7 +66,16 @@ export const useUiStore = create<UiState>((set) => ({
   setPointLabelPlacementMode: (active) => set({ pointLabelPlacementMode: active }),
   toggleShowGrid: () => set((s) => ({ showGrid: !s.showGrid })),
   toggleShowAxes: () => set((s) => ({ showAxes: !s.showAxes })),
-  setYScaleToolMode: (active) => set({ yScaleToolMode: active }),
+  setScaleMode: (mode) => set({ scaleMode: mode }),
+  cycleScaleMode: () =>
+    set((state) => {
+      const next: Record<string, 'off' | 'split' | 'merge'> = {
+        off: 'split',
+        split: 'merge',
+        merge: 'off',
+      };
+      return { scaleMode: next[state.scaleMode] };
+    }),
   setActiveScaledCurveId: (id) => set({ activeScaledCurveId: id }),
   setYZoomRange: (range) => set({ yZoomRange: range }),
   resetYZoomRange: () => set({ yZoomRange: null }),

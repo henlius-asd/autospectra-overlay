@@ -54,7 +54,7 @@ export default function WaterfallChart() {
   const setCurveScale = useCurveStore((s) => s.setCurveScale);
   const setCurveScaleOffset = useCurveStore((s) => s.setCurveScaleOffset);
   const xRange = useUiStore((s) => s.xRange);
-  const yScaleToolMode = useUiStore((s) => s.yScaleToolMode);
+  const scaleMode = useUiStore((s) => s.scaleMode);
   const activeScaledCurveId = useUiStore((s) => s.activeScaledCurveId);
   const setActiveScaledCurveId = useUiStore((s) => s.setActiveScaledCurveId);
   const bracePlacementMode = useUiStore((s) => s.bracePlacementMode);
@@ -379,7 +379,7 @@ export default function WaterfallChart() {
         gridLeft={gridLeft}
         gridRight={gridRight}
       />
-      {yScaleToolMode && activeScaledCurveId && (
+      {scaleMode !== 'off' && activeScaledCurveId && (
         <CurveScaleOverlay
           curveId={activeScaledCurveId}
           curves={curves}
