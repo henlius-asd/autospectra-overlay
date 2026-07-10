@@ -1,9 +1,9 @@
-# metadata-panel Specification
+# metadata-panel Delta Specification
 
 ## Purpose
-右侧栏元数据展示面板。选中曲线后显示对应文件的 metadata 键值对，支持切换曲线。
+更新曲线选中机制：统一为单一 `selectedCurveId`，新增图表渲染区点击选中（不再仅限列表点击）。删除 `activeScaledCurveId`。
 
-## ADDED Requirements
+## MODIFIED Requirements
 
 ### Requirement: 元数据展示面板
 
@@ -41,28 +41,14 @@
 
 ### Requirement: ECharts series 点击选中
 
-ECharts 系列 SHALL 设置 `id` 字段为曲线 store ID。`onEvents` SHALL 包含 `click` 处理器，点击系列时 SHALL 通过 `params.seriesIndex` 映射 `visibleIds[params.seriesIndex]` 获取曲线 ID，调用 `setSelectedCurveId(id)`。若 `seriesIndex` 无效或超出范围 SHALL 不操作。
+ECharts 系列 SHALL 设置 `id` 字段为曲线 store ID（确保唯一性，不依赖可能重名的 `name`）。`onEvents` SHALL 包含 `click` 处理器，点击系列时 SHALL 调用 `setSelectedCurveId(params.seriesId)`。
 
 #### Scenario: 点击曲线选中
 
 - **WHEN** 用户在图表中点击某条曲线的系列
-- **THEN** `selectedCurveId` 设为 `visibleIds[params.seriesIndex]`，元数据面板更新，曲线列表高亮与该曲线一致
+- **THEN** `selectedCurveId` 设为该系列的 `id`，元数据面板更新
 
 #### Scenario: 点击空白区域不选中
 
 - **WHEN** 用户在图表中点击非曲线区域
-- **THEN** `seriesIndex` 为 undefined，`selectedCurveId` 不变
-
-### Requirement: 元数据传递
-
-文件解析器 SHALL 将解析出的 metadata 从 `ParsedFile` 层级传递到每个 `CurveData` 中。`CurveData` 类型 SHALL 新增 `metadata?: Record<string, string>` 字段。
-
-#### Scenario: 解析含 metadata 的 .arw 文件
-
-- **WHEN** 解析包含标签头的 .arw 文件
-- **THEN** 解析出的 metadata 键值对被存储在每条 `CurveData.metadata` 中
-
-#### Scenario: 解析无 metadata 的文件
-
-- **WHEN** 解析不含标签头的 .txt 或 .csv 文件
-- **THEN** `CurveData.metadata` 为 undefined
+- **THEN** `selectedCurveId` 不变
