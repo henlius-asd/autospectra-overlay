@@ -56,6 +56,10 @@ export default function Toolbar() {
   };
 
   const handleToggleYScaleMode = () => {
+    if (scaleMode === 'off') {
+      setBracePlacementMode(false);
+      setPointLabelPlacementMode(false);
+    }
     cycleScaleMode();
   };
 
