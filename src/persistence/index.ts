@@ -32,6 +32,8 @@ function saveWorkspace() {
       visibleCurves: state.visibleCurves,
       layerSpacing: state.layerSpacing,
       pointLabels: state.pointLabels,
+      globalScale: state.globalScale,
+      normalizeFactors: state.normalizeFactors,
       savedAt: Date.now(),
     };
     persistenceStore.setItem(PERSISTENCE_KEY, snapshot).catch((err) => {
@@ -61,6 +63,8 @@ export async function restoreWorkspace(): Promise<boolean> {
       visibleCurves: Record<string, boolean>;
       layerSpacing: number;
       pointLabels: unknown[];
+      globalScale?: number;
+      normalizeFactors?: Record<string, number>;
       savedAt: number;
     }>(PERSISTENCE_KEY);
 
@@ -80,6 +84,8 @@ export async function restoreWorkspace(): Promise<boolean> {
         visibleCurves: snapshot.visibleCurves ?? {},
         layerSpacing,
         pointLabels: (snapshot.pointLabels ?? []) as ReturnType<typeof useCurveStore.getState>['pointLabels'],
+        globalScale: snapshot.globalScale ?? 1,
+        normalizeFactors: snapshot.normalizeFactors ?? {},
       });
       const uiSnapshot = await persistenceStore.getItem<{ showGrid?: boolean; showAxes?: boolean }>(UI_PERSISTENCE_KEY);
       if (uiSnapshot) {
