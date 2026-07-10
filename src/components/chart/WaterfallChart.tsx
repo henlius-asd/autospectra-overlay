@@ -48,6 +48,8 @@ export default function WaterfallChart() {
   const setLayerSpacing = useCurveStore((s) => s.setLayerSpacing);
   const curveScales = useCurveStore((s) => s.curveScales);
   const curveScaleOffsets = useCurveStore((s) => s.curveScaleOffsets);
+  const normalizeFactors = useCurveStore((s) => s.normalizeFactors);
+  const globalScale = useCurveStore((s) => s.globalScale);
   const setCurveScale = useCurveStore((s) => s.setCurveScale);
   const setCurveScaleOffset = useCurveStore((s) => s.setCurveScaleOffset);
   const xRange = useUiStore((s) => s.xRange);
@@ -218,11 +220,13 @@ export default function WaterfallChart() {
       const layerIndex = visibleCount - 1 - visibleIndex;
       const layerYOffset = layerIndex * layerSpacing * yRangeForLayer;
 
-      const scale = curveScales[id] ?? 1;
+      const normalize = normalizeFactors[id] ?? 1;
+      const manual = curveScales[id] ?? 1;
+      const composite = normalize * globalScale * manual;
       const scaleOffset = curveScaleOffsets[id] ?? 0;
       const renderedData = curve.data.map(([x, y]) => [
         x + offset.xOffset,
-        y * scale + scaleOffset + layerYOffset + offset.yOffset,
+        y * composite + scaleOffset + layerYOffset + offset.yOffset,
       ]);
 
       return {
@@ -318,7 +322,7 @@ export default function WaterfallChart() {
       series,
       animation: false,
     };
-  }, [curves, offsets, visibleCurves, layerSpacing, stagingOrder, visibleIds, xRange, bracePlacementMode, showGrid, showAxes, curveScales, curveScaleOffsets]);
+  }, [curves, offsets, visibleCurves, layerSpacing, stagingOrder, visibleIds, xRange, bracePlacementMode, showGrid, showAxes, curveScales, curveScaleOffsets, normalizeFactors, globalScale]);
 
   const convertXToPixel = (xVal: number): number => {
     if (!chartInstance) return 0;
