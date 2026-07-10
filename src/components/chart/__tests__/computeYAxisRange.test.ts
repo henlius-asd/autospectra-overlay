@@ -69,6 +69,44 @@ describe('computeYAxisRange', () => {
     expect(result.yAxisMax).toBeGreaterThan(5);
   });
 
+  describe('computeYAxisRange with scale params', () => {
+  it('computes rawDataMin/Max from scaled data', () => {
+    const curve = { name: 'A', color: '#000', data: [[0, 10], [1, 50], [2, 30]] };
+    const curves: Record<string, CurveData> = { id1: curve };
+    const offsets = { id1: { xOffset: 0, yOffset: 0 } };
+    const normalizeFactors = { id1: 2 };
+    const globalScale = 1.5;
+    const curveScales = { id1: 1 };
+    const curveScaleOffsets = { id1: 0 };
+
+    const result = computeYAxisRange(
+      ['id1'], curves, offsets, [0, 2], 0,
+      normalizeFactors, globalScale, curveScales, curveScaleOffsets,
+    );
+    // peak = 50, composite = 2 * 1.5 * 1 = 3, scaled peak = 150
+    expect(result.rawDataMax).toBeCloseTo(150, 0);
+    expect(result.rawDataMin).toBeCloseTo(30, 0); // 10 * 3 = 30
+  });
+
+  it('handles scaleOffset in range computation', () => {
+    const curve = { name: 'A', color: '#000', data: [[0, 10]] };
+    const curves: Record<string, CurveData> = { id1: curve };
+    const offsets = { id1: { xOffset: 0, yOffset: 0 } };
+    const normalizeFactors = {};
+    const globalScale = 1;
+    const curveScales = { id1: 2 };
+    const curveScaleOffsets = { id1: 5 };
+
+    const result = computeYAxisRange(
+      ['id1'], curves, offsets, [0, 0], 0,
+      normalizeFactors, globalScale, curveScales, curveScaleOffsets,
+    );
+    // scaled = 10 * 2 + 5 = 25
+    expect(result.rawDataMax).toBeCloseTo(25, 0);
+    expect(result.rawDataMin).toBeCloseTo(25, 0);
+  });
+});
+
   it('should compute correct yRangeForLayer with layer spacing', () => {
     const curves: Record<string, CurveData> = {
       c1: { name: 'curve1', data: [[0, 0], [1, 100]] },

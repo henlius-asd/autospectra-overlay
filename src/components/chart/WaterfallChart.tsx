@@ -6,6 +6,7 @@ import PointLabelOverlay from './PointLabelOverlay';
 import CurveScaleOverlay from './CurveScaleOverlay';
 import type { EChartsOption } from 'echarts';
 import type { EChartsInstance } from 'echarts-for-react';
+import { computeYAxisRange } from './computeYAxisRange';
 import { normalizeYZoomRange } from './yZoomRange';
 import { yToPixel } from './yPixelMath';
 import { getTopCurvePixelYAtX, topCurvePeak } from './labelGeometry';
@@ -141,45 +142,13 @@ export default function WaterfallChart() {
     }
   }, []);
 
-  const stableDataRange = useMemo(() => {
-    let rawDataMin = Infinity;
-    let rawDataMax = -Infinity;
-
-    for (const id of visibleIds) {
-      const curve = curves[id];
-      const offset = offsets[id] ?? { xOffset: 0, yOffset: 0 };
-      for (const [, yVal] of curve.data) {
-        const adjusted = yVal + offset.yOffset;
-        if (adjusted < rawDataMin) rawDataMin = adjusted;
-        if (adjusted > rawDataMax) rawDataMax = adjusted;
-      }
-    }
-
-    if (!isFinite(rawDataMin) || !isFinite(rawDataMax)) {
-      rawDataMin = 0;
-      rawDataMax = 1;
-    }
-
-    let dataSpan = rawDataMax - rawDataMin;
-    if (dataSpan === 0) dataSpan = 1;
-
-    return { rawDataMin, rawDataMax, dataSpan };
-  }, [visibleIds, curves, offsets]);
-
-  const yAxisFullRange = useMemo(() => {
-    const { rawDataMin, dataSpan } = stableDataRange;
-    const visibleCount = visibleIds.length;
-    const spacingBudget = (visibleCount - 1) * layerSpacing;
-    const yRangeForLayer = spacingBudget >= 1
-      ? dataSpan * 10
-      : dataSpan / (1 - spacingBudget);
-
-    const padding = dataSpan * 0.02;
-    const yAxisMin = Math.min(0, rawDataMin) - padding;
-    const yAxisMax = rawDataMin + yRangeForLayer * (1 + LABEL_PADDING_RATIO);
-
-    return { yAxisMin, yAxisMax, yRangeForLayer, rawDataMin };
-  }, [stableDataRange, visibleIds, layerSpacing]);
+  const yAxisFullRange = useMemo(() =>
+    computeYAxisRange(
+      visibleIds, curves, offsets, xRange, layerSpacing,
+      normalizeFactors, globalScale, curveScales, curveScaleOffsets,
+    ),
+    [visibleIds, curves, offsets, xRange, layerSpacing, normalizeFactors, globalScale, curveScales, curveScaleOffsets],
+  );
 
   useEffect(() => {
     if (yZoomRangeSource.current === 'event') {
@@ -309,7 +278,7 @@ export default function WaterfallChart() {
           { id: 'xZoom', type: 'inside', xAxisIndex: 0 },
           { id: 'xZoomSlider', type: 'slider', xAxisIndex: 0, bottom: 10 },
         ];
-        const yMinSpan = 0.05 * (stableDataRange.dataSpan || 1);
+        const yMinSpan = 0.05 * (yAxisFullRange.dataSpan || 1);
         const yInside: Record<string, unknown> = {
           id: 'yZoom', type: 'inside', yAxisIndex: 0, filterMode: 'none', minValueSpan: yMinSpan,
         };
