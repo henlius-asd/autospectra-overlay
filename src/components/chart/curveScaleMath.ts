@@ -1,5 +1,7 @@
 import type { YPixelFrame } from './yPixelMath';
 import { pixelToY } from './yPixelMath';
+import type { CurveData } from '@/types';
+import type { CurveOffsets } from '@/store/curveStore';
 
 export const MIN_SCALE = 0.1;
 export const MAX_SCALE = 10.0;
@@ -15,10 +17,21 @@ export function scaleByWheel(scale: number, deltaY: number): number {
   return clampScale(scale * factor);
 }
 
-const DRAG_GAIN = 1 / 200;
-
-export function scaleByDrag(scale: number, deltaPx: number): number {
-  return clampScale(scale * (1 + (-deltaPx) * DRAG_GAIN));
+export function computePeakNormalizeFactor(
+  curve: CurveData,
+  offset: CurveOffsets,
+  xRange: [number, number],
+  targetPeak: number,
+): number {
+  let peakY = -Infinity;
+  for (const [x, y] of curve.data) {
+    const xAdj = x + offset.xOffset;
+    if (xAdj >= xRange[0] && xAdj <= xRange[1]) {
+      if (y > peakY) peakY = y;
+    }
+  }
+  if (!isFinite(peakY) || peakY <= 0) return 1;
+  return targetPeak / peakY;
 }
 
 export function offsetByDrag(
