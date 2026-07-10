@@ -60,6 +60,7 @@ export default function WaterfallChart() {
   const selectedCurveId = useUiStore((s) => s.selectedCurveId);
   const setSelectedCurveId = useUiStore((s) => s.setSelectedCurveId);
   const bracePlacementMode = useUiStore((s) => s.bracePlacementMode);
+  const scaleModeActive = globalScaleMode || perCurveScaleMode;
   const showGrid = useUiStore((s) => s.showGrid);
   const showAxes = useUiStore((s) => s.showAxes);
   const yZoomRange = useUiStore((s) => s.yZoomRange);
@@ -277,14 +278,19 @@ export default function WaterfallChart() {
         if (bracePlacementMode) {
           return [{ id: 'xZoomSlider', type: 'slider', xAxisIndex: 0, bottom: 10 }];
         }
+        // When scale mode is active, disable 'inside' dataZoom so ECharts
+        // doesn't capture wheel events — our native container listener handles scaling.
+        const xInside = scaleModeActive
+          ? { id: 'xZoom', type: 'slider', xAxisIndex: 0, bottom: 10, show: false }
+          : { id: 'xZoom', type: 'inside' as const, xAxisIndex: 0 };
         const xZoom: EChartsOption['dataZoom'] = [
-          { id: 'xZoom', type: 'inside', xAxisIndex: 0 },
+          xInside,
           { id: 'xZoomSlider', type: 'slider', xAxisIndex: 0, bottom: 10 },
         ];
         const yMinSpan = 0.05 * (yAxisFullRange.dataSpan || 1);
-        const yInside: Record<string, unknown> = {
-          id: 'yZoom', type: 'inside', yAxisIndex: 0, filterMode: 'none', minValueSpan: yMinSpan,
-        };
+        const yInside: Record<string, unknown> = scaleModeActive
+          ? { id: 'yZoom', type: 'slider', yAxisIndex: 0, show: false, filterMode: 'none', minValueSpan: yMinSpan }
+          : { id: 'yZoom', type: 'inside', yAxisIndex: 0, filterMode: 'none', minValueSpan: yMinSpan };
         const ySlider: Record<string, unknown> = {
           id: 'yZoomSlider', type: 'slider', yAxisIndex: 0, orient: 'vertical',
           left: 60 - 14 - 4, width: 14, filterMode: 'none', minValueSpan: yMinSpan,
@@ -294,7 +300,7 @@ export default function WaterfallChart() {
       series,
       animation: false,
     };
-  }, [curves, offsets, visibleCurves, layerSpacing, stagingOrder, visibleIds, xRange, bracePlacementMode, showGrid, showAxes, curveScales, curveScaleOffsets, normalizeFactors, globalScale]);
+  }, [curves, offsets, visibleCurves, layerSpacing, stagingOrder, visibleIds, xRange, bracePlacementMode, showGrid, showAxes, curveScales, curveScaleOffsets, normalizeFactors, globalScale, scaleModeActive]);
 
   const convertXToPixel = (xVal: number): number => {
     if (!chartInstance) return 0;
@@ -352,7 +358,6 @@ export default function WaterfallChart() {
     );
 
   const chartContainerRef = useRef<HTMLDivElement>(null);
-  const scaleModeActive = globalScaleMode || perCurveScaleMode;
 
   // Native wheel listener for scaling (non-passive so preventDefault works)
   useEffect(() => {
