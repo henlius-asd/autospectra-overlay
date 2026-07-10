@@ -9,6 +9,9 @@ export default function Toolbar() {
   const setBracePlacementMode = useUiStore((s) => s.setBracePlacementMode);
   const pointLabelPlacementMode = useUiStore((s) => s.pointLabelPlacementMode);
   const setPointLabelPlacementMode = useUiStore((s) => s.setPointLabelPlacementMode);
+  const normalizeAllPeak = useCurveStore((s) => s.normalizeAllPeak);
+  const clearNormalizeFactors = useCurveStore((s) => s.clearNormalizeFactors);
+  const xRange = useUiStore((s) => s.xRange);
   const scaleMode = useUiStore((s) => s.scaleMode);
   const cycleScaleMode = useUiStore((s) => s.cycleScaleMode);
   const setScaleMode = useUiStore((s) => s.setScaleMode);
@@ -180,6 +183,22 @@ export default function Toolbar() {
         title={scaleTitle}
       >
         {scaleLabel}
+      </button>
+      <button
+        disabled={!hasCurves}
+        className={`px-2 py-1 text-xs rounded border border-gray-300 hover:bg-gray-100 disabled:text-gray-300 disabled:cursor-not-allowed`}
+        title="归一化：各曲线峰值对齐到基准线峰值"
+        onClick={() => normalizeAllPeak(xRange)}
+      >
+        归一化
+      </button>
+      <button
+        disabled={!hasCurves}
+        className="px-2 py-1 text-xs rounded border border-gray-300 hover:bg-gray-100 disabled:text-gray-300 disabled:cursor-not-allowed"
+        title="清除归一化，恢复原始高度"
+        onClick={clearNormalizeFactors}
+      >
+        清除归一
       </button>
       <div className="w-px h-5 bg-gray-300" />
       <button
