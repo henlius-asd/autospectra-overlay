@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { CurveData } from '@/types';
 import type { CurveOffsets } from '@/store/curveStore';
-import type { ResolvedYAxis } from './resolveYAxis';
 import { yToPixel } from './yPixelMath';
 import { scaleByWheel, scaleByDrag, offsetByDrag } from './curveScaleMath';
 
@@ -15,7 +14,7 @@ interface Props {
   chartHeight: number;
   gridTop: number;
   gridBottom: number;
-  resolvedFrame: ResolvedYAxis;
+  visibleFrame: { yMin: number; yMax: number };
   setCurveScale: (id: string, scale: number) => void;
   setCurveScaleOffset: (id: string, offset: number) => void;
   onDeselect: () => void;
@@ -23,7 +22,7 @@ interface Props {
 
 export default function CurveScaleOverlay({
   curveId, curves, offsets, curveScales, curveScaleOffsets,
-  xRange, chartHeight, gridTop, gridBottom, resolvedFrame,
+  xRange, chartHeight, gridTop, gridBottom, visibleFrame,
   setCurveScale, setCurveScaleOffset, onDeselect,
 }: Props) {
   const scale = curveScales[curveId] ?? 1;
@@ -59,7 +58,7 @@ export default function CurveScaleOverlay({
     e.stopPropagation();
     e.preventDefault();
     dragRef.current = { startY: e.clientY, startScale: scale, startOffset: scaleOffset, shift: e.shiftKey };
-    const frame = { yMin: resolvedFrame.yMin, yMax: resolvedFrame.yMax, gridTop, gridBottom, chartHeight };
+    const frame = { yMin: visibleFrame.yMin, yMax: visibleFrame.yMax, gridTop, gridBottom, chartHeight };
     const onMove = (ev: MouseEvent) => {
       const d = dragRef.current;
       if (!d) return;
@@ -99,7 +98,7 @@ export default function CurveScaleOverlay({
   const valid = curve && curve.data.length > 0 && isFinite(originalMin) && isFinite(originalMax);
   const midPy = valid
     ? yToPixel((originalMin + originalMax) / 2 * scale + scaleOffset, {
-        yMin: resolvedFrame.yMin, yMax: resolvedFrame.yMax, gridTop, gridBottom, chartHeight,
+        yMin: visibleFrame.yMin, yMax: visibleFrame.yMax, gridTop, gridBottom, chartHeight,
       })
     : (gridTop + chartHeight - gridBottom) / 2;
 

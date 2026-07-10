@@ -45,6 +45,9 @@ opencode.json
 # KiloCode（local state）
 .kilocode/
 
+# Kilo（local state）
+.kilo/
+
 # Test coverage
 coverage/
 

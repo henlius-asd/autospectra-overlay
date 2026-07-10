@@ -2,7 +2,7 @@ import { getChartInstance } from './WaterfallChart';
 import { useCurveStore, useUiStore } from '@/store';
 import { bracePath, BRACE_COLOR } from './bracePath';
 import { computeYAxisRange } from './computeYAxisRange';
-import { resolveYAxis } from './resolveYAxis';
+import { normalizeYZoomRange } from './yZoomRange';
 import { yToPixel } from './yPixelMath';
 import { getTopCurvePixelYAtX, topCurvePeak } from './labelGeometry';
 import { clampLabelX, clampLabelY, estimateTextWidth } from './labelClamp';
@@ -51,6 +51,20 @@ export async function exportChartImage(): Promise<void> {
   const insideZoom: Record<string, unknown>[] = [{ type: 'inside', xAxisIndex: 0 }];
   if (zoomStart != null) insideZoom[0].start = zoomStart;
   if (zoomEnd != null) insideZoom[0].end = zoomEnd;
+
+  const state = useCurveStore.getState();
+  const xRange = useUiStore.getState().xRange;
+  const visibleIds = state.stagingOrder.filter((id) => state.visibleCurves[id]);
+  const rangeResult = computeYAxisRange(visibleIds, state.curves, state.offsets, xRange, state.layerSpacing);
+
+  const yZoomRange = useUiStore.getState().yZoomRange;
+  const yInsideZoom: Record<string, unknown> = { id: 'yZoomInside', type: 'inside', yAxisIndex: 0, filterMode: 'none' };
+  if (yZoomRange) {
+    const clamped = normalizeYZoomRange(yZoomRange[0], yZoomRange[1]);
+    yInsideZoom.startValue = clamped[0];
+    yInsideZoom.endValue = clamped[1];
+  }
+  insideZoom.push(yInsideZoom);
 
   const exportOpt = {
     legend: { show: false },
@@ -102,25 +116,24 @@ export async function exportChartImage(): Promise<void> {
     const gridTop = typeof grid?.top === 'number' ? grid.top : (showAxes ? 20 : 8);
     const gridBottom = typeof grid?.bottom === 'number' ? grid.bottom : (showAxes ? 40 : 8);
 
-    const state = useCurveStore.getState();
-    const { braces, visibleCurves, stagingOrder } = state;
-    const xRange = useUiStore.getState().xRange;
+    const { braces } = state;
 
-    const visibleIds = stagingOrder.filter((id) => visibleCurves[id]);
-    const rangeResult = computeYAxisRange(
-      visibleIds,
-      state.curves,
-      state.offsets,
-      xRange,
-      state.layerSpacing,
-    );
     const peak = topCurvePeak(rangeResult.rawDataMin, rangeResult.yRangeForLayer);
 
-    const yZoomRange = useUiStore.getState().yZoomRange;
-    const resolved = resolveYAxis(rangeResult, yZoomRange);
+    let yExportMin = rangeResult.yAxisMin;
+    let yExportMax = rangeResult.yAxisMax;
+    try {
+      const chart = instance as any;
+      const extent = chart.getModel()?.getComponent?.('yAxis', 0)?.axis?.scale?.getExtent?.();
+      if (extent && extent.length === 2) {
+        yExportMin = extent[0];
+        yExportMax = extent[1];
+      }
+    } catch { /* fall back to full range */ }
+
     const yToPixelExport = (yVal: number) =>
       yToPixel(yVal, {
-        yMin: resolved.yMin, yMax: resolved.yMax, gridTop, gridBottom, chartHeight,
+        yMin: yExportMin, yMax: yExportMax, gridTop, gridBottom, chartHeight,
       });
 
     const ns = 'http://www.w3.org/2000/svg';
