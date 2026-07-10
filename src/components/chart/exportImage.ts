@@ -55,7 +55,9 @@ export async function exportChartImage(): Promise<void> {
   const state = useCurveStore.getState();
   const xRange = useUiStore.getState().xRange;
   const visibleIds = state.stagingOrder.filter((id) => state.visibleCurves[id]);
-  const rangeResult = computeYAxisRange(visibleIds, state.curves, state.offsets, xRange, state.layerSpacing);
+  const rangeResult = computeYAxisRange(
+    visibleIds, state.curves, state.offsets, xRange, state.layerSpacing,
+  );
 
   const yZoomRange = useUiStore.getState().yZoomRange;
   const yInsideZoom: Record<string, unknown> = { id: 'yZoomInside', type: 'inside', yAxisIndex: 0, filterMode: 'none' };

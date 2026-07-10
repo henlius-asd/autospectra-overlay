@@ -3,12 +3,13 @@ import ReactECharts from 'echarts-for-react';
 import { useCurveStore, useUiStore } from '@/store';
 import BraceOverlay from './BraceOverlay';
 import PointLabelOverlay from './PointLabelOverlay';
-import CurveScaleOverlay from './CurveScaleOverlay';
 import type { EChartsOption } from 'echarts';
 import type { EChartsInstance } from 'echarts-for-react';
+import { computeYAxisRange } from './computeYAxisRange';
 import { normalizeYZoomRange } from './yZoomRange';
 import { yToPixel } from './yPixelMath';
 import { getTopCurvePixelYAtX, topCurvePeak } from './labelGeometry';
+import { scaleByWheel, offsetByDrag } from './curveScaleMath';
 
 // Shared chart instance for PNG export
 let chartInstance: EChartsInstance | null = null;
@@ -48,13 +49,18 @@ export default function WaterfallChart() {
   const setLayerSpacing = useCurveStore((s) => s.setLayerSpacing);
   const curveScales = useCurveStore((s) => s.curveScales);
   const curveScaleOffsets = useCurveStore((s) => s.curveScaleOffsets);
+  const normalizeFactors = useCurveStore((s) => s.normalizeFactors);
+  const globalScale = useCurveStore((s) => s.globalScale);
   const setCurveScale = useCurveStore((s) => s.setCurveScale);
   const setCurveScaleOffset = useCurveStore((s) => s.setCurveScaleOffset);
+  const setGlobalScale = useCurveStore((s) => s.setGlobalScale);
   const xRange = useUiStore((s) => s.xRange);
-  const yScaleToolMode = useUiStore((s) => s.yScaleToolMode);
-  const activeScaledCurveId = useUiStore((s) => s.activeScaledCurveId);
-  const setActiveScaledCurveId = useUiStore((s) => s.setActiveScaledCurveId);
+  const globalScaleMode = useUiStore((s) => s.globalScaleMode);
+  const perCurveScaleMode = useUiStore((s) => s.perCurveScaleMode);
+  const selectedCurveId = useUiStore((s) => s.selectedCurveId);
+  const setSelectedCurveId = useUiStore((s) => s.setSelectedCurveId);
   const bracePlacementMode = useUiStore((s) => s.bracePlacementMode);
+  const scaleModeActive = globalScaleMode || perCurveScaleMode;
   const showGrid = useUiStore((s) => s.showGrid);
   const showAxes = useUiStore((s) => s.showAxes);
   const yZoomRange = useUiStore((s) => s.yZoomRange);
@@ -139,45 +145,12 @@ export default function WaterfallChart() {
     }
   }, []);
 
-  const stableDataRange = useMemo(() => {
-    let rawDataMin = Infinity;
-    let rawDataMax = -Infinity;
-
-    for (const id of visibleIds) {
-      const curve = curves[id];
-      const offset = offsets[id] ?? { xOffset: 0, yOffset: 0 };
-      for (const [, yVal] of curve.data) {
-        const adjusted = yVal + offset.yOffset;
-        if (adjusted < rawDataMin) rawDataMin = adjusted;
-        if (adjusted > rawDataMax) rawDataMax = adjusted;
-      }
-    }
-
-    if (!isFinite(rawDataMin) || !isFinite(rawDataMax)) {
-      rawDataMin = 0;
-      rawDataMax = 1;
-    }
-
-    let dataSpan = rawDataMax - rawDataMin;
-    if (dataSpan === 0) dataSpan = 1;
-
-    return { rawDataMin, rawDataMax, dataSpan };
-  }, [visibleIds, curves, offsets]);
-
-  const yAxisFullRange = useMemo(() => {
-    const { rawDataMin, dataSpan } = stableDataRange;
-    const visibleCount = visibleIds.length;
-    const spacingBudget = (visibleCount - 1) * layerSpacing;
-    const yRangeForLayer = spacingBudget >= 1
-      ? dataSpan * 10
-      : dataSpan / (1 - spacingBudget);
-
-    const padding = dataSpan * 0.02;
-    const yAxisMin = Math.min(0, rawDataMin) - padding;
-    const yAxisMax = rawDataMin + yRangeForLayer * (1 + LABEL_PADDING_RATIO);
-
-    return { yAxisMin, yAxisMax, yRangeForLayer, rawDataMin };
-  }, [stableDataRange, visibleIds, layerSpacing]);
+  const yAxisFullRange = useMemo(() =>
+    computeYAxisRange(
+      visibleIds, curves, offsets, xRange, layerSpacing,
+    ),
+    [visibleIds, curves, offsets, xRange, layerSpacing],
+  );
 
   useEffect(() => {
     if (yZoomRangeSource.current === 'event') {
@@ -218,14 +191,17 @@ export default function WaterfallChart() {
       const layerIndex = visibleCount - 1 - visibleIndex;
       const layerYOffset = layerIndex * layerSpacing * yRangeForLayer;
 
-      const scale = curveScales[id] ?? 1;
+      const normalize = normalizeFactors[id] ?? 1;
+      const manual = curveScales[id] ?? 1;
+      const composite = normalize * globalScale * manual;
       const scaleOffset = curveScaleOffsets[id] ?? 0;
       const renderedData = curve.data.map(([x, y]) => [
         x + offset.xOffset,
-        y * scale + scaleOffset + layerYOffset + offset.yOffset,
+        y * composite + scaleOffset + layerYOffset + offset.yOffset,
       ]);
 
       return {
+        id,
         name: curve.displayName || curve.name,
         type: 'line' as const,
         data: renderedData,
@@ -237,7 +213,7 @@ export default function WaterfallChart() {
         },
         large: true,
         sampling: 'lttb' as const,
-        clip: true,
+        clip: false,
       };
     });
 
@@ -301,14 +277,19 @@ export default function WaterfallChart() {
         if (bracePlacementMode) {
           return [{ id: 'xZoomSlider', type: 'slider', xAxisIndex: 0, bottom: 10 }];
         }
+        // When scale mode is active, disable 'inside' dataZoom so ECharts
+        // doesn't capture wheel events — our native container listener handles scaling.
+        const xInside = scaleModeActive
+          ? { id: 'xZoom', type: 'slider', xAxisIndex: 0, bottom: 10, show: false }
+          : { id: 'xZoom', type: 'inside' as const, xAxisIndex: 0 };
         const xZoom: EChartsOption['dataZoom'] = [
-          { id: 'xZoom', type: 'inside', xAxisIndex: 0 },
+          xInside,
           { id: 'xZoomSlider', type: 'slider', xAxisIndex: 0, bottom: 10 },
         ];
-        const yMinSpan = 0.05 * (stableDataRange.dataSpan || 1);
-        const yInside: Record<string, unknown> = {
-          id: 'yZoom', type: 'inside', yAxisIndex: 0, filterMode: 'none', minValueSpan: yMinSpan,
-        };
+        const yMinSpan = 0.05 * (yAxisFullRange.dataSpan || 1);
+        const yInside: Record<string, unknown> = scaleModeActive
+          ? { id: 'yZoom', type: 'slider', yAxisIndex: 0, show: false, filterMode: 'none', minValueSpan: yMinSpan }
+          : { id: 'yZoom', type: 'inside', yAxisIndex: 0, filterMode: 'none', minValueSpan: yMinSpan };
         const ySlider: Record<string, unknown> = {
           id: 'yZoomSlider', type: 'slider', yAxisIndex: 0, orient: 'vertical',
           left: 60 - 14 - 4, width: 14, filterMode: 'none', minValueSpan: yMinSpan,
@@ -318,7 +299,7 @@ export default function WaterfallChart() {
       series,
       animation: false,
     };
-  }, [curves, offsets, visibleCurves, layerSpacing, stagingOrder, visibleIds, xRange, bracePlacementMode, showGrid, showAxes, curveScales, curveScaleOffsets]);
+  }, [curves, offsets, visibleCurves, layerSpacing, stagingOrder, visibleIds, xRange, bracePlacementMode, showGrid, showAxes, curveScales, curveScaleOffsets, normalizeFactors, globalScale, scaleModeActive]);
 
   const convertXToPixel = (xVal: number): number => {
     if (!chartInstance) return 0;
@@ -375,15 +356,110 @@ export default function WaterfallChart() {
       convertYToPixel,
     );
 
+  const chartContainerRef = useRef<HTMLDivElement>(null);
+
+  // Native wheel listener for scaling (non-passive so preventDefault works)
+  useEffect(() => {
+    const container = chartContainerRef.current;
+    if (!container || !scaleModeActive) return;
+
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      const perCurveActive = perCurveScaleMode && selectedCurveId;
+      if (perCurveActive) {
+        const cur = curveScales[selectedCurveId!] ?? 1;
+        setCurveScale(selectedCurveId!, scaleByWheel(cur, e.deltaY));
+      } else if (globalScaleMode) {
+        setGlobalScale(scaleByWheel(globalScale, e.deltaY));
+      }
+    };
+
+    container.addEventListener('wheel', onWheel, { passive: false });
+    return () => container.removeEventListener('wheel', onWheel);
+  }, [scaleModeActive, globalScaleMode, perCurveScaleMode, selectedCurveId, globalScale, curveScales, setCurveScale, setGlobalScale]);
+
+  // Native mousedown for shift+drag pan (per-curve mode only)
+  useEffect(() => {
+    const container = chartContainerRef.current;
+    if (!container || !perCurveScaleMode || !selectedCurveId) return;
+
+    const frame = {
+      yMin: visibleYRange[0], yMax: visibleYRange[1],
+      gridTop, gridBottom, chartHeight: chartDims.height,
+    };
+
+    const onMouseDown = (e: MouseEvent) => {
+      if (!e.shiftKey) return;
+      e.preventDefault();
+      const startY = e.clientY;
+      const startOffset = curveScaleOffsets[selectedCurveId!] ?? 0;
+
+      const onMove = (ev: MouseEvent) => {
+        const next = offsetByDrag(startOffset, startY, ev.clientY, frame);
+        setCurveScaleOffset(selectedCurveId!, next);
+      };
+      const onUp = () => {
+        document.removeEventListener('mousemove', onMove);
+        document.removeEventListener('mouseup', onUp);
+      };
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    };
+
+    container.addEventListener('mousedown', onMouseDown);
+    return () => container.removeEventListener('mousedown', onMouseDown);
+  }, [perCurveScaleMode, selectedCurveId, curveScaleOffsets, visibleYRange, gridTop, gridBottom, chartDims.height, setCurveScaleOffset]);
+
+  // Double-click handler for reset
+  const onChartDoubleClick = useCallback(() => {
+    if (perCurveScaleMode && selectedCurveId) {
+      setCurveScale(selectedCurveId, 1);
+      setCurveScaleOffset(selectedCurveId, 0);
+    } else if (globalScaleMode) {
+      setGlobalScale(1);
+    }
+  }, [perCurveScaleMode, globalScaleMode, selectedCurveId, setCurveScale, setCurveScaleOffset, setGlobalScale]);
+
+  const scaleBadge = scaleModeActive ? (
+    globalScaleMode && !(perCurveScaleMode && selectedCurveId)
+      ? `×${globalScale.toFixed(1)}`
+      : perCurveScaleMode && selectedCurveId
+      ? `×${((normalizeFactors[selectedCurveId] ?? 1) * globalScale * (curveScales[selectedCurveId] ?? 1)).toFixed(1)}`
+      : null
+  ) : null;
+
+  const scaleBadgeOffset = perCurveScaleMode && selectedCurveId
+    ? (curveScaleOffsets[selectedCurveId] ?? 0)
+    : 0;
+
   return (
-    <div className="relative w-full h-full">
+    <div className="relative w-full h-full" ref={chartContainerRef} onDoubleClick={scaleModeActive ? onChartDoubleClick : undefined}>
       <ReactECharts
         option={option}
         replaceMerge={['series', 'dataZoom']}
         style={{ width: '100%', height: '100%' }}
         onChartReady={onChartReady}
-        onEvents={{ dataZoom: onDataZoom }}
+        onEvents={{
+          dataZoom: onDataZoom,
+          click: (params: { seriesId?: string; seriesIndex?: number }) => {
+            if (params.seriesIndex != null && params.seriesIndex >= 0 && params.seriesIndex < visibleIds.length) {
+              const id = visibleIds[params.seriesIndex];
+              if (selectedCurveId === id) {
+                setSelectedCurveId(null);
+              } else {
+                setSelectedCurveId(id);
+              }
+            }
+          },
+        }}
       />
+      {scaleBadge && (
+        <div className="absolute text-[10px] font-mono text-blue-600 bg-white bg-opacity-80 px-1 rounded pointer-events-none"
+          style={{ left: 8, top: gridTop }}>
+          {scaleBadge}
+          {scaleBadgeOffset !== 0 ? ` Δ${scaleBadgeOffset.toFixed(0)}` : ''}
+        </div>
+      )}
       <BraceOverlay
         width={chartDims.width}
         height={chartDims.height}
@@ -406,23 +482,6 @@ export default function WaterfallChart() {
         gridLeft={gridLeft}
         gridRight={gridRight}
       />
-      {yScaleToolMode && activeScaledCurveId && (
-        <CurveScaleOverlay
-          curveId={activeScaledCurveId}
-          curves={curves}
-          offsets={offsets}
-          curveScales={curveScales}
-          curveScaleOffsets={curveScaleOffsets}
-          xRange={xRange}
-          chartHeight={chartDims.height}
-          gridTop={gridTop}
-          gridBottom={gridBottom}
-          visibleFrame={{ yMin: visibleYRange[0], yMax: visibleYRange[1] }}
-          setCurveScale={setCurveScale}
-          setCurveScaleOffset={setCurveScaleOffset}
-          onDeselect={() => setActiveScaledCurveId(null)}
-        />
-      )}
       <div className="absolute top-1/2 right-1 -translate-y-1/2 h-3/5 flex flex-col items-center gap-1.5 pointer-events-none">
         <span className="text-[10px] text-gray-500 font-mono tabular-nums">
           {layerSpacing.toFixed(3)}

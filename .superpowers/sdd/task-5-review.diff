@@ -1,0 +1,344 @@
+1f79340 feat: replace yScaleToolMode boolean with scaleMode 3-state enum
+ src/components/chart/WaterfallChart.tsx |  4 ++--
+ src/components/data/CurveList.tsx       |  6 +++---
+ src/components/toolbar/Toolbar.tsx      | 31 +++++++++++++++++--------------
+ src/store/uiStore.ts                    | 18 ++++++++++++++----
+ 4 files changed, 36 insertions(+), 23 deletions(-)
+
+diff --git a/src/components/chart/WaterfallChart.tsx b/src/components/chart/WaterfallChart.tsx
+index 07b9959..f44a3dc 100644
+--- a/src/components/chart/WaterfallChart.tsx
++++ b/src/components/chart/WaterfallChart.tsx
+@@ -47,21 +47,21 @@ export default function WaterfallChart() {
+   const stagingOrder = useCurveStore((s) => s.stagingOrder);
+   const layerSpacing = useCurveStore((s) => s.layerSpacing);
+   const setLayerSpacing = useCurveStore((s) => s.setLayerSpacing);
+   const curveScales = useCurveStore((s) => s.curveScales);
+   const curveScaleOffsets = useCurveStore((s) => s.curveScaleOffsets);
+   const normalizeFactors = useCurveStore((s) => s.normalizeFactors);
+   const globalScale = useCurveStore((s) => s.globalScale);
+   const setCurveScale = useCurveStore((s) => s.setCurveScale);
+   const setCurveScaleOffset = useCurveStore((s) => s.setCurveScaleOffset);
+   const xRange = useUiStore((s) => s.xRange);
+-  const yScaleToolMode = useUiStore((s) => s.yScaleToolMode);
++  const scaleMode = useUiStore((s) => s.scaleMode);
+   const activeScaledCurveId = useUiStore((s) => s.activeScaledCurveId);
+   const setActiveScaledCurveId = useUiStore((s) => s.setActiveScaledCurveId);
+   const bracePlacementMode = useUiStore((s) => s.bracePlacementMode);
+   const showGrid = useUiStore((s) => s.showGrid);
+   const showAxes = useUiStore((s) => s.showAxes);
+   const yZoomRange = useUiStore((s) => s.yZoomRange);
+   const yZoomRangeSource = useRef<'event' | 'external' | null>(null);
+ 
+   // visibleIds follows stagingOrder (only IDs that are in stagingOrder AND visible)
+   // visibleIds[0] = top of list = top of chart; visibleIds[last] = bottom (baseline)
+@@ -372,21 +372,21 @@ export default function WaterfallChart() {
+         convertXToPixel={convertXToPixel}
+         convertPixelToX={convertPixelToX}
+         xRange={xRange}
+         getLabelBaseYAtX={getLabelBaseYAtX}
+         gridTop={gridTop}
+         gridBottom={gridBottom}
+         chartWidth={chartDims.width}
+         gridLeft={gridLeft}
+         gridRight={gridRight}
+       />
+-      {yScaleToolMode && activeScaledCurveId && (
++      {scaleMode !== 'off' && activeScaledCurveId && (
+         <CurveScaleOverlay
+           curveId={activeScaledCurveId}
+           curves={curves}
+           offsets={offsets}
+           curveScales={curveScales}
+           curveScaleOffsets={curveScaleOffsets}
+           xRange={xRange}
+           chartHeight={chartDims.height}
+           gridTop={gridTop}
+           gridBottom={gridBottom}
+diff --git a/src/components/data/CurveList.tsx b/src/components/data/CurveList.tsx
+index ca2ba47..ac6520c 100644
+--- a/src/components/data/CurveList.tsx
++++ b/src/components/data/CurveList.tsx
+@@ -26,21 +26,21 @@ export default function CurveList({
+   const setStagingOrder = useCurveStore((s) => s.setStagingOrder);
+   const setDisplayName = useCurveStore((s) => s.setDisplayName);
+   const setBaseline = useCurveStore((s) => s.setBaseline);
+   const baselineId = useCurveStore((s) => s.baselineId);
+   const setCurveColor = useCurveStore((s) => s.setCurveColor);
+   const curves = useCurveStore((s) => s.curves);
+   const selectedCurveId = useUiStore((s) => s.selectedCurveId);
+   const setSelectedCurveId = useUiStore((s) => s.setSelectedCurveId);
+   const colorHistory = useUiStore((s) => s.colorHistory);
+   const addColorToHistory = useUiStore((s) => s.addColorToHistory);
+-  const yScaleToolMode = useUiStore((s) => s.yScaleToolMode);
++  const scaleMode = useUiStore((s) => s.scaleMode);
+   const activeScaledCurveId = useUiStore((s) => s.activeScaledCurveId);
+   const setActiveScaledCurveId = useUiStore((s) => s.setActiveScaledCurveId);
+ 
+   const [filterText, setFilterText] = useState('');
+   const [contextMenu, setContextMenu] = useState<{
+     x: number; y: number; curveId: string;
+   } | null>(null);
+   const [panelCurveId, setPanelCurveId] = useState<string | null>(null);
+   const [panelTriggerRect, setPanelTriggerRect] = useState<DOMRect | null>(null);
+   const [editingId, setEditingId] = useState<string | null>(null);
+@@ -135,31 +135,31 @@ export default function CurveList({
+ 
+   const handleAliasCancel = useCallback(() => {
+     setEditingId(null);
+   }, []);
+ 
+   // Curve click for selection (metadata panel)
+   const handleCurveClick = useCallback(
+     (e: React.MouseEvent, id: string) => {
+       const target = e.target as HTMLElement;
+       if (target.tagName === 'INPUT' || target.tagName === 'BUTTON') return;
+-      if (yScaleToolMode) {
++      if (scaleMode === 'split') {
+         setActiveScaledCurveId(activeScaledCurveId === id ? null : id);
+         return;
+       }
+       if (selectedCurveId === id) {
+         setSelectedCurveId(null);
+       } else {
+         setSelectedCurveId(id);
+       }
+     },
+-    [selectedCurveId, setSelectedCurveId, yScaleToolMode, activeScaledCurveId, setActiveScaledCurveId],
++    [selectedCurveId, setSelectedCurveId, scaleMode, activeScaledCurveId, setActiveScaledCurveId],
+   );
+ 
+   // Get display name for a curve: displayName → name (SampleName) → fileName
+   const getDisplayName = (id: string): string => {
+     const c = curves[id];
+     return c?.displayName || c?.name || c?.metadata?.fileName || '';
+   };
+ 
+   // Render a single curve row
+   const renderCurveRow = (id: string, _index: number, isStaging: boolean) => {
+diff --git a/src/components/toolbar/Toolbar.tsx b/src/components/toolbar/Toolbar.tsx
+index 884ed90..5a72f06 100644
+--- a/src/components/toolbar/Toolbar.tsx
++++ b/src/components/toolbar/Toolbar.tsx
+@@ -2,22 +2,23 @@ import { useCurveStore } from '@/store';
+ import { useUiStore } from '@/store';
+ import { exportChartImage } from '@/components/chart/exportImage';
+ 
+ export default function Toolbar() {
+   const temporal = useCurveStore.temporal;
+   const curves = useCurveStore((s) => s.curves);
+   const bracePlacementMode = useUiStore((s) => s.bracePlacementMode);
+   const setBracePlacementMode = useUiStore((s) => s.setBracePlacementMode);
+   const pointLabelPlacementMode = useUiStore((s) => s.pointLabelPlacementMode);
+   const setPointLabelPlacementMode = useUiStore((s) => s.setPointLabelPlacementMode);
+-  const yScaleToolMode = useUiStore((s) => s.yScaleToolMode);
+-  const setYScaleToolMode = useUiStore((s) => s.setYScaleToolMode);
++  const scaleMode = useUiStore((s) => s.scaleMode);
++  const cycleScaleMode = useUiStore((s) => s.cycleScaleMode);
++  const setScaleMode = useUiStore((s) => s.setScaleMode);
+   const showGrid = useUiStore((s) => s.showGrid);
+   const showAxes = useUiStore((s) => s.showAxes);
+   const toggleShowGrid = useUiStore((s) => s.toggleShowGrid);
+   const toggleShowAxes = useUiStore((s) => s.toggleShowAxes);
+ 
+   const hasCurves = Object.keys(curves).length > 0;
+ 
+   const handleUndo = () => {
+     try {
+       temporal.getState().undo();
+@@ -30,45 +31,39 @@ export default function Toolbar() {
+     try {
+       temporal.getState().redo();
+     } catch {
+       // No redo available
+     }
+   };
+ 
+   const handleToggleBraceMode = () => {
+     if (!bracePlacementMode) {
+       setPointLabelPlacementMode(false);
+-      setYScaleToolMode(false);
++      setScaleMode('off');
+       setBracePlacementMode(true);
+     } else {
+       setBracePlacementMode(false);
+     }
+   };
+ 
+   const handleTogglePointLabelMode = () => {
+     if (!pointLabelPlacementMode) {
+       setBracePlacementMode(false);
+-      setYScaleToolMode(false);
++      setScaleMode('off');
+       setPointLabelPlacementMode(true);
+     } else {
+       setPointLabelPlacementMode(false);
+     }
+   };
+ 
+   const handleToggleYScaleMode = () => {
+-    if (!yScaleToolMode) {
+-      setBracePlacementMode(false);
+-      setPointLabelPlacementMode(false);
+-      setYScaleToolMode(true);
+-    } else {
+-      setYScaleToolMode(false);
+-    }
++    cycleScaleMode();
+   };
+ 
+   const handleExportImage = () => {
+     exportChartImage().catch(() => {
+       alert('导出图片失败');
+     });
+   };
+ 
+   const handleExportJSON = () => {
+     const state = useCurveStore.getState();
+@@ -114,20 +109,27 @@ export default function Toolbar() {
+           });
+         } catch {
+           alert('工作区文件解析失败');
+         }
+       };
+       reader.readAsText(file);
+     };
+     input.click();
+   };
+ 
++  const scaleLabel = scaleMode === 'off' ? 'Y缩放' : scaleMode === 'split' ? '拆分' : '合并';
++  const scaleTitle = scaleMode === 'off'
++    ? 'Y轴缩放：滚轮缩放，Shift+拖拽平移，双击复位'
++    : scaleMode === 'split'
++    ? '拆分模式：点曲线选中，滚轮缩放单条曲线'
++    : '合并模式：滚轮缩放所有曲线';
++
+   return (
+     <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 border-b border-gray-200">
+       <button
+         onClick={handleUndo}
+         className="text-xs px-2 py-1 rounded hover:bg-gray-200 text-gray-600"
+         title="撤销 (Ctrl+Z)"
+       >
+         ↩ 撤销
+       </button>
+       <button
+@@ -155,31 +157,32 @@ export default function Toolbar() {
+         disabled={!hasCurves}
+         className={`text-xs px-2 py-1 rounded ${
+           pointLabelPlacementMode
+             ? 'bg-blue-500 text-white'
+             : 'hover:bg-gray-200 text-gray-600'
+         } disabled:text-gray-300 disabled:cursor-not-allowed`}
+         title={pointLabelPlacementMode ? '点击取消点标签放置模式' : '插入点标签：点击图表放置'}
+       >
+         {pointLabelPlacementMode ? '放置中...' : '点标签'}
+       </button>
++      <div className="w-px h-5 bg-gray-300" />
+       <button
+         onClick={handleToggleYScaleMode}
+         disabled={!hasCurves}
+         className={`text-xs px-2 py-1 rounded ${
+-          yScaleToolMode
++          scaleMode !== 'off'
+             ? 'bg-blue-500 text-white'
+             : 'hover:bg-gray-200 text-gray-600'
+         } disabled:text-gray-300 disabled:cursor-not-allowed`}
+-        title={yScaleToolMode ? '点击取消Y轴缩放模式' : 'Y轴缩放：点曲线选中，滚轮/拖拽缩放，Shift+拖拽平移，双击复位'}
++        title={scaleTitle}
+       >
+-        {yScaleToolMode ? '缩放中...' : 'Y缩放'}
++        {scaleLabel}
+       </button>
+       <div className="w-px h-5 bg-gray-300" />
+       <button
+         onClick={toggleShowGrid}
+         className={`text-xs px-2 py-1 rounded ${
+           showGrid ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-200 text-gray-400'
+         }`}
+         title={showGrid ? '隐藏网格' : '显示网格'}
+       >
+         网格
+diff --git a/src/store/uiStore.ts b/src/store/uiStore.ts
+index a24f671..b3b5ecf 100644
+--- a/src/store/uiStore.ts
++++ b/src/store/uiStore.ts
+@@ -7,25 +7,26 @@ interface UiState {
+   rightPanelCollapsed: boolean;
+   selectionMode: SelectionMode;
+   alignmentProgress: number | null;
+   xRange: [number, number];
+   yRange: [number, number];
+   selectedCurveId: string | null;
+   bracePlacementMode: boolean;
+   pointLabelPlacementMode: boolean;
+   showGrid: boolean;
+   showAxes: boolean;
+-  yScaleToolMode: boolean;
++  scaleMode: 'off' | 'split' | 'merge';
+   activeScaledCurveId: string | null;
+   yZoomRange: [number, number] | null;
+   colorHistory: string[];
+-  setYScaleToolMode: (active: boolean) => void;
++  setScaleMode: (mode: 'off' | 'split' | 'merge') => void;
++  cycleScaleMode: () => void;
+   setActiveScaledCurveId: (id: string | null) => void;
+   setYZoomRange: (range: [number, number]) => void;
+   resetYZoomRange: () => void;
+   addColorToHistory: (color: string) => void;
+   toggleLeftPanel: () => void;
+   toggleRightPanel: () => void;
+   setSelectionMode: (mode: SelectionMode) => void;
+   setAlignmentProgress: (progress: number | null) => void;
+   setXRange: (range: [number, number]) => void;
+   setYRange: (range: [number, number]) => void;
+@@ -40,38 +41,47 @@ export const useUiStore = create<UiState>((set) => ({
+   leftPanelCollapsed: false,
+   rightPanelCollapsed: false,
+   selectionMode: 'none',
+   alignmentProgress: null,
+   xRange: [0, 10],
+   yRange: [0, 1],
+   selectedCurveId: null,
+   bracePlacementMode: false,
+   pointLabelPlacementMode: false,
+   showGrid: true,
+-  yScaleToolMode: false,
++  scaleMode: 'off',
+   activeScaledCurveId: null,
+   yZoomRange: null,
+   colorHistory: [],
+   showAxes: false,
+   toggleLeftPanel: () =>
+     set((s) => ({ leftPanelCollapsed: !s.leftPanelCollapsed })),
+   toggleRightPanel: () =>
+     set((s) => ({ rightPanelCollapsed: !s.rightPanelCollapsed })),
+   setSelectionMode: (mode) => set({ selectionMode: mode }),
+   setAlignmentProgress: (progress) => set({ alignmentProgress: progress }),
+   setXRange: (range) => set({ xRange: range }),
+   setYRange: (range) => set({ yRange: range }),
+   setSelectedCurveId: (id) => set({ selectedCurveId: id }),
+   setBracePlacementMode: (active) => set({ bracePlacementMode: active }),
+   setPointLabelPlacementMode: (active) => set({ pointLabelPlacementMode: active }),
+   toggleShowGrid: () => set((s) => ({ showGrid: !s.showGrid })),
+   toggleShowAxes: () => set((s) => ({ showAxes: !s.showAxes })),
+-  setYScaleToolMode: (active) => set({ yScaleToolMode: active }),
++  setScaleMode: (mode) => set({ scaleMode: mode }),
++  cycleScaleMode: () =>
++    set((state) => {
++      const next: Record<string, 'off' | 'split' | 'merge'> = {
++        off: 'split',
++        split: 'merge',
++        merge: 'off',
++      };
++      return { scaleMode: next[state.scaleMode] };
++    }),
+   setActiveScaledCurveId: (id) => set({ activeScaledCurveId: id }),
+   setYZoomRange: (range) => set({ yZoomRange: range }),
+   resetYZoomRange: () => set({ yZoomRange: null }),
+   addColorToHistory: (color) =>
+     set((s) => {
+       const filtered = s.colorHistory.filter((c) => c !== color);
+       return { colorHistory: [color, ...filtered].slice(0, 8) };
+     }),
+ }));

@@ -1,0 +1,282 @@
+812057d feat: extend computeYAxisRange to compute from composite-scaled data
+ src/components/chart/WaterfallChart.tsx            | 49 ++++------------------
+ .../chart/__tests__/computeYAxisRange.test.ts      | 38 +++++++++++++++++
+ src/components/chart/computeYAxisRange.ts          | 21 +++++-----
+ src/components/chart/exportImage.ts                |  5 ++-
+ 4 files changed, 62 insertions(+), 51 deletions(-)
+
+diff --git a/src/components/chart/WaterfallChart.tsx b/src/components/chart/WaterfallChart.tsx
+index aec4b66..07b9959 100644
+--- a/src/components/chart/WaterfallChart.tsx
++++ b/src/components/chart/WaterfallChart.tsx
+@@ -1,18 +1,19 @@
+ import { useMemo, useCallback, useEffect, useRef, useState } from 'react';
+ import ReactECharts from 'echarts-for-react';
+ import { useCurveStore, useUiStore } from '@/store';
+ import BraceOverlay from './BraceOverlay';
+ import PointLabelOverlay from './PointLabelOverlay';
+ import CurveScaleOverlay from './CurveScaleOverlay';
+ import type { EChartsOption } from 'echarts';
+ import type { EChartsInstance } from 'echarts-for-react';
++import { computeYAxisRange } from './computeYAxisRange';
+ import { normalizeYZoomRange } from './yZoomRange';
+ import { yToPixel } from './yPixelMath';
+ import { getTopCurvePixelYAtX, topCurvePeak } from './labelGeometry';
+ 
+ // Shared chart instance for PNG export
+ let chartInstance: EChartsInstance | null = null;
+ export function getChartInstance() {
+   return chartInstance;
+ }
+ 
+@@ -134,59 +135,27 @@ export default function WaterfallChart() {
+     }
+ 
+     if (xChanged || yRange) {
+       useUiStore.setState({
+         ...(xChanged ? { xRange: xExtent! } : {}),
+         ...(yRange ? { yZoomRange: yRange } : {}),
+       });
+     }
+   }, []);
+ 
+-  const stableDataRange = useMemo(() => {
+-    let rawDataMin = Infinity;
+-    let rawDataMax = -Infinity;
+-
+-    for (const id of visibleIds) {
+-      const curve = curves[id];
+-      const offset = offsets[id] ?? { xOffset: 0, yOffset: 0 };
+-      for (const [, yVal] of curve.data) {
+-        const adjusted = yVal + offset.yOffset;
+-        if (adjusted < rawDataMin) rawDataMin = adjusted;
+-        if (adjusted > rawDataMax) rawDataMax = adjusted;
+-      }
+-    }
+-
+-    if (!isFinite(rawDataMin) || !isFinite(rawDataMax)) {
+-      rawDataMin = 0;
+-      rawDataMax = 1;
+-    }
+-
+-    let dataSpan = rawDataMax - rawDataMin;
+-    if (dataSpan === 0) dataSpan = 1;
+-
+-    return { rawDataMin, rawDataMax, dataSpan };
+-  }, [visibleIds, curves, offsets]);
+-
+-  const yAxisFullRange = useMemo(() => {
+-    const { rawDataMin, dataSpan } = stableDataRange;
+-    const visibleCount = visibleIds.length;
+-    const spacingBudget = (visibleCount - 1) * layerSpacing;
+-    const yRangeForLayer = spacingBudget >= 1
+-      ? dataSpan * 10
+-      : dataSpan / (1 - spacingBudget);
+-
+-    const padding = dataSpan * 0.02;
+-    const yAxisMin = Math.min(0, rawDataMin) - padding;
+-    const yAxisMax = rawDataMin + yRangeForLayer * (1 + LABEL_PADDING_RATIO);
+-
+-    return { yAxisMin, yAxisMax, yRangeForLayer, rawDataMin };
+-  }, [stableDataRange, visibleIds, layerSpacing]);
++  const yAxisFullRange = useMemo(() =>
++    computeYAxisRange(
++      visibleIds, curves, offsets, xRange, layerSpacing,
++      normalizeFactors, globalScale, curveScales, curveScaleOffsets,
++    ),
++    [visibleIds, curves, offsets, xRange, layerSpacing, normalizeFactors, globalScale, curveScales, curveScaleOffsets],
++  );
+ 
+   useEffect(() => {
+     if (yZoomRangeSource.current === 'event') {
+       yZoomRangeSource.current = null;
+       return;
+     }
+     yZoomRangeSource.current = null;
+     if (yZoomRange && chartInstance) {
+       chartInstance.dispatchAction({
+         type: 'dataZoom',
+@@ -302,21 +271,21 @@ export default function WaterfallChart() {
+         splitLine: { show: showGrid },
+       },
+       dataZoom: (() => {
+         if (bracePlacementMode) {
+           return [{ id: 'xZoomSlider', type: 'slider', xAxisIndex: 0, bottom: 10 }];
+         }
+         const xZoom: EChartsOption['dataZoom'] = [
+           { id: 'xZoom', type: 'inside', xAxisIndex: 0 },
+           { id: 'xZoomSlider', type: 'slider', xAxisIndex: 0, bottom: 10 },
+         ];
+-        const yMinSpan = 0.05 * (stableDataRange.dataSpan || 1);
++        const yMinSpan = 0.05 * (yAxisFullRange.dataSpan || 1);
+         const yInside: Record<string, unknown> = {
+           id: 'yZoom', type: 'inside', yAxisIndex: 0, filterMode: 'none', minValueSpan: yMinSpan,
+         };
+         const ySlider: Record<string, unknown> = {
+           id: 'yZoomSlider', type: 'slider', yAxisIndex: 0, orient: 'vertical',
+           left: 60 - 14 - 4, width: 14, filterMode: 'none', minValueSpan: yMinSpan,
+         };
+         return [...xZoom, yInside, ySlider] as EChartsOption['dataZoom'];
+       })(),
+       series,
+diff --git a/src/components/chart/__tests__/computeYAxisRange.test.ts b/src/components/chart/__tests__/computeYAxisRange.test.ts
+index b655f6b..690a4fc 100644
+--- a/src/components/chart/__tests__/computeYAxisRange.test.ts
++++ b/src/components/chart/__tests__/computeYAxisRange.test.ts
+@@ -62,20 +62,58 @@ describe('computeYAxisRange', () => {
+       c1: { name: 'curve1', data: [[0, 5], [1, 5], [2, 5]] },
+     };
+     const offsets = { c1: { xOffset: 0, yOffset: 0 } };
+     const result = computeYAxisRange(['c1'], curves, offsets, [0, 2], 0);
+ 
+     expect(result.dataSpan).toBe(1); // default span when dataSpan === 0
+     expect(result.yAxisMin).toBeLessThan(5);
+     expect(result.yAxisMax).toBeGreaterThan(5);
+   });
+ 
++  describe('computeYAxisRange with scale params', () => {
++  it('computes rawDataMin/Max from scaled data', () => {
++    const curve = { name: 'A', color: '#000', data: [[0, 10], [1, 50], [2, 30]] };
++    const curves: Record<string, CurveData> = { id1: curve };
++    const offsets = { id1: { xOffset: 0, yOffset: 0 } };
++    const normalizeFactors = { id1: 2 };
++    const globalScale = 1.5;
++    const curveScales = { id1: 1 };
++    const curveScaleOffsets = { id1: 0 };
++
++    const result = computeYAxisRange(
++      ['id1'], curves, offsets, [0, 2], 0,
++      normalizeFactors, globalScale, curveScales, curveScaleOffsets,
++    );
++    // peak = 50, composite = 2 * 1.5 * 1 = 3, scaled peak = 150
++    expect(result.rawDataMax).toBeCloseTo(150, 0);
++    expect(result.rawDataMin).toBeCloseTo(30, 0); // 10 * 3 = 30
++  });
++
++  it('handles scaleOffset in range computation', () => {
++    const curve = { name: 'A', color: '#000', data: [[0, 10]] };
++    const curves: Record<string, CurveData> = { id1: curve };
++    const offsets = { id1: { xOffset: 0, yOffset: 0 } };
++    const normalizeFactors = {};
++    const globalScale = 1;
++    const curveScales = { id1: 2 };
++    const curveScaleOffsets = { id1: 5 };
++
++    const result = computeYAxisRange(
++      ['id1'], curves, offsets, [0, 0], 0,
++      normalizeFactors, globalScale, curveScales, curveScaleOffsets,
++    );
++    // scaled = 10 * 2 + 5 = 25
++    expect(result.rawDataMax).toBeCloseTo(25, 0);
++    expect(result.rawDataMin).toBeCloseTo(25, 0);
++  });
++});
++
+   it('should compute correct yRangeForLayer with layer spacing', () => {
+     const curves: Record<string, CurveData> = {
+       c1: { name: 'curve1', data: [[0, 0], [1, 100]] },
+       c2: { name: 'curve2', data: [[0, 0], [1, 100]] },
+       c3: { name: 'curve3', data: [[0, 0], [1, 100]] },
+     };
+     const offsets = {
+       c1: { xOffset: 0, yOffset: 0 },
+       c2: { xOffset: 0, yOffset: 0 },
+       c3: { xOffset: 0, yOffset: 0 },
+diff --git a/src/components/chart/computeYAxisRange.ts b/src/components/chart/computeYAxisRange.ts
+index 30d094f..e9c54d6 100644
+--- a/src/components/chart/computeYAxisRange.ts
++++ b/src/components/chart/computeYAxisRange.ts
+@@ -1,52 +1,53 @@
+ import type { CurveData } from '@/types';
+ import type { CurveOffsets } from '@/store/curveStore';
+ import { LABEL_PADDING_RATIO } from './WaterfallChart';
+ 
+ /**
+  * Compute Y-axis range parameters for waterfall chart rendering.
+  * Tracks both rawDataMin and rawDataMax to support negative values.
+- * Y-axis range is based on raw data only — per-curve scaling is applied
+- * in rendering with clip: false so scaled curves can overflow the axis.
+- *
+- * @param visibleIds - Array of visible curve IDs in display order
+- * @param curves - Map of curve ID to curve data
+- * @param offsets - Map of curve ID to offsets
+- * @param xRange - Current X-axis visible range [min, max]
+- * @param layerSpacing - Layer spacing multiplier from UI slider
+- * @returns Object containing all computed Y-axis range parameters
++ * Y-axis range is computed from composite-scaled data (normalize × globalScale × manual + scaleOffset)
++ * so the axis accommodates the rendered curves rather than raw data.
+  */
+ export function computeYAxisRange(
+   visibleIds: string[],
+   curves: Record<string, CurveData>,
+   offsets: Record<string, CurveOffsets>,
+   xRange: [number, number],
+   layerSpacing: number,
++  normalizeFactors: Record<string, number> = {},
++  globalScale: number = 1,
++  curveScales: Record<string, number> = {},
++  curveScaleOffsets: Record<string, number> = {},
+ ): {
+   rawDataMin: number;
+   rawDataMax: number;
+   dataSpan: number;
+   yRangeForLayer: number;
+   yAxisMin: number;
+   yAxisMax: number;
+   maxY: number;
+ } {
+   // Track both min and max across all visible curves
+   let rawDataMin = Infinity;
+   let rawDataMax = -Infinity;
+ 
+   for (const id of visibleIds) {
+     const curve = curves[id];
+     const offset = offsets[id] ?? { xOffset: 0, yOffset: 0 };
++    const normalize = normalizeFactors[id] ?? 1;
++    const manual = curveScales[id] ?? 1;
++    const composite = normalize * globalScale * manual;
++    const scaleOffset = curveScaleOffsets[id] ?? 0;
+     for (const [x, yVal] of curve.data) {
+       if (x + offset.xOffset >= xRange[0] && x + offset.xOffset <= xRange[1]) {
+-        const adjusted = yVal + offset.yOffset;
++        const adjusted = yVal * composite + scaleOffset + offset.yOffset;
+         if (adjusted < rawDataMin) rawDataMin = adjusted;
+         if (adjusted > rawDataMax) rawDataMax = adjusted;
+       }
+     }
+   }
+ 
+   // Handle case where no data points are in range
+   if (!isFinite(rawDataMin) || !isFinite(rawDataMax)) {
+     rawDataMin = 0;
+     rawDataMax = 1;
+diff --git a/src/components/chart/exportImage.ts b/src/components/chart/exportImage.ts
+index 99286be..b9e1036 100644
+--- a/src/components/chart/exportImage.ts
++++ b/src/components/chart/exportImage.ts
+@@ -48,21 +48,24 @@ export async function exportChartImage(): Promise<void> {
+   const origDataZoom = (Array.isArray(snapshot.dataZoom) ? snapshot.dataZoom : []) as Array<Record<string, unknown>>;
+   const zoomStart = origDataZoom[0]?.start;
+   const zoomEnd = origDataZoom[0]?.end;
+   const insideZoom: Record<string, unknown>[] = [{ type: 'inside', xAxisIndex: 0 }];
+   if (zoomStart != null) insideZoom[0].start = zoomStart;
+   if (zoomEnd != null) insideZoom[0].end = zoomEnd;
+ 
+   const state = useCurveStore.getState();
+   const xRange = useUiStore.getState().xRange;
+   const visibleIds = state.stagingOrder.filter((id) => state.visibleCurves[id]);
+-  const rangeResult = computeYAxisRange(visibleIds, state.curves, state.offsets, xRange, state.layerSpacing);
++  const rangeResult = computeYAxisRange(
++    visibleIds, state.curves, state.offsets, xRange, state.layerSpacing,
++    state.normalizeFactors ?? {}, state.globalScale ?? 1, state.curveScales ?? {}, state.curveScaleOffsets ?? {},
++  );
+ 
+   const yZoomRange = useUiStore.getState().yZoomRange;
+   const yInsideZoom: Record<string, unknown> = { id: 'yZoomInside', type: 'inside', yAxisIndex: 0, filterMode: 'none' };
+   if (yZoomRange) {
+     const clamped = normalizeYZoomRange(yZoomRange[0], yZoomRange[1]);
+     yInsideZoom.startValue = clamped[0];
+     yInsideZoom.endValue = clamped[1];
+   }
+   insideZoom.push(yInsideZoom);
+ 

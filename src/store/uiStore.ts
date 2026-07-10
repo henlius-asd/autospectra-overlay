@@ -14,12 +14,12 @@ interface UiState {
   pointLabelPlacementMode: boolean;
   showGrid: boolean;
   showAxes: boolean;
-  yScaleToolMode: boolean;
-  activeScaledCurveId: string | null;
+  globalScaleMode: boolean;
+  perCurveScaleMode: boolean;
   yZoomRange: [number, number] | null;
   colorHistory: string[];
-  setYScaleToolMode: (active: boolean) => void;
-  setActiveScaledCurveId: (id: string | null) => void;
+  toggleGlobalScaleMode: () => void;
+  togglePerCurveScaleMode: () => void;
   setYZoomRange: (range: [number, number]) => void;
   resetYZoomRange: () => void;
   addColorToHistory: (color: string) => void;
@@ -47,8 +47,8 @@ export const useUiStore = create<UiState>((set) => ({
   bracePlacementMode: false,
   pointLabelPlacementMode: false,
   showGrid: true,
-  yScaleToolMode: false,
-  activeScaledCurveId: null,
+  globalScaleMode: false,
+  perCurveScaleMode: false,
   yZoomRange: null,
   colorHistory: [],
   showAxes: false,
@@ -65,8 +65,10 @@ export const useUiStore = create<UiState>((set) => ({
   setPointLabelPlacementMode: (active) => set({ pointLabelPlacementMode: active }),
   toggleShowGrid: () => set((s) => ({ showGrid: !s.showGrid })),
   toggleShowAxes: () => set((s) => ({ showAxes: !s.showAxes })),
-  setYScaleToolMode: (active) => set({ yScaleToolMode: active }),
-  setActiveScaledCurveId: (id) => set({ activeScaledCurveId: id }),
+  toggleGlobalScaleMode: () =>
+    set((s) => ({ globalScaleMode: !s.globalScaleMode })),
+  togglePerCurveScaleMode: () =>
+    set((s) => ({ perCurveScaleMode: !s.perCurveScaleMode })),
   setYZoomRange: (range) => set({ yZoomRange: range }),
   resetYZoomRange: () => set({ yZoomRange: null }),
   addColorToHistory: (color) =>

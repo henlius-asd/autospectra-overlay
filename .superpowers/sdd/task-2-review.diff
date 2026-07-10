@@ -1,0 +1,144 @@
+c64c2fa feat: add computePeakNormalizeFactor, remove scaleByDrag from curveScaleMath
+ .../chart/__tests__/curveScaleMath.test.ts         | 44 +++++++++++++++-------
+ src/components/chart/curveScaleMath.ts             | 21 +++++++++--
+ 2 files changed, 48 insertions(+), 17 deletions(-)
+
+diff --git a/src/components/chart/__tests__/curveScaleMath.test.ts b/src/components/chart/__tests__/curveScaleMath.test.ts
+index 26a53a1..92c2dff 100644
+--- a/src/components/chart/__tests__/curveScaleMath.test.ts
++++ b/src/components/chart/__tests__/curveScaleMath.test.ts
+@@ -1,12 +1,14 @@
+ import { describe, it, expect } from 'vitest';
+-import { scaleByWheel, scaleByDrag, offsetByDrag, clampScale } from '../curveScaleMath';
++import { scaleByWheel, offsetByDrag, clampScale, computePeakNormalizeFactor } from '../curveScaleMath';
++import type { CurveData } from '@/types';
++import type { CurveOffsets } from '@/store/curveStore';
+ 
+ describe('clampScale', () => {
+   it('clamps to [0.1, 10]', () => {
+     expect(clampScale(0)).toBe(0.1);
+     expect(clampScale(100)).toBe(10);
+     expect(clampScale(2)).toBe(2);
+   });
+ });
+ 
+ describe('scaleByWheel', () => {
+@@ -14,37 +16,53 @@ describe('scaleByWheel', () => {
+     expect(scaleByWheel(1, -100)).toBeCloseTo(1.1, 5);
+   });
+   it('scroll down (deltaY>0) shrinks by ~1/1.1', () => {
+     expect(scaleByWheel(1, 100)).toBeCloseTo(1 / 1.1, 5);
+   });
+   it('clamps the result', () => {
+     expect(scaleByWheel(10, -100)).toBe(10);
+   });
+ });
+ 
+-describe('scaleByDrag', () => {
+-  it('drag up (deltaPx<0) enlarges scale', () => {
+-    expect(scaleByDrag(1, -100)).toBeGreaterThan(1);
+-  });
+-  it('drag down (deltaPx>0) shrinks scale', () => {
+-    expect(scaleByDrag(1, 100)).toBeLessThan(1);
+-  });
+-  it('clamps the result', () => {
+-    expect(scaleByDrag(10, -1000)).toBe(10);
+-  });
+-});
+-
+ describe('offsetByDrag', () => {
+   const frame = { yMin: 0, yMax: 100, gridTop: 0, gridBottom: 0, chartHeight: 100 };
+   it('drag up (currentPy<startPy) increases offset (curve moves up)', () => {
+     const off = offsetByDrag(0, 50, 40, frame);
+     expect(off).toBeGreaterThan(0);
+   });
+   it('drag down decreases offset', () => {
+     const off = offsetByDrag(0, 40, 50, frame);
+     expect(off).toBeLessThan(0);
+   });
+   it('preserves start offset base', () => {
+     const off = offsetByDrag(5, 50, 50, frame);
+     expect(off).toBeCloseTo(5, 7);
+   });
+ });
++
++describe('computePeakNormalizeFactor', () => {
++  const curve: CurveData = { name: 'test', color: '#000', data: [[0, 10], [1, 50], [2, 30], [3, 100], [5, 20]] };
++  const offset: CurveOffsets = { xOffset: 0, yOffset: 0 };
++
++  it('returns targetPeak / peakY when peak > 0', () => {
++    expect(computePeakNormalizeFactor(curve, offset, [0, 5], 200)).toBeCloseTo(2.0, 5);
++  });
++
++  it('returns 1 when peak <= 0', () => {
++    const flatCurve: CurveData = { name: 'flat', color: '#000', data: [[0, 0], [1, 0]] };
++    expect(computePeakNormalizeFactor(flatCurve, offset, [0, 1], 100)).toBe(1);
++  });
++
++  it('filters by xRange', () => {
++    expect(computePeakNormalizeFactor(curve, offset, [0, 2], 100)).toBeCloseTo(2.0, 5);
++  });
++
++  it('returns 1 when no data points in xRange', () => {
++    expect(computePeakNormalizeFactor(curve, offset, [10, 20], 100)).toBe(1);
++  });
++
++  it('accounts for xOffset', () => {
++    const shiftedCurve: CurveData = { name: 'shifted', color: '#000', data: [[100, 50]] };
++    const shiftedOffset: CurveOffsets = { xOffset: -100, yOffset: 0 };
++    expect(computePeakNormalizeFactor(shiftedCurve, shiftedOffset, [0, 10], 100)).toBeCloseTo(2.0);
++  });
++});
+diff --git a/src/components/chart/curveScaleMath.ts b/src/components/chart/curveScaleMath.ts
+index 83857e9..89fd6c1 100644
+--- a/src/components/chart/curveScaleMath.ts
++++ b/src/components/chart/curveScaleMath.ts
+@@ -1,31 +1,44 @@
+ import type { YPixelFrame } from './yPixelMath';
+ import { pixelToY } from './yPixelMath';
++import type { CurveData } from '@/types';
++import type { CurveOffsets } from '@/store/curveStore';
+ 
+ export const MIN_SCALE = 0.1;
+ export const MAX_SCALE = 10.0;
+ 
+ export function clampScale(s: number): number {
+   return Math.max(MIN_SCALE, Math.min(MAX_SCALE, s));
+ }
+ 
+ const WHEEL_STEP = 1.1;
+ 
+ export function scaleByWheel(scale: number, deltaY: number): number {
+   const factor = deltaY < 0 ? WHEEL_STEP : 1 / WHEEL_STEP;
+   return clampScale(scale * factor);
+ }
+ 
+-const DRAG_GAIN = 1 / 200;
+-
+-export function scaleByDrag(scale: number, deltaPx: number): number {
+-  return clampScale(scale * (1 + (-deltaPx) * DRAG_GAIN));
++export function computePeakNormalizeFactor(
++  curve: CurveData,
++  offset: CurveOffsets,
++  xRange: [number, number],
++  targetPeak: number,
++): number {
++  let peakY = -Infinity;
++  for (const [x, y] of curve.data) {
++    const xAdj = x + offset.xOffset;
++    if (xAdj >= xRange[0] && xAdj <= xRange[1]) {
++      if (y > peakY) peakY = y;
++    }
++  }
++  if (!isFinite(peakY) || peakY <= 0) return 1;
++  return targetPeak / peakY;
+ }
+ 
+ export function offsetByDrag(
+   startOffset: number,
+   startPy: number,
+   currentPy: number,
+   frame: YPixelFrame,
+ ): number {
+   const delta = pixelToY(currentPy, frame) - pixelToY(startPy, frame);
+   return startOffset + delta;

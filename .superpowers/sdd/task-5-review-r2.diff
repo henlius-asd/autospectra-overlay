@@ -1,0 +1,2873 @@
+8e43894 fix: disable brace/point-label modes before entering scale mode in handleToggleYScaleMode
+1f79340 feat: replace yScaleToolMode boolean with scaleMode 3-state enum
+ .superpowers/sdd/progress.md            |   4 +
+ .superpowers/sdd/task-1-brief.md        | 211 ++++++++++++++++++++
+ .superpowers/sdd/task-1-report.md       |  20 ++
+ .superpowers/sdd/task-1-review.diff     | 309 ++++++++++++++++++++++++++++
+ .superpowers/sdd/task-2-brief.md        | 120 +++++++++++
+ .superpowers/sdd/task-2-report.md       |  20 ++
+ .superpowers/sdd/task-2-review.diff     | 144 +++++++++++++
+ .superpowers/sdd/task-3-brief.md        |  69 +++++++
+ .superpowers/sdd/task-3-report.md       |  19 ++
+ .superpowers/sdd/task-3-review.diff     |  84 ++++++++
+ .superpowers/sdd/task-4-brief.md        | 147 ++++++++++++++
+ .superpowers/sdd/task-4-report.md       |  18 ++
+ .superpowers/sdd/task-4-review.diff     | 282 ++++++++++++++++++++++++++
+ .superpowers/sdd/task-5-brief.md        | 162 +++++++++++++++
+ .superpowers/sdd/task-5-report.md       |  37 ++++
+ .superpowers/sdd/task-5-review.diff     | 344 ++++++++++++++++++++++++++++++++
+ .superpowers/sdd/task-6-brief.md        | 197 ++++++++++++++++++
+ .superpowers/sdd/task-7-brief.md        |  61 ++++++
+ .superpowers/sdd/task-8-brief.md        |  61 ++++++
+ .superpowers/sdd/task-9-brief.md        |  46 +++++
+ package-lock.json                       |   4 +-
+ src/components/chart/WaterfallChart.tsx |   4 +-
+ src/components/data/CurveList.tsx       |   6 +-
+ src/components/toolbar/Toolbar.tsx      |  29 ++-
+ src/store/uiStore.ts                    |  18 +-
+ 25 files changed, 2394 insertions(+), 22 deletions(-)
+
+diff --git a/.superpowers/sdd/progress.md b/.superpowers/sdd/progress.md
+new file mode 100644
+index 0000000..5b65887
+--- /dev/null
++++ b/.superpowers/sdd/progress.md
+@@ -0,0 +1,4 @@
++Task 1: complete (commits 5120628..fcadb7b, review clean)
++Task 2: complete (commits fcadb7b..c64c2fa, review clean)
++Task 3: complete (commits c64c2fa..058237d, review clean)
++Task 4: complete (commits 058237d..812057d, review clean)
+diff --git a/.superpowers/sdd/task-1-brief.md b/.superpowers/sdd/task-1-brief.md
+new file mode 100644
+index 0000000..7d0ae2d
+--- /dev/null
++++ b/.superpowers/sdd/task-1-brief.md
+@@ -0,0 +1,211 @@
++### Task 1: Store Layer — Add composite scale fields and actions
++
++**Files:**
++- Modify: `src/store/curveStore.ts`
++- Modify: `src/store/__tests__/curveStore.test.ts`
++
++**Interfaces:**
++- Consumes: Existing `CurveState` interface, `deriveBaseline` helper
++- Produces: `normalizeFactors: Record<string, number>`, `globalScale: number`, `setGlobalScale(s)`, `resetGlobalScale()`, `setNormalizeFactor(id, f)`, `normalizeAllPeak(xRange)`, `clearNormalizeFactors()`
++
++- [ ] **Step 1: Write failing tests for new store actions**
++
++```typescript
++// In src/store/__tests__/curveStore.test.ts, add after existing tests:
++
++import { createCurve } from './testUtils'; // or define inline
++
++describe('globalScale', () => {
++  it('defaults to 1', () => {
++    const { useCurveStore } = require('@/store/curveStore');
++    expect(useCurveStore.getState().globalScale).toBe(1);
++  });
++
++  it('setGlobalScale updates and clamps to [0.1, 10]', () => {
++    const { useCurveStore } = require('@/store/curveStore');
++    useCurveStore.getState().setGlobalScale(2.5);
++    expect(useCurveStore.getState().globalScale).toBe(2.5);
++    useCurveStore.getState().setGlobalScale(0.05);
++    expect(useCurveStore.getState().globalScale).toBe(0.1);
++    useCurveStore.getState().setGlobalScale(20);
++    expect(useCurveStore.getState().globalScale).toBe(10);
++  });
++
++  it('resetGlobalScale sets to 1', () => {
++    const { useCurveStore } = require('@/store/curveStore');
++    useCurveStore.getState().setGlobalScale(3);
++    useCurveStore.getState().resetGlobalScale();
++    expect(useCurveStore.getState().globalScale).toBe(1);
++  });
++});
++
++describe('normalizeFactors', () => {
++  it('defaults to empty object', () => {
++    const { useCurveStore } = require('@/store/curveStore');
++    expect(useCurveStore.getState().normalizeFactors).toEqual({});
++  });
++
++  it('setNormalizeFactor sets a factor for a curve', () => {
++    const { useCurveStore } = require('@/store/curveStore');
++    useCurveStore.getState().setNormalizeFactor('curveA', 2.0);
++    expect(useCurveStore.getState().normalizeFactors['curveA']).toBe(2.0);
++  });
++
++  it('clearNormalizeFactors resets all to empty', () => {
++    const { useCurveStore } = require('@/store/curveStore');
++    useCurveStore.getState().setNormalizeFactor('curveA', 2.0);
++    useCurveStore.getState().setNormalizeFactor('curveB', 0.5);
++    useCurveStore.getState().clearNormalizeFactors();
++    expect(useCurveStore.getState().normalizeFactors).toEqual({});
++  });
++
++  it('normalizeAllPeak sets factors relative to baseline peak', () => {
++    const { useCurveStore } = require('@/store/curveStore');
++    const curveA = { name: 'A', color: '#000', data: [[0, 50], [1, 100], [2, 80]] };
++    const curveB = { name: 'B', color: '#111', data: [[0, 200], [1, 150], [2, 180]] };
++    useCurveStore.getState().addCurves([curveA, curveB]);
++    const state = useCurveStore.getState();
++    const ids = Object.keys(state.curves);
++    const idA = ids[0];
++    const idB = ids[1];
++    useCurveStore.getState().toggleCurveVisibility(idA);
++    useCurveStore.getState().toggleCurveVisibility(idB);
++    // idB is last in stagingOrder → baseline
++    useCurveStore.getState().normalizeAllPeak([0, 2]);
++    const factors = useCurveStore.getState().normalizeFactors;
++    // baselinePeak = 200, curveA peak = 100, factor = 200/100 = 2
++    expect(factors[idA]).toBeCloseTo(2.0, 5);
++    // curveB peak = 200, factor = 200/200 = 1
++    expect(factors[idB]).toBeCloseTo(1.0, 5);
++  });
++
++  it('removeCurve cleans up normalizeFactors', () => {
++    const { useCurveStore } = require('@/store/curveStore');
++    const curve = { name: 'C', color: '#000', data: [[0, 10]] };
++    useCurveStore.getState().addCurves([curve]);
++    const id = Object.keys(useCurveStore.getState().curves)[0];
++    useCurveStore.getState().setNormalizeFactor(id, 3.0);
++    useCurveStore.getState().removeCurve(id);
++    expect(useCurveStore.getState().normalizeFactors[id]).toBeUndefined();
++  });
++});
++```
++
++- [ ] **Step 2: Run test to verify it fails**
++
++```bash
++npx vitest run src/store/__tests__/curveStore.test.ts 2>&1 | tail -30
++```
++
++Expected: FAIL — `globalScale` and `normalizeFactors` not defined.
++
++- [ ] **Step 3: Add fields and actions to curveStore**
++
++In `src/store/curveStore.ts`:
++
++1. Add to `CurveState` interface (after `curveScaleOffsets`):
++```typescript
++normalizeFactors: Record<string, number>;
++globalScale: number;
++```
++
++2. Add action signatures to `CurveState` interface:
++```typescript
++setGlobalScale: (s: number) => void;
++resetGlobalScale: () => void;
++setNormalizeFactor: (id: string, f: number) => void;
++normalizeAllPeak: (xRange: [number, number]) => void;
++clearNormalizeFactors: () => void;
++```
++
++3. Add initial values in store factory (after `curveScaleOffsets: {}`):
++```typescript
++normalizeFactors: {},
++globalScale: 1,
++```
++
++4. Add `clampScale` import at top of store:
++```typescript
++import { clampScale } from '@/components/chart/curveScaleMath';
++```
++
++5. Add action implementations (after `setCurveScaleOffset`):
++```typescript
++setGlobalScale: (s) =>
++  set((state) => ({
++    globalScale: clampScale(s),
++  })),
++
++resetGlobalScale: () => set({ globalScale: 1 }),
++
++setNormalizeFactor: (id, f) =>
++  set((state) => ({
++    normalizeFactors: { ...state.normalizeFactors, [id]: f },
++  })),
++
++normalizeAllPeak: (xRange) =>
++  set((state) => {
++    const baselineId = deriveBaseline(state.stagingOrder, state.visibleCurves);
++    if (!baselineId) return state;
++    const baselineCurve = state.curves[baselineId];
++    if (!baselineCurve) return state;
++    const baselineOffset = state.offsets[baselineId] ?? { xOffset: 0, yOffset: 0 };
++    let baselinePeak = -Infinity;
++    for (const [x, y] of baselineCurve.data) {
++      if (x + baselineOffset.xOffset >= xRange[0] && x + baselineOffset.xOffset <= xRange[1]) {
++        if (y > baselinePeak) baselinePeak = y;
++      }
++    }
++    if (!isFinite(baselinePeak) || baselinePeak <= 0) return state;
++    const normalizeFactors = { ...state.normalizeFactors };
++    for (const id of state.stagingOrder) {
++      if (!state.visibleCurves[id]) continue;
++      const curve = state.curves[id];
++      if (!curve) continue;
++      const offset = state.offsets[id] ?? { xOffset: 0, yOffset: 0 };
++      let peak = -Infinity;
++      for (const [x, y] of curve.data) {
++        if (x + offset.xOffset >= xRange[0] && x + offset.xOffset <= xRange[1]) {
++          if (y > peak) peak = y;
++        }
++      }
++      if (isFinite(peak) && peak > 0) {
++        normalizeFactors[id] = baselinePeak / peak;
++      } else {
++        normalizeFactors[id] = 1;
++      }
++    }
++    return { normalizeFactors };
++  }),
++
++clearNormalizeFactors: () => set({ normalizeFactors: {} }),
++```
++
++6. Update `removeCurve` — add after `delete curveScaleOffsets[id]`:
++```typescript
++delete normalizeFactors[id];
++```
++
++7. Update `removeSelectedCurves` — add after `delete curveScaleOffsets[id]`:
++```typescript
++delete normalizeFactors[id];
++```
++
++- [ ] **Step 4: Run test to verify it passes**
++
++```bash
++npx vitest run src/store/__tests__/curveStore.test.ts 2>&1 | tail -30
++```
++
++Expected: PASS (all 14 tests, including new)
++
++- [ ] **Step 5: Commit**
++
++```bash
++git add src/store/curveStore.ts src/store/__tests__/curveStore.test.ts
++git commit -m "feat: add normalizeFactors, globalScale, and composite scale actions to curveStore"
++```
++
++---
++
++
+diff --git a/.superpowers/sdd/task-1-report.md b/.superpowers/sdd/task-1-report.md
+new file mode 100644
+index 0000000..36d911a
+--- /dev/null
++++ b/.superpowers/sdd/task-1-report.md
+@@ -0,0 +1,20 @@
++# Task 1 Report: Store Layer — Add composite scale fields and actions
++
++## Status: DONE
++
++## Commit
++- `fcadb7b` feat: add normalizeFactors, globalScale, and composite scale actions to curveStore
++
++## Tests
++- **19 tests pass** (11 existing + 8 new)
++- New tests cover: `globalScale` default/clamp/reset, `normalizeFactors` default/set/clear, `normalizeAllPeak` peak calculation relative to baseline, and `removeCurve` cleanup of `normalizeFactors`
++
++## Implementation
++- Added `normalizeFactors: Record<string, number>` and `globalScale: number` fields to `CurveState` interface and store factory defaults
++- Added actions: `setGlobalScale`, `resetGlobalScale`, `setNormalizeFactor`, `normalizeAllPeak`, `clearNormalizeFactors`
++- Imported `clampScale` from `curveScaleMath` for `[0.1, 10]` clamping
++- `normalizeAllPeak` finds baseline via `deriveBaseline`, computes peaks over visible X range for all visible curves, writes all factors in single `set()` call
++- Updated `removeCurve` and `removeSelectedCurves` to clean up `normalizeFactors` entries
++
++## Concerns
++None.
+\ No newline at end of file
+diff --git a/.superpowers/sdd/task-1-review.diff b/.superpowers/sdd/task-1-review.diff
+new file mode 100644
+index 0000000..bb2ba2a
+--- /dev/null
++++ b/.superpowers/sdd/task-1-review.diff
+@@ -0,0 +1,309 @@
++fcadb7b feat: add normalizeFactors, globalScale, and composite scale actions to curveStore
++ src/store/__tests__/curveStore.test.ts | 67 ++++++++++++++++++++++++++++++++++
++ src/store/curveStore.ts                | 65 +++++++++++++++++++++++++++++++++
++ 2 files changed, 132 insertions(+)
++
++diff --git a/src/store/__tests__/curveStore.test.ts b/src/store/__tests__/curveStore.test.ts
++index 44aea01..fde1f05 100644
++--- a/src/store/__tests__/curveStore.test.ts
+++++ b/src/store/__tests__/curveStore.test.ts
++@@ -1,14 +1,81 @@
++ import { describe, it, expect } from 'vitest';
++ import { deriveBaseline, useCurveStore } from '../curveStore';
++ import type { BraceAnnotation } from '@/types';
++ 
+++describe('globalScale', () => {
+++  it('defaults to 1', () => {
+++    expect(useCurveStore.getState().globalScale).toBe(1);
+++  });
+++
+++  it('setGlobalScale updates and clamps to [0.1, 10]', () => {
+++    useCurveStore.getState().setGlobalScale(2.5);
+++    expect(useCurveStore.getState().globalScale).toBe(2.5);
+++    useCurveStore.getState().setGlobalScale(0.05);
+++    expect(useCurveStore.getState().globalScale).toBe(0.1);
+++    useCurveStore.getState().setGlobalScale(20);
+++    expect(useCurveStore.getState().globalScale).toBe(10);
+++  });
+++
+++  it('resetGlobalScale sets to 1', () => {
+++    useCurveStore.getState().setGlobalScale(3);
+++    useCurveStore.getState().resetGlobalScale();
+++    expect(useCurveStore.getState().globalScale).toBe(1);
+++  });
+++});
+++
+++describe('normalizeFactors', () => {
+++  it('defaults to empty object', () => {
+++    expect(useCurveStore.getState().normalizeFactors).toEqual({});
+++  });
+++
+++  it('setNormalizeFactor sets a factor for a curve', () => {
+++    useCurveStore.getState().setNormalizeFactor('curveA', 2.0);
+++    expect(useCurveStore.getState().normalizeFactors['curveA']).toBe(2.0);
+++  });
+++
+++  it('clearNormalizeFactors resets all to empty', () => {
+++    useCurveStore.getState().setNormalizeFactor('curveA', 2.0);
+++    useCurveStore.getState().setNormalizeFactor('curveB', 0.5);
+++    useCurveStore.getState().clearNormalizeFactors();
+++    expect(useCurveStore.getState().normalizeFactors).toEqual({});
+++  });
+++
+++  it('normalizeAllPeak sets factors relative to baseline peak', () => {
+++    const curveA = { name: 'A', color: '#000', data: [[0, 50], [1, 100], [2, 80]] };
+++    const curveB = { name: 'B', color: '#111', data: [[0, 200], [1, 150], [2, 180]] };
+++    useCurveStore.getState().addCurves([curveA, curveB]);
+++    const state = useCurveStore.getState();
+++    const ids = Object.keys(state.curves);
+++    const idA = ids[0];
+++    const idB = ids[1];
+++    useCurveStore.getState().toggleCurveVisibility(idA);
+++    useCurveStore.getState().toggleCurveVisibility(idB);
+++    // idB is last in stagingOrder → baseline
+++    useCurveStore.getState().normalizeAllPeak([0, 2]);
+++    const factors = useCurveStore.getState().normalizeFactors;
+++    // baselinePeak = 200, curveA peak = 100, factor = 200/100 = 2
+++    expect(factors[idA]).toBeCloseTo(2.0, 5);
+++    // curveB peak = 200, factor = 200/200 = 1
+++    expect(factors[idB]).toBeCloseTo(1.0, 5);
+++  });
+++
+++  it('removeCurve cleans up normalizeFactors', () => {
+++    const curve = { name: 'C', color: '#000', data: [[0, 10]] };
+++    useCurveStore.getState().addCurves([curve]);
+++    const id = Object.keys(useCurveStore.getState().curves)[0];
+++    useCurveStore.getState().setNormalizeFactor(id, 3.0);
+++    useCurveStore.getState().removeCurve(id);
+++    expect(useCurveStore.getState().normalizeFactors[id]).toBeUndefined();
+++  });
+++});
+++
++ describe('deriveBaseline', () => {
++   it('returns null for empty stagingOrder', () => {
++     expect(deriveBaseline([], {})).toBeNull();
++   });
++ 
++   it('returns null when no curves are visible', () => {
++     expect(deriveBaseline(['a', 'b', 'c'], {})).toBeNull();
++   });
++ 
++   it('returns the last visible curve in stagingOrder (bottom of list = baseline)', () => {
++diff --git a/src/store/curveStore.ts b/src/store/curveStore.ts
++index a2826ad..b6de23c 100644
++--- a/src/store/curveStore.ts
+++++ b/src/store/curveStore.ts
++@@ -1,40 +1,48 @@
++ import { create } from 'zustand';
++ import { temporal, TemporalState } from 'zundo';
++ import type { CurveData, BraceAnnotation, PointLabel } from '@/types';
+++import { clampScale } from '@/components/chart/curveScaleMath';
++ 
++ export interface CurveOffsets {
++   xOffset: number;
++   yOffset: number;
++ }
++ 
++ interface CurveState {
++   curves: Record<string, CurveData>;
++   offsets: Record<string, CurveOffsets>;
++   visibleCurves: Record<string, boolean>;
++   stagingOrder: string[];
++   layerSpacing: number;
++   curveScales: Record<string, number>;
++   curveScaleOffsets: Record<string, number>;
+++  normalizeFactors: Record<string, number>;
+++  globalScale: number;
++   baselineId: string | null;
++   braces: BraceAnnotation[];
++   pointLabels: PointLabel[];
++   // Actions
++   addCurves: (newCurves: CurveData[]) => void;
++   removeCurve: (id: string) => void;
++   removeSelectedCurves: () => void;
++   setBaseline: (id: string) => void;
++   toggleCurveVisibility: (id: string) => void;
++   setAllCurvesVisibility: (visible: boolean) => void;
++   setLayerSpacing: (spacing: number) => void;
++   setCurveScale: (id: string, scale: number) => void;
++   setCurveScaleOffset: (id: string, offset: number) => void;
+++  setGlobalScale: (s: number) => void;
+++  resetGlobalScale: () => void;
+++  setNormalizeFactor: (id: string, f: number) => void;
+++  normalizeAllPeak: (xRange: [number, number]) => void;
+++  clearNormalizeFactors: () => void;
++   setCurveColor: (id: string, color: string) => void;
++   setStagingOrder: (order: string[]) => void;
++   setDisplayName: (id: string, displayName: string) => void;
++   addPointLabel: (label: PointLabel) => void;
++   updatePointLabel: (id: string, updates: Partial<PointLabel>) => void;
++   removePointLabel: (id: string) => void;
++   updateBrace: (id: string, updates: Partial<BraceAnnotation>) => void;
++ }
++ 
++ // For zundo temporal typing
++@@ -60,20 +68,22 @@ export function deriveBaseline(
++ export const useCurveStore = create<CurveState>()(
++   temporal(
++     (set): CurveState => ({
++       curves: {},
++       offsets: {},
++       visibleCurves: {},
++       stagingOrder: [],
++       layerSpacing: 0,
++       curveScales: {},
++       curveScaleOffsets: {},
+++      normalizeFactors: {},
+++      globalScale: 1,
++       baselineId: null,
++       braces: [],
++       pointLabels: [],
++ 
++       addCurves: (newCurves) =>
++         set((state) => {
++           const curves = { ...state.curves };
++           const offsets = { ...state.offsets };
++ 
++           for (let i = 0; i < newCurves.length; i++) {
++@@ -86,65 +96,71 @@ export const useCurveStore = create<CurveState>()(
++           // toggleCurveVisibility when the user checks a curve into the overlay.
++           return { curves, offsets };
++         }),
++ 
++       removeCurve: (id) =>
++         set((state) => {
++           const curves = { ...state.curves };
++           const offsets = { ...state.offsets };
++           const curveScales = { ...state.curveScales };
++           const curveScaleOffsets = { ...state.curveScaleOffsets };
+++          const normalizeFactors = { ...state.normalizeFactors };
++           const visibleCurves = { ...state.visibleCurves };
++           const stagingOrder = state.stagingOrder.filter((oid) => oid !== id);
++           delete curves[id];
++           delete offsets[id];
++           delete curveScales[id];
++           delete curveScaleOffsets[id];
+++          delete normalizeFactors[id];
++           delete visibleCurves[id];
++           return {
++             curves,
++             offsets,
++             curveScales,
++             curveScaleOffsets,
+++            normalizeFactors,
++             visibleCurves,
++             stagingOrder,
++             baselineId: deriveBaseline(stagingOrder, visibleCurves),
++           };
++         }),
++ 
++       removeSelectedCurves: () =>
++         set((state) => {
++           const curves = { ...state.curves };
++           const offsets = { ...state.offsets };
++           const curveScales = { ...state.curveScales };
++           const curveScaleOffsets = { ...state.curveScaleOffsets };
+++          const normalizeFactors = { ...state.normalizeFactors };
++           const visibleCurves = { ...state.visibleCurves };
++           const removedIds = new Set<string>();
++ 
++           for (const id of Object.keys(state.curves)) {
++             if (visibleCurves[id]) {
++               delete curves[id];
++               delete offsets[id];
++               delete curveScales[id];
++               delete curveScaleOffsets[id];
+++              delete normalizeFactors[id];
++               delete visibleCurves[id];
++               removedIds.add(id);
++             }
++           }
++ 
++           const stagingOrder = state.stagingOrder.filter((oid) => !removedIds.has(oid));
++ 
++           return {
++             curves,
++             offsets,
++             curveScales,
++             curveScaleOffsets,
+++            normalizeFactors,
++             visibleCurves,
++             stagingOrder,
++             baselineId: deriveBaseline(stagingOrder, visibleCurves),
++           };
++         }),
++ 
++       // "Set as baseline" = move to the end of stagingOrder. baselineId is derived.
++       setBaseline: (id) =>
++         set((state) => {
++           const stagingOrder = state.stagingOrder.filter((oid) => oid !== id);
++@@ -197,20 +213,69 @@ export const useCurveStore = create<CurveState>()(
++ 
++       setCurveScale: (id, scale) =>
++         set((state) => ({
++           curveScales: { ...state.curveScales, [id]: scale },
++         })),
++       setCurveScaleOffset: (id, offset) =>
++         set((state) => ({
++           curveScaleOffsets: { ...state.curveScaleOffsets, [id]: offset },
++         })),
++ 
+++      setGlobalScale: (s) =>
+++        set((state) => ({
+++          globalScale: clampScale(s),
+++        })),
+++
+++      resetGlobalScale: () => set({ globalScale: 1 }),
+++
+++      setNormalizeFactor: (id, f) =>
+++        set((state) => ({
+++          normalizeFactors: { ...state.normalizeFactors, [id]: f },
+++        })),
+++
+++      normalizeAllPeak: (xRange) =>
+++        set((state) => {
+++          const baselineId = deriveBaseline(state.stagingOrder, state.visibleCurves);
+++          if (!baselineId) return state;
+++          const baselineCurve = state.curves[baselineId];
+++          if (!baselineCurve) return state;
+++          const baselineOffset = state.offsets[baselineId] ?? { xOffset: 0, yOffset: 0 };
+++          let baselinePeak = -Infinity;
+++          for (const [x, y] of baselineCurve.data) {
+++            if (x + baselineOffset.xOffset >= xRange[0] && x + baselineOffset.xOffset <= xRange[1]) {
+++              if (y > baselinePeak) baselinePeak = y;
+++            }
+++          }
+++          if (!isFinite(baselinePeak) || baselinePeak <= 0) return state;
+++          const normalizeFactors = { ...state.normalizeFactors };
+++          for (const id of state.stagingOrder) {
+++            if (!state.visibleCurves[id]) continue;
+++            const curve = state.curves[id];
+++            if (!curve) continue;
+++            const offset = state.offsets[id] ?? { xOffset: 0, yOffset: 0 };
+++            let peak = -Infinity;
+++            for (const [x, y] of curve.data) {
+++              if (x + offset.xOffset >= xRange[0] && x + offset.xOffset <= xRange[1]) {
+++                if (y > peak) peak = y;
+++              }
+++            }
+++            if (isFinite(peak) && peak > 0) {
+++              normalizeFactors[id] = baselinePeak / peak;
+++            } else {
+++              normalizeFactors[id] = 1;
+++            }
+++          }
+++          return { normalizeFactors };
+++        }),
+++
+++      clearNormalizeFactors: () => set({ normalizeFactors: {} }),
+++
++       setCurveColor: (id, color) =>
++         set((state) => {
++           const curve = state.curves[id];
++           if (!curve) return state;
++           return {
++             curves: { ...state.curves, [id]: { ...curve, color } },
++           };
++         }),
++ 
++       setStagingOrder: (order) =>
+diff --git a/.superpowers/sdd/task-2-brief.md b/.superpowers/sdd/task-2-brief.md
+new file mode 100644
+index 0000000..f9c98c5
+--- /dev/null
++++ b/.superpowers/sdd/task-2-brief.md
+@@ -0,0 +1,120 @@
++### Task 2: Pure Math — Add computePeakNormalizeFactor, remove scaleByDrag
++
++**Files:**
++- Modify: `src/components/chart/curveScaleMath.ts`
++- Modify: `src/components/chart/__tests__/curveScaleMath.test.ts`
++
++**Interfaces:**
++- Consumes: `CurveData` type from `@/types`, `CurveOffsets` from `@/store/curveStore`
++- Produces: `computePeakNormalizeFactor(curve, offset, xRange, targetPeak): number`
++- Removes: `scaleByDrag` function
++
++- [ ] **Step 1: Write failing tests**
++
++```typescript
++// In src/components/chart/__tests__/curveScaleMath.test.ts, add after existing imports:
++import { computePeakNormalizeFactor } from '../curveScaleMath';
++import type { CurveData } from '@/types';
++import type { CurveOffsets } from '@/store/curveStore';
++
++describe('computePeakNormalizeFactor', () => {
++  const curve: CurveData = { name: 'test', color: '#000', data: [[0, 10], [1, 50], [2, 30], [3, 100], [5, 20]] };
++  const offset: CurveOffsets = { xOffset: 0, yOffset: 0 };
++
++  it('returns targetPeak / peakY when peak > 0', () => {
++    expect(computePeakNormalizeFactor(curve, offset, [0, 5], 200)).toBeCloseTo(2.0, 5);
++  });
++
++  it('returns 1 when peak <= 0', () => {
++    const flatCurve: CurveData = { name: 'flat', color: '#000', data: [[0, 0], [1, 0]] };
++    expect(computePeakNormalizeFactor(flatCurve, offset, [0, 1], 100)).toBe(1);
++  });
++
++  it('filters by xRange', () => {
++    expect(computePeakNormalizeFactor(curve, offset, [0, 2], 100)).toBeCloseTo(2.0, 5); // peak=50
++  });
++
++  it('returns 1 when no data points in xRange', () => {
++    expect(computePeakNormalizeFactor(curve, offset, [10, 20], 100)).toBe(1);
++  });
++
++  it('accounts for xOffset', () => {
++    const shiftedCurve: CurveData = { name: 'shifted', color: '#000', data: [[100, 50]] };
++    const shiftedOffset: CurveOffsets = { xOffset: -100, yOffset: 0 };
++    expect(computePeakNormalizeFactor(shiftedCurve, shiftedOffset, [0, 10], 100)).toBeCloseTo(2.0);
++  });
++});
++```
++
++- [ ] **Step 2: Run test to verify it fails**
++
++```bash
++npx vitest run src/components/chart/__tests__/curveScaleMath.test.ts 2>&1 | tail -20
++```
++
++Expected: FAIL — `computePeakNormalizeFactor` not exported.
++
++- [ ] **Step 3: Add computePeakNormalizeFactor, remove scaleByDrag**
++
++In `src/components/chart/curveScaleMath.ts`:
++
++1. Add import at top:
++```typescript
++import type { CurveData } from '@/types';
++import type { CurveOffsets } from '@/store/curveStore';
++```
++
++2. Add function after `offsetByDrag`:
++```typescript
++export function computePeakNormalizeFactor(
++  curve: CurveData,
++  offset: CurveOffsets,
++  xRange: [number, number],
++  targetPeak: number,
++): number {
++  let peakY = -Infinity;
++  for (const [x, y] of curve.data) {
++    const xAdj = x + offset.xOffset;
++    if (xAdj >= xRange[0] && xAdj <= xRange[1]) {
++      if (y > peakY) peakY = y;
++    }
++  }
++  if (!isFinite(peakY) || peakY <= 0) return 1;
++  return targetPeak / peakY;
++}
++```
++
++3. Remove `scaleByDrag` function (lines 20-22):
++```typescript
++// REMOVE:
++// export function scaleByDrag(scale: number, deltaPx: number): number {
++//   return clampScale(scale * (1 + (-deltaPx) * DRAG_GAIN));
++// }
++```
++
++Also remove the `DRAG_GAIN` constant (line 18) since it's only used by `scaleByDrag`:
++```typescript
++// REMOVE:
++// const DRAG_GAIN = 1 / 200;
++```
++
++4. Update test file: remove `scaleByDrag` tests. In `src/components/chart/__tests__/curveScaleMath.test.ts`, remove the `scaleByDrag` describe block (lines 24-34 in the original: 3 test cases for drag up/down/clamp). Also remove the `scaleByDrag` import.
++
++- [ ] **Step 4: Run test to verify it passes**
++
++```bash
++npx vitest run src/components/chart/__tests__/curveScaleMath.test.ts 2>&1 | tail -20
++```
++
++Expected: PASS (scaleByWheel, clampScale, offsetByDrag, computePeakNormalizeFactor all pass)
++
++- [ ] **Step 5: Commit**
++
++```bash
++git add src/components/chart/curveScaleMath.ts src/components/chart/__tests__/curveScaleMath.test.ts
++git commit -m "feat: add computePeakNormalizeFactor, remove scaleByDrag from curveScaleMath"
++```
++
++---
++
++
+diff --git a/.superpowers/sdd/task-2-report.md b/.superpowers/sdd/task-2-report.md
+new file mode 100644
+index 0000000..84bde97
+--- /dev/null
++++ b/.superpowers/sdd/task-2-report.md
+@@ -0,0 +1,20 @@
++# Task 2 Report: Pure Math — computePeakNormalizeFactor + remove scaleByDrag
++
++**Status:** ✅ Complete
++
++**Commits:**
++- `c64c2fa` feat: add computePeakNormalizeFactor, remove scaleByDrag from curveScaleMath
++
++**Test summary:** 12 passed (5 new + 7 existing), 0 failed. 1 test file.
++
++**Changes:**
++- `curveScaleMath.ts`: Added `computePeakNormalizeFactor` (peak-finding over visible xRange, returns targetPeak/peakY or 1), removed `DRAG_GAIN` constant and `scaleByDrag` function. Added `CurveData` and `CurveOffsets` imports.
++- `curveScaleMath.test.ts`: Added 5 tests for `computePeakNormalizeFactor`, removed `scaleByDrag` import and 3 tests.
++
++**Self-review:**
++- TDD followed: tests written first, verified failure (`computePeakNormalizeFactor is not a function`), then implemented.
++- `computePeakNormalizeFactor` handles: peak > 0 → targetPeak/peakY, peak ≤ 0 → 1, xRange filtering, empty xRange → 1, xOffset adjustment.
++- Removed `scaleByDrag` and its only-dependency `DRAG_GAIN`. `scaleByWheel`, `clampScale`, `offsetByDrag` preserved.
++- `CurveData`/`CurveOffsets` imports added to both files; only type-only usage, no runtime cost.
++
++**Concerns:** None.
+\ No newline at end of file
+diff --git a/.superpowers/sdd/task-2-review.diff b/.superpowers/sdd/task-2-review.diff
+new file mode 100644
+index 0000000..8348e3f
+--- /dev/null
++++ b/.superpowers/sdd/task-2-review.diff
+@@ -0,0 +1,144 @@
++c64c2fa feat: add computePeakNormalizeFactor, remove scaleByDrag from curveScaleMath
++ .../chart/__tests__/curveScaleMath.test.ts         | 44 +++++++++++++++-------
++ src/components/chart/curveScaleMath.ts             | 21 +++++++++--
++ 2 files changed, 48 insertions(+), 17 deletions(-)
++
++diff --git a/src/components/chart/__tests__/curveScaleMath.test.ts b/src/components/chart/__tests__/curveScaleMath.test.ts
++index 26a53a1..92c2dff 100644
++--- a/src/components/chart/__tests__/curveScaleMath.test.ts
+++++ b/src/components/chart/__tests__/curveScaleMath.test.ts
++@@ -1,12 +1,14 @@
++ import { describe, it, expect } from 'vitest';
++-import { scaleByWheel, scaleByDrag, offsetByDrag, clampScale } from '../curveScaleMath';
+++import { scaleByWheel, offsetByDrag, clampScale, computePeakNormalizeFactor } from '../curveScaleMath';
+++import type { CurveData } from '@/types';
+++import type { CurveOffsets } from '@/store/curveStore';
++ 
++ describe('clampScale', () => {
++   it('clamps to [0.1, 10]', () => {
++     expect(clampScale(0)).toBe(0.1);
++     expect(clampScale(100)).toBe(10);
++     expect(clampScale(2)).toBe(2);
++   });
++ });
++ 
++ describe('scaleByWheel', () => {
++@@ -14,37 +16,53 @@ describe('scaleByWheel', () => {
++     expect(scaleByWheel(1, -100)).toBeCloseTo(1.1, 5);
++   });
++   it('scroll down (deltaY>0) shrinks by ~1/1.1', () => {
++     expect(scaleByWheel(1, 100)).toBeCloseTo(1 / 1.1, 5);
++   });
++   it('clamps the result', () => {
++     expect(scaleByWheel(10, -100)).toBe(10);
++   });
++ });
++ 
++-describe('scaleByDrag', () => {
++-  it('drag up (deltaPx<0) enlarges scale', () => {
++-    expect(scaleByDrag(1, -100)).toBeGreaterThan(1);
++-  });
++-  it('drag down (deltaPx>0) shrinks scale', () => {
++-    expect(scaleByDrag(1, 100)).toBeLessThan(1);
++-  });
++-  it('clamps the result', () => {
++-    expect(scaleByDrag(10, -1000)).toBe(10);
++-  });
++-});
++-
++ describe('offsetByDrag', () => {
++   const frame = { yMin: 0, yMax: 100, gridTop: 0, gridBottom: 0, chartHeight: 100 };
++   it('drag up (currentPy<startPy) increases offset (curve moves up)', () => {
++     const off = offsetByDrag(0, 50, 40, frame);
++     expect(off).toBeGreaterThan(0);
++   });
++   it('drag down decreases offset', () => {
++     const off = offsetByDrag(0, 40, 50, frame);
++     expect(off).toBeLessThan(0);
++   });
++   it('preserves start offset base', () => {
++     const off = offsetByDrag(5, 50, 50, frame);
++     expect(off).toBeCloseTo(5, 7);
++   });
++ });
+++
+++describe('computePeakNormalizeFactor', () => {
+++  const curve: CurveData = { name: 'test', color: '#000', data: [[0, 10], [1, 50], [2, 30], [3, 100], [5, 20]] };
+++  const offset: CurveOffsets = { xOffset: 0, yOffset: 0 };
+++
+++  it('returns targetPeak / peakY when peak > 0', () => {
+++    expect(computePeakNormalizeFactor(curve, offset, [0, 5], 200)).toBeCloseTo(2.0, 5);
+++  });
+++
+++  it('returns 1 when peak <= 0', () => {
+++    const flatCurve: CurveData = { name: 'flat', color: '#000', data: [[0, 0], [1, 0]] };
+++    expect(computePeakNormalizeFactor(flatCurve, offset, [0, 1], 100)).toBe(1);
+++  });
+++
+++  it('filters by xRange', () => {
+++    expect(computePeakNormalizeFactor(curve, offset, [0, 2], 100)).toBeCloseTo(2.0, 5);
+++  });
+++
+++  it('returns 1 when no data points in xRange', () => {
+++    expect(computePeakNormalizeFactor(curve, offset, [10, 20], 100)).toBe(1);
+++  });
+++
+++  it('accounts for xOffset', () => {
+++    const shiftedCurve: CurveData = { name: 'shifted', color: '#000', data: [[100, 50]] };
+++    const shiftedOffset: CurveOffsets = { xOffset: -100, yOffset: 0 };
+++    expect(computePeakNormalizeFactor(shiftedCurve, shiftedOffset, [0, 10], 100)).toBeCloseTo(2.0);
+++  });
+++});
++diff --git a/src/components/chart/curveScaleMath.ts b/src/components/chart/curveScaleMath.ts
++index 83857e9..89fd6c1 100644
++--- a/src/components/chart/curveScaleMath.ts
+++++ b/src/components/chart/curveScaleMath.ts
++@@ -1,31 +1,44 @@
++ import type { YPixelFrame } from './yPixelMath';
++ import { pixelToY } from './yPixelMath';
+++import type { CurveData } from '@/types';
+++import type { CurveOffsets } from '@/store/curveStore';
++ 
++ export const MIN_SCALE = 0.1;
++ export const MAX_SCALE = 10.0;
++ 
++ export function clampScale(s: number): number {
++   return Math.max(MIN_SCALE, Math.min(MAX_SCALE, s));
++ }
++ 
++ const WHEEL_STEP = 1.1;
++ 
++ export function scaleByWheel(scale: number, deltaY: number): number {
++   const factor = deltaY < 0 ? WHEEL_STEP : 1 / WHEEL_STEP;
++   return clampScale(scale * factor);
++ }
++ 
++-const DRAG_GAIN = 1 / 200;
++-
++-export function scaleByDrag(scale: number, deltaPx: number): number {
++-  return clampScale(scale * (1 + (-deltaPx) * DRAG_GAIN));
+++export function computePeakNormalizeFactor(
+++  curve: CurveData,
+++  offset: CurveOffsets,
+++  xRange: [number, number],
+++  targetPeak: number,
+++): number {
+++  let peakY = -Infinity;
+++  for (const [x, y] of curve.data) {
+++    const xAdj = x + offset.xOffset;
+++    if (xAdj >= xRange[0] && xAdj <= xRange[1]) {
+++      if (y > peakY) peakY = y;
+++    }
+++  }
+++  if (!isFinite(peakY) || peakY <= 0) return 1;
+++  return targetPeak / peakY;
++ }
++ 
++ export function offsetByDrag(
++   startOffset: number,
++   startPy: number,
++   currentPy: number,
++   frame: YPixelFrame,
++ ): number {
++   const delta = pixelToY(currentPy, frame) - pixelToY(startPy, frame);
++   return startOffset + delta;
+diff --git a/.superpowers/sdd/task-3-brief.md b/.superpowers/sdd/task-3-brief.md
+new file mode 100644
+index 0000000..ad1a9a4
+--- /dev/null
++++ b/.superpowers/sdd/task-3-brief.md
+@@ -0,0 +1,69 @@
++### Task 3: Rendering — Apply composite scale in WaterfallChart
++
++**Files:**
++- Modify: `src/components/chart/WaterfallChart.tsx`
++
++**Interfaces:**
++- Consumes: `normalizeFactors`, `globalScale` from `useCurveStore`
++- Produces: Composite `renderedData` in ECharts series option
++
++- [ ] **Step 1: Read current rendering code**
++
++Read `src/components/chart/WaterfallChart.tsx` lines 210-230 to see the current series build and `renderedData` formula.
++
++- [ ] **Step 2: Apply composite formula**
++
++In `src/components/chart/WaterfallChart.tsx`:
++
++1. Add destructured fields from `useCurveStore` (around line 48-49, where `curveScales`, `curveScaleOffsets` are already destructured):
++```typescript
++const normalizeFactors = useCurveStore((s) => s.normalizeFactors);
++const globalScale = useCurveStore((s) => s.globalScale);
++```
++
++2. In the `series` map (around line 221-222), replace the scale computation:
++```typescript
++// OLD:
++const scale = curveScales[id] ?? 1;
++const scaleOffset = curveScaleOffsets[id] ?? 0;
++
++// NEW:
++const normalize = normalizeFactors[id] ?? 1;
++const manual = curveScales[id] ?? 1;
++const composite = normalize * globalScale * manual;
++const scaleOffset = curveScaleOffsets[id] ?? 0;
++```
++
++3. Update `renderedData` (line 223-226):
++```typescript
++// OLD:
++const renderedData = curve.data.map(([x, y]) => [
++  x + offset.xOffset,
++  y * scale + scaleOffset + layerYOffset + offset.yOffset,
++]);
++
++// NEW:
++const renderedData = curve.data.map(([x, y]) => [
++  x + offset.xOffset,
++  y * composite + scaleOffset + layerYOffset + offset.yOffset,
++]);
++```
++
++- [ ] **Step 3: Verify no TypeScript errors**
++
++```bash
++npx tsc --noEmit 2>&1 | tail -10
++```
++
++Expected: No errors related to WaterfallChart.
++
++- [ ] **Step 4: Commit**
++
++```bash
++git add src/components/chart/WaterfallChart.tsx
++git commit -m "feat: apply composite scale (normalize x global x manual) in WaterfallChart renderedData"
++```
++
++---
++
++
+diff --git a/.superpowers/sdd/task-3-report.md b/.superpowers/sdd/task-3-report.md
+new file mode 100644
+index 0000000..55a944d
+--- /dev/null
++++ b/.superpowers/sdd/task-3-report.md
+@@ -0,0 +1,19 @@
++# Task 3 Report: Rendering — Apply composite scale in WaterfallChart
++
++**Status:** Complete
++
++## Commits
++- `058237d` — feat: apply composite scale (normalize x global x manual) in WaterfallChart renderedData
++
++## Changes
++- Added `normalizeFactors` and `globalScale` destructuring from `useCurveStore` (WaterfallChart.tsx:51-52)
++- Replaced single `scale` factor with composite formula `normalize * globalScale * manual` where `manual = curveScales[id]` (WaterfallChart.tsx:223-225)
++- Updated `renderedData` to use `composite` instead of `scale` (WaterfallChart.tsx:229)
++- Updated `useMemo` dependency array to include `normalizeFactors` and `globalScale`
++
++## Test Summary
++- TypeScript check: No errors related to WaterfallChart.tsx
++- 2 pre-existing TS errors in `curveStore.ts` (unused `state` parameter) and `curveStore.test.ts` (DataPoint type mismatch) — unrelated to this task
++
++## Concerns
++None.
+\ No newline at end of file
+diff --git a/.superpowers/sdd/task-3-review.diff b/.superpowers/sdd/task-3-review.diff
+new file mode 100644
+index 0000000..b231be6
+--- /dev/null
++++ b/.superpowers/sdd/task-3-review.diff
+@@ -0,0 +1,84 @@
++058237d feat: apply composite scale (normalize x global x manual) in WaterfallChart renderedData
++ src/components/chart/WaterfallChart.tsx | 10 +++++++---
++ 1 file changed, 7 insertions(+), 3 deletions(-)
++
++diff --git a/src/components/chart/WaterfallChart.tsx b/src/components/chart/WaterfallChart.tsx
++index cb8e83a..aec4b66 100644
++--- a/src/components/chart/WaterfallChart.tsx
+++++ b/src/components/chart/WaterfallChart.tsx
++@@ -41,20 +41,22 @@ function getXAxisExtent(): [number, number] | null {
++ 
++ export default function WaterfallChart() {
++   const curves = useCurveStore((s) => s.curves);
++   const offsets = useCurveStore((s) => s.offsets);
++   const visibleCurves = useCurveStore((s) => s.visibleCurves);
++   const stagingOrder = useCurveStore((s) => s.stagingOrder);
++   const layerSpacing = useCurveStore((s) => s.layerSpacing);
++   const setLayerSpacing = useCurveStore((s) => s.setLayerSpacing);
++   const curveScales = useCurveStore((s) => s.curveScales);
++   const curveScaleOffsets = useCurveStore((s) => s.curveScaleOffsets);
+++  const normalizeFactors = useCurveStore((s) => s.normalizeFactors);
+++  const globalScale = useCurveStore((s) => s.globalScale);
++   const setCurveScale = useCurveStore((s) => s.setCurveScale);
++   const setCurveScaleOffset = useCurveStore((s) => s.setCurveScaleOffset);
++   const xRange = useUiStore((s) => s.xRange);
++   const yScaleToolMode = useUiStore((s) => s.yScaleToolMode);
++   const activeScaledCurveId = useUiStore((s) => s.activeScaledCurveId);
++   const setActiveScaledCurveId = useUiStore((s) => s.setActiveScaledCurveId);
++   const bracePlacementMode = useUiStore((s) => s.bracePlacementMode);
++   const showGrid = useUiStore((s) => s.showGrid);
++   const showAxes = useUiStore((s) => s.showAxes);
++   const yZoomRange = useUiStore((s) => s.yZoomRange);
++@@ -211,25 +213,27 @@ export default function WaterfallChart() {
++ 
++     const { yRangeForLayer } = yAxisFullRange;
++ 
++     const series = visibleIds.map((id, visibleIndex) => {
++       const curve = curves[id];
++       const offset = offsets[id] ?? { xOffset: 0, yOffset: 0 };
++ 
++       const layerIndex = visibleCount - 1 - visibleIndex;
++       const layerYOffset = layerIndex * layerSpacing * yRangeForLayer;
++ 
++-      const scale = curveScales[id] ?? 1;
+++      const normalize = normalizeFactors[id] ?? 1;
+++      const manual = curveScales[id] ?? 1;
+++      const composite = normalize * globalScale * manual;
++       const scaleOffset = curveScaleOffsets[id] ?? 0;
++       const renderedData = curve.data.map(([x, y]) => [
++         x + offset.xOffset,
++-        y * scale + scaleOffset + layerYOffset + offset.yOffset,
+++        y * composite + scaleOffset + layerYOffset + offset.yOffset,
++       ]);
++ 
++       return {
++         name: curve.displayName || curve.name,
++         type: 'line' as const,
++         data: renderedData,
++         smooth: false,
++         symbol: 'none',
++         lineStyle: {
++           color: curve.color || '#000000',
++@@ -311,21 +315,21 @@ export default function WaterfallChart() {
++         };
++         const ySlider: Record<string, unknown> = {
++           id: 'yZoomSlider', type: 'slider', yAxisIndex: 0, orient: 'vertical',
++           left: 60 - 14 - 4, width: 14, filterMode: 'none', minValueSpan: yMinSpan,
++         };
++         return [...xZoom, yInside, ySlider] as EChartsOption['dataZoom'];
++       })(),
++       series,
++       animation: false,
++     };
++-  }, [curves, offsets, visibleCurves, layerSpacing, stagingOrder, visibleIds, xRange, bracePlacementMode, showGrid, showAxes, curveScales, curveScaleOffsets]);
+++  }, [curves, offsets, visibleCurves, layerSpacing, stagingOrder, visibleIds, xRange, bracePlacementMode, showGrid, showAxes, curveScales, curveScaleOffsets, normalizeFactors, globalScale]);
++ 
++   const convertXToPixel = (xVal: number): number => {
++     if (!chartInstance) return 0;
++     const grid = (chartInstance.getOption() as Record<string, unknown>).grid as { left?: number; right?: number }[];
++     const gridLeft = (grid?.[0]?.left as number) ?? 60;
++     const gridRight = (grid?.[0]?.right as number) ?? 48;
++     const chartWidth = chartInstance.getWidth();
++     const range = xRange[1] - xRange[0] || 1;
++     return gridLeft + ((xVal - xRange[0]) / range) * (chartWidth - gridLeft - gridRight);
++   };
+diff --git a/.superpowers/sdd/task-4-brief.md b/.superpowers/sdd/task-4-brief.md
+new file mode 100644
+index 0000000..55e0e2f
+--- /dev/null
++++ b/.superpowers/sdd/task-4-brief.md
+@@ -0,0 +1,147 @@
++### Task 4: Y-Axis Range — Extend computeYAxisRange for scaled data
++
++**Files:**
++- Modify: `src/components/chart/computeYAxisRange.ts`
++- Modify: `src/components/chart/WaterfallChart.tsx` (caller)
++- Modify: `src/components/chart/exportImage.ts` (caller)
++- Modify: `src/components/chart/__tests__/computeYAxisRange.test.ts`
++
++**Interfaces:**
++- Consumes: `normalizeFactors`, `globalScale`, `curveScales`, `curveScaleOffsets`
++- Produces: Updated signature with scale params; `rawDataMin`, `rawDataMax`, `dataSpan`, `yAxisMax` computed from scaled data
++
++- [ ] **Step 1: Write failing test for scaled-axis computation**
++
++```typescript
++// In src/components/chart/__tests__/computeYAxisRange.test.ts, add:
++
++describe('computeYAxisRange with scale params', () => {
++  it('computes rawDataMin/Max from scaled data', () => {
++    const curve = { name: 'A', color: '#000', data: [[0, 10], [1, 50], [2, 30]] };
++    const curves = { id1: curve };
++    const offsets = { id1: { xOffset: 0, yOffset: 0 } };
++    const normalizeFactors = { id1: 2 };
++    const globalScale = 1.5;
++    const curveScales = { id1: 1 };
++    const curveScaleOffsets = { id1: 0 };
++
++    const result = computeYAxisRange(
++      ['id1'], curves, offsets, [0, 2], 0,
++      normalizeFactors, globalScale, curveScales, curveScaleOffsets,
++    );
++    // peak = 50, composite = 2 * 1.5 * 1 = 3, scaled peak = 150
++    expect(result.rawDataMax).toBeCloseTo(150, 0);
++    expect(result.rawDataMin).toBeCloseTo(30, 0); // 10 * 3 = 30
++  });
++
++  it('handles scaleOffset in range computation', () => {
++    const curve = { name: 'A', color: '#000', data: [[0, 10]] };
++    const curves = { id1: curve };
++    const offsets = { id1: { xOffset: 0, yOffset: 0 } };
++    const normalizeFactors = {};
++    const globalScale = 1;
++    const curveScales = { id1: 2 };
++    const curveScaleOffsets = { id1: 5 };
++
++    const result = computeYAxisRange(
++      ['id1'], curves, offsets, [0, 0], 0,
++      normalizeFactors, globalScale, curveScales, curveScaleOffsets,
++    );
++    // scaled = 10 * 2 + 5 = 25
++    expect(result.rawDataMax).toBeCloseTo(25, 0);
++    expect(result.rawDataMin).toBeCloseTo(25, 0);
++  });
++});
++```
++
++- [ ] **Step 2: Run test to verify it fails**
++
++```bash
++npx vitest run src/components/chart/__tests__/computeYAxisRange.test.ts 2>&1 | tail -20
++```
++
++Expected: FAIL — TypeScript type error (extra params not in signature).
++
++- [ ] **Step 3: Extend computeYAxisRange signature and logic**
++
++In `src/components/chart/computeYAxisRange.ts`:
++
++1. Update function signature to add scale params:
++```typescript
++export function computeYAxisRange(
++  visibleIds: string[],
++  curves: Record<string, CurveData>,
++  offsets: Record<string, CurveOffsets>,
++  xRange: [number, number],
++  layerSpacing: number,
++  normalizeFactors: Record<string, number> = {},
++  globalScale: number = 1,
++  curveScales: Record<string, number> = {},
++  curveScaleOffsets: Record<string, number> = {},
++): {
++```
++
++2. Update the loop body (lines 37-46) to compute from scaled data:
++```typescript
++for (const id of visibleIds) {
++  const curve = curves[id];
++  const offset = offsets[id] ?? { xOffset: 0, yOffset: 0 };
++  const normalize = normalizeFactors[id] ?? 1;
++  const manual = curveScales[id] ?? 1;
++  const composite = normalize * globalScale * manual;
++  const scaleOffset = curveScaleOffsets[id] ?? 0;
++  for (const [x, yVal] of curve.data) {
++    if (x + offset.xOffset >= xRange[0] && x + offset.xOffset <= xRange[1]) {
++      const adjusted = yVal * composite + scaleOffset + offset.yOffset;
++      if (adjusted < rawDataMin) rawDataMin = adjusted;
++      if (adjusted > rawDataMax) rawDataMax = adjusted;
++    }
++  }
++}
++```
++
++3. Remove the old doc comment about "clip: false" (lines 8-9) since range now reflects scaled data.
++
++- [ ] **Step 4: Update WaterfallChart caller**
++
++In `src/components/chart/WaterfallChart.tsx`, find the call to `computeYAxisRange` (around the `yAxisFullRange` computation) and pass the new params:
++
++```typescript
++const yAxisFullRange = useMemo(() =>
++  computeYAxisRange(
++    visibleIds, curves, offsets, xRange, layerSpacing,
++    normalizeFactors, globalScale, curveScales, curveScaleOffsets,
++  ),
++  [visibleIds, curves, offsets, xRange, layerSpacing, normalizeFactors, globalScale, curveScales, curveScaleOffsets],
++);
++```
++
++- [ ] **Step 5: Update exportImage caller**
++
++In `src/components/chart/exportImage.ts`, find the `computeYAxisRange` call (line 58) and pass scale params:
++
++```typescript
++const rangeResult = computeYAxisRange(
++  visibleIds, state.curves, state.offsets, xRange, state.layerSpacing,
++  state.normalizeFactors ?? {}, state.globalScale ?? 1, state.curveScales ?? {}, state.curveScaleOffsets ?? {},
++);
++```
++
++- [ ] **Step 6: Run tests to verify**
++
++```bash
++npx vitest run src/components/chart/__tests__/computeYAxisRange.test.ts 2>&1 | tail -20
++```
++
++Expected: PASS (all tests, including new scaled-data tests)
++
++- [ ] **Step 7: Commit**
++
++```bash
++git add src/components/chart/computeYAxisRange.ts src/components/chart/WaterfallChart.tsx src/components/chart/exportImage.ts src/components/chart/__tests__/computeYAxisRange.test.ts
++git commit -m "feat: extend computeYAxisRange to compute from composite-scaled data"
++```
++
++---
++
++
+diff --git a/.superpowers/sdd/task-4-report.md b/.superpowers/sdd/task-4-report.md
+new file mode 100644
+index 0000000..b2d4106
+--- /dev/null
++++ b/.superpowers/sdd/task-4-report.md
+@@ -0,0 +1,18 @@
++# Task 4 Report: Y-Axis Range — Extend computeYAxisRange for scaled data
++
++**Status:** ✅ Complete
++
++**Commits:**
++- `812057d` — `feat: extend computeYAxisRange to compute from composite-scaled data`
++
++**Files modified:**
++- `src/components/chart/computeYAxisRange.ts` — Added 4 new params (`normalizeFactors`, `globalScale`, `curveScales`, `curveScaleOffsets`); loop body now computes `yVal * composite + scaleOffset + offset.yOffset` instead of `yVal + offset.yOffset`
++- `src/components/chart/WaterfallChart.tsx` — Replaced inline `stableDataRange` + `yAxisFullRange` memos with single `computeYAxisRange()` call; imported the function; updated `stableDataRange.dataSpan` reference to `yAxisFullRange.dataSpan`
++- `src/components/chart/exportImage.ts` — Passes `state.normalizeFactors`, `state.globalScale`, `state.curveScales`, `state.curveScaleOffsets` to `computeYAxisRange`
++- `src/components/chart/__tests__/computeYAxisRange.test.ts` — Added 2 new tests: scaled data min/max, scaleOffset in range
++
++**Test summary:** All 7 tests pass (5 existing + 2 new)
++
++**Concerns:**
++- WaterfallChart's inline `stableDataRange` was replaced since `computeYAxisRange` now handles the same role with scaling. The `dataSpan` reference in the dataZoom config was updated to `yAxisFullRange.dataSpan`.
++- Pre-existing TS type errors (number[][] vs DataPoint[]) in test files are unrelated.
+\ No newline at end of file
+diff --git a/.superpowers/sdd/task-4-review.diff b/.superpowers/sdd/task-4-review.diff
+new file mode 100644
+index 0000000..b012252
+--- /dev/null
++++ b/.superpowers/sdd/task-4-review.diff
+@@ -0,0 +1,282 @@
++812057d feat: extend computeYAxisRange to compute from composite-scaled data
++ src/components/chart/WaterfallChart.tsx            | 49 ++++------------------
++ .../chart/__tests__/computeYAxisRange.test.ts      | 38 +++++++++++++++++
++ src/components/chart/computeYAxisRange.ts          | 21 +++++-----
++ src/components/chart/exportImage.ts                |  5 ++-
++ 4 files changed, 62 insertions(+), 51 deletions(-)
++
++diff --git a/src/components/chart/WaterfallChart.tsx b/src/components/chart/WaterfallChart.tsx
++index aec4b66..07b9959 100644
++--- a/src/components/chart/WaterfallChart.tsx
+++++ b/src/components/chart/WaterfallChart.tsx
++@@ -1,18 +1,19 @@
++ import { useMemo, useCallback, useEffect, useRef, useState } from 'react';
++ import ReactECharts from 'echarts-for-react';
++ import { useCurveStore, useUiStore } from '@/store';
++ import BraceOverlay from './BraceOverlay';
++ import PointLabelOverlay from './PointLabelOverlay';
++ import CurveScaleOverlay from './CurveScaleOverlay';
++ import type { EChartsOption } from 'echarts';
++ import type { EChartsInstance } from 'echarts-for-react';
+++import { computeYAxisRange } from './computeYAxisRange';
++ import { normalizeYZoomRange } from './yZoomRange';
++ import { yToPixel } from './yPixelMath';
++ import { getTopCurvePixelYAtX, topCurvePeak } from './labelGeometry';
++ 
++ // Shared chart instance for PNG export
++ let chartInstance: EChartsInstance | null = null;
++ export function getChartInstance() {
++   return chartInstance;
++ }
++ 
++@@ -134,59 +135,27 @@ export default function WaterfallChart() {
++     }
++ 
++     if (xChanged || yRange) {
++       useUiStore.setState({
++         ...(xChanged ? { xRange: xExtent! } : {}),
++         ...(yRange ? { yZoomRange: yRange } : {}),
++       });
++     }
++   }, []);
++ 
++-  const stableDataRange = useMemo(() => {
++-    let rawDataMin = Infinity;
++-    let rawDataMax = -Infinity;
++-
++-    for (const id of visibleIds) {
++-      const curve = curves[id];
++-      const offset = offsets[id] ?? { xOffset: 0, yOffset: 0 };
++-      for (const [, yVal] of curve.data) {
++-        const adjusted = yVal + offset.yOffset;
++-        if (adjusted < rawDataMin) rawDataMin = adjusted;
++-        if (adjusted > rawDataMax) rawDataMax = adjusted;
++-      }
++-    }
++-
++-    if (!isFinite(rawDataMin) || !isFinite(rawDataMax)) {
++-      rawDataMin = 0;
++-      rawDataMax = 1;
++-    }
++-
++-    let dataSpan = rawDataMax - rawDataMin;
++-    if (dataSpan === 0) dataSpan = 1;
++-
++-    return { rawDataMin, rawDataMax, dataSpan };
++-  }, [visibleIds, curves, offsets]);
++-
++-  const yAxisFullRange = useMemo(() => {
++-    const { rawDataMin, dataSpan } = stableDataRange;
++-    const visibleCount = visibleIds.length;
++-    const spacingBudget = (visibleCount - 1) * layerSpacing;
++-    const yRangeForLayer = spacingBudget >= 1
++-      ? dataSpan * 10
++-      : dataSpan / (1 - spacingBudget);
++-
++-    const padding = dataSpan * 0.02;
++-    const yAxisMin = Math.min(0, rawDataMin) - padding;
++-    const yAxisMax = rawDataMin + yRangeForLayer * (1 + LABEL_PADDING_RATIO);
++-
++-    return { yAxisMin, yAxisMax, yRangeForLayer, rawDataMin };
++-  }, [stableDataRange, visibleIds, layerSpacing]);
+++  const yAxisFullRange = useMemo(() =>
+++    computeYAxisRange(
+++      visibleIds, curves, offsets, xRange, layerSpacing,
+++      normalizeFactors, globalScale, curveScales, curveScaleOffsets,
+++    ),
+++    [visibleIds, curves, offsets, xRange, layerSpacing, normalizeFactors, globalScale, curveScales, curveScaleOffsets],
+++  );
++ 
++   useEffect(() => {
++     if (yZoomRangeSource.current === 'event') {
++       yZoomRangeSource.current = null;
++       return;
++     }
++     yZoomRangeSource.current = null;
++     if (yZoomRange && chartInstance) {
++       chartInstance.dispatchAction({
++         type: 'dataZoom',
++@@ -302,21 +271,21 @@ export default function WaterfallChart() {
++         splitLine: { show: showGrid },
++       },
++       dataZoom: (() => {
++         if (bracePlacementMode) {
++           return [{ id: 'xZoomSlider', type: 'slider', xAxisIndex: 0, bottom: 10 }];
++         }
++         const xZoom: EChartsOption['dataZoom'] = [
++           { id: 'xZoom', type: 'inside', xAxisIndex: 0 },
++           { id: 'xZoomSlider', type: 'slider', xAxisIndex: 0, bottom: 10 },
++         ];
++-        const yMinSpan = 0.05 * (stableDataRange.dataSpan || 1);
+++        const yMinSpan = 0.05 * (yAxisFullRange.dataSpan || 1);
++         const yInside: Record<string, unknown> = {
++           id: 'yZoom', type: 'inside', yAxisIndex: 0, filterMode: 'none', minValueSpan: yMinSpan,
++         };
++         const ySlider: Record<string, unknown> = {
++           id: 'yZoomSlider', type: 'slider', yAxisIndex: 0, orient: 'vertical',
++           left: 60 - 14 - 4, width: 14, filterMode: 'none', minValueSpan: yMinSpan,
++         };
++         return [...xZoom, yInside, ySlider] as EChartsOption['dataZoom'];
++       })(),
++       series,
++diff --git a/src/components/chart/__tests__/computeYAxisRange.test.ts b/src/components/chart/__tests__/computeYAxisRange.test.ts
++index b655f6b..690a4fc 100644
++--- a/src/components/chart/__tests__/computeYAxisRange.test.ts
+++++ b/src/components/chart/__tests__/computeYAxisRange.test.ts
++@@ -62,20 +62,58 @@ describe('computeYAxisRange', () => {
++       c1: { name: 'curve1', data: [[0, 5], [1, 5], [2, 5]] },
++     };
++     const offsets = { c1: { xOffset: 0, yOffset: 0 } };
++     const result = computeYAxisRange(['c1'], curves, offsets, [0, 2], 0);
++ 
++     expect(result.dataSpan).toBe(1); // default span when dataSpan === 0
++     expect(result.yAxisMin).toBeLessThan(5);
++     expect(result.yAxisMax).toBeGreaterThan(5);
++   });
++ 
+++  describe('computeYAxisRange with scale params', () => {
+++  it('computes rawDataMin/Max from scaled data', () => {
+++    const curve = { name: 'A', color: '#000', data: [[0, 10], [1, 50], [2, 30]] };
+++    const curves: Record<string, CurveData> = { id1: curve };
+++    const offsets = { id1: { xOffset: 0, yOffset: 0 } };
+++    const normalizeFactors = { id1: 2 };
+++    const globalScale = 1.5;
+++    const curveScales = { id1: 1 };
+++    const curveScaleOffsets = { id1: 0 };
+++
+++    const result = computeYAxisRange(
+++      ['id1'], curves, offsets, [0, 2], 0,
+++      normalizeFactors, globalScale, curveScales, curveScaleOffsets,
+++    );
+++    // peak = 50, composite = 2 * 1.5 * 1 = 3, scaled peak = 150
+++    expect(result.rawDataMax).toBeCloseTo(150, 0);
+++    expect(result.rawDataMin).toBeCloseTo(30, 0); // 10 * 3 = 30
+++  });
+++
+++  it('handles scaleOffset in range computation', () => {
+++    const curve = { name: 'A', color: '#000', data: [[0, 10]] };
+++    const curves: Record<string, CurveData> = { id1: curve };
+++    const offsets = { id1: { xOffset: 0, yOffset: 0 } };
+++    const normalizeFactors = {};
+++    const globalScale = 1;
+++    const curveScales = { id1: 2 };
+++    const curveScaleOffsets = { id1: 5 };
+++
+++    const result = computeYAxisRange(
+++      ['id1'], curves, offsets, [0, 0], 0,
+++      normalizeFactors, globalScale, curveScales, curveScaleOffsets,
+++    );
+++    // scaled = 10 * 2 + 5 = 25
+++    expect(result.rawDataMax).toBeCloseTo(25, 0);
+++    expect(result.rawDataMin).toBeCloseTo(25, 0);
+++  });
+++});
+++
++   it('should compute correct yRangeForLayer with layer spacing', () => {
++     const curves: Record<string, CurveData> = {
++       c1: { name: 'curve1', data: [[0, 0], [1, 100]] },
++       c2: { name: 'curve2', data: [[0, 0], [1, 100]] },
++       c3: { name: 'curve3', data: [[0, 0], [1, 100]] },
++     };
++     const offsets = {
++       c1: { xOffset: 0, yOffset: 0 },
++       c2: { xOffset: 0, yOffset: 0 },
++       c3: { xOffset: 0, yOffset: 0 },
++diff --git a/src/components/chart/computeYAxisRange.ts b/src/components/chart/computeYAxisRange.ts
++index 30d094f..e9c54d6 100644
++--- a/src/components/chart/computeYAxisRange.ts
+++++ b/src/components/chart/computeYAxisRange.ts
++@@ -1,52 +1,53 @@
++ import type { CurveData } from '@/types';
++ import type { CurveOffsets } from '@/store/curveStore';
++ import { LABEL_PADDING_RATIO } from './WaterfallChart';
++ 
++ /**
++  * Compute Y-axis range parameters for waterfall chart rendering.
++  * Tracks both rawDataMin and rawDataMax to support negative values.
++- * Y-axis range is based on raw data only — per-curve scaling is applied
++- * in rendering with clip: false so scaled curves can overflow the axis.
++- *
++- * @param visibleIds - Array of visible curve IDs in display order
++- * @param curves - Map of curve ID to curve data
++- * @param offsets - Map of curve ID to offsets
++- * @param xRange - Current X-axis visible range [min, max]
++- * @param layerSpacing - Layer spacing multiplier from UI slider
++- * @returns Object containing all computed Y-axis range parameters
+++ * Y-axis range is computed from composite-scaled data (normalize × globalScale × manual + scaleOffset)
+++ * so the axis accommodates the rendered curves rather than raw data.
++  */
++ export function computeYAxisRange(
++   visibleIds: string[],
++   curves: Record<string, CurveData>,
++   offsets: Record<string, CurveOffsets>,
++   xRange: [number, number],
++   layerSpacing: number,
+++  normalizeFactors: Record<string, number> = {},
+++  globalScale: number = 1,
+++  curveScales: Record<string, number> = {},
+++  curveScaleOffsets: Record<string, number> = {},
++ ): {
++   rawDataMin: number;
++   rawDataMax: number;
++   dataSpan: number;
++   yRangeForLayer: number;
++   yAxisMin: number;
++   yAxisMax: number;
++   maxY: number;
++ } {
++   // Track both min and max across all visible curves
++   let rawDataMin = Infinity;
++   let rawDataMax = -Infinity;
++ 
++   for (const id of visibleIds) {
++     const curve = curves[id];
++     const offset = offsets[id] ?? { xOffset: 0, yOffset: 0 };
+++    const normalize = normalizeFactors[id] ?? 1;
+++    const manual = curveScales[id] ?? 1;
+++    const composite = normalize * globalScale * manual;
+++    const scaleOffset = curveScaleOffsets[id] ?? 0;
++     for (const [x, yVal] of curve.data) {
++       if (x + offset.xOffset >= xRange[0] && x + offset.xOffset <= xRange[1]) {
++-        const adjusted = yVal + offset.yOffset;
+++        const adjusted = yVal * composite + scaleOffset + offset.yOffset;
++         if (adjusted < rawDataMin) rawDataMin = adjusted;
++         if (adjusted > rawDataMax) rawDataMax = adjusted;
++       }
++     }
++   }
++ 
++   // Handle case where no data points are in range
++   if (!isFinite(rawDataMin) || !isFinite(rawDataMax)) {
++     rawDataMin = 0;
++     rawDataMax = 1;
++diff --git a/src/components/chart/exportImage.ts b/src/components/chart/exportImage.ts
++index 99286be..b9e1036 100644
++--- a/src/components/chart/exportImage.ts
+++++ b/src/components/chart/exportImage.ts
++@@ -48,21 +48,24 @@ export async function exportChartImage(): Promise<void> {
++   const origDataZoom = (Array.isArray(snapshot.dataZoom) ? snapshot.dataZoom : []) as Array<Record<string, unknown>>;
++   const zoomStart = origDataZoom[0]?.start;
++   const zoomEnd = origDataZoom[0]?.end;
++   const insideZoom: Record<string, unknown>[] = [{ type: 'inside', xAxisIndex: 0 }];
++   if (zoomStart != null) insideZoom[0].start = zoomStart;
++   if (zoomEnd != null) insideZoom[0].end = zoomEnd;
++ 
++   const state = useCurveStore.getState();
++   const xRange = useUiStore.getState().xRange;
++   const visibleIds = state.stagingOrder.filter((id) => state.visibleCurves[id]);
++-  const rangeResult = computeYAxisRange(visibleIds, state.curves, state.offsets, xRange, state.layerSpacing);
+++  const rangeResult = computeYAxisRange(
+++    visibleIds, state.curves, state.offsets, xRange, state.layerSpacing,
+++    state.normalizeFactors ?? {}, state.globalScale ?? 1, state.curveScales ?? {}, state.curveScaleOffsets ?? {},
+++  );
++ 
++   const yZoomRange = useUiStore.getState().yZoomRange;
++   const yInsideZoom: Record<string, unknown> = { id: 'yZoomInside', type: 'inside', yAxisIndex: 0, filterMode: 'none' };
++   if (yZoomRange) {
++     const clamped = normalizeYZoomRange(yZoomRange[0], yZoomRange[1]);
++     yInsideZoom.startValue = clamped[0];
++     yInsideZoom.endValue = clamped[1];
++   }
++   insideZoom.push(yInsideZoom);
++ 
+diff --git a/.superpowers/sdd/task-5-brief.md b/.superpowers/sdd/task-5-brief.md
+new file mode 100644
+index 0000000..23dd70d
+--- /dev/null
++++ b/.superpowers/sdd/task-5-brief.md
+@@ -0,0 +1,162 @@
++### Task 5: UI State — Replace yScaleToolMode with scaleMode
++
++**Files:**
++- Modify: `src/store/uiStore.ts`
++- Modify: `src/components/toolbar/Toolbar.tsx`
++- Modify: `src/components/data/CurveList.tsx`
++- Modify: `src/components/chart/WaterfallChart.tsx`
++
++**Interfaces:**
++- Consumes: `yScaleToolMode: boolean` references in 3 files
++- Produces: `scaleMode: 'off' | 'split' | 'merge'`, `setScaleMode(mode)`, `cycleScaleMode()`
++
++- [ ] **Step 1: Replace yScaleToolMode with scaleMode in uiStore**
++
++In `src/store/uiStore.ts`:
++
++1. Replace `yScaleToolMode: boolean` with:
++```typescript
++scaleMode: 'off' | 'split' | 'merge';
++```
++
++2. Replace `setYScaleToolMode` action with:
++```typescript
++setScaleMode: (mode) => set({ scaleMode: mode }),
++cycleScaleMode: () =>
++  set((state) => {
++    const next: Record<string, 'off' | 'split' | 'merge'> = {
++      off: 'split',
++      split: 'merge',
++      merge: 'off',
++    };
++    return { scaleMode: next[state.scaleMode] };
++  }),
++```
++
++3. Update initial state:
++```typescript
++scaleMode: 'off',
++```
++
++- [ ] **Step 2: Update Toolbar.tsx references**
++
++In `src/components/toolbar/Toolbar.tsx`:
++
++1. Replace `yScaleToolMode` usage:
++```typescript
++// OLD:
++const yScaleToolMode = useUiStore((s) => s.yScaleToolMode);
++const setYScaleToolMode = useUiStore((s) => s.setYScaleToolMode);
++
++// NEW:
++const scaleMode = useUiStore((s) => s.scaleMode);
++const cycleScaleMode = useUiStore((s) => s.cycleScaleMode);
++```
++
++2. Update the button handler (around line 58):
++```typescript
++// OLD:
++if (!yScaleToolMode) {
++  setYScaleToolMode(true);
++} else {
++  setYScaleToolMode(false);
++}
++
++// NEW:
++cycleScaleMode();
++```
++
++3. Update the button title and text (around lines 169-175):
++```typescript
++// OLD:
++title={yScaleToolMode ? '点击取消Y轴缩放模式' : 'Y轴缩放：点曲线选中，滚轮/拖拽缩放，Shift+拖拽平移，双击复位'}
++{yScaleToolMode ? '缩放中...' : 'Y缩放'}
++
++// NEW:
++const scaleLabel = scaleMode === 'off' ? 'Y缩放' : scaleMode === 'split' ? '拆分' : '合并';
++const scaleTitle = scaleMode === 'off'
++  ? 'Y轴缩放：滚轮缩放，Shift+拖拽平移，双击复位'
++  : scaleMode === 'split'
++  ? '拆分模式：点曲线选中，滚轮缩放单条曲线'
++  : '合并模式：滚轮缩放所有曲线';
++title={scaleTitle}
++{scaleLabel}
++```
++
++- [ ] **Step 3: Update CurveList.tsx references**
++
++In `src/components/data/CurveList.tsx`:
++
++1. Replace `yScaleToolMode`:
++```typescript
++// OLD:
++const yScaleToolMode = useUiStore((s) => s.yScaleToolMode);
++
++// NEW:
++const scaleMode = useUiStore((s) => s.scaleMode);
++```
++
++2. Update the click handler (around line 145):
++```typescript
++// OLD:
++if (yScaleToolMode) {
++  setActiveScaledCurveId(activeScaledCurveId === id ? null : id);
++  return;
++}
++
++// NEW:
++if (scaleMode === 'split') {
++  setActiveScaledCurveId(activeScaledCurveId === id ? null : id);
++  return;
++}
++```
++
++3. Update dependency array (line 155):
++```typescript
++// OLD:
++[selectedCurveId, setSelectedCurveId, yScaleToolMode, activeScaledCurveId, setActiveScaledCurveId]
++
++// NEW:
++[selectedCurveId, setSelectedCurveId, scaleMode, activeScaledCurveId, setActiveScaledCurveId]
++```
++
++- [ ] **Step 4: Update WaterfallChart.tsx reference**
++
++In `src/components/chart/WaterfallChart.tsx`:
++
++1. Replace `yScaleToolMode`:
++```typescript
++// OLD:
++const yScaleToolMode = useUiStore((s) => s.yScaleToolMode);
++
++// NEW:
++const scaleMode = useUiStore((s) => s.scaleMode);
++```
++
++2. Update the CurveScaleOverlay conditional (around line 409):
++```typescript
++// OLD:
++{yScaleToolMode && activeScaledCurveId && (
++
++// NEW:
++{scaleMode !== 'off' && (
++```
++
++- [ ] **Step 5: Run TypeScript check**
++
++```bash
++npx tsc --noEmit 2>&1 | tail -20
++```
++
++Expected: No errors.
++
++- [ ] **Step 6: Commit**
++
++```bash
++git add src/store/uiStore.ts src/components/toolbar/Toolbar.tsx src/components/data/CurveList.tsx src/components/chart/WaterfallChart.tsx
++git commit -m "feat: replace yScaleToolMode boolean with scaleMode 3-state enum"
++```
++
++---
++
++
+diff --git a/.superpowers/sdd/task-5-report.md b/.superpowers/sdd/task-5-report.md
+new file mode 100644
+index 0000000..a9a66a4
+--- /dev/null
++++ b/.superpowers/sdd/task-5-report.md
+@@ -0,0 +1,37 @@
++# Task 5 Report: Replace yScaleToolMode with scaleMode
++
++## Status
++✅ Complete
++
++## Commit
++1f79340 - feat: replace yScaleToolMode boolean with scaleMode 3-state enum
++
++## Changes Made
++
++### `src/store/uiStore.ts`
++- Replaced `yScaleToolMode: boolean` with `scaleMode: 'off' | 'split' | 'merge'`
++- Replaced `setYScaleToolMode` with `setScaleMode(mode)` and `cycleScaleMode()`
++- Initial state: `scaleMode: 'off'`
++
++### `src/components/toolbar/Toolbar.tsx`
++- Replaced `yScaleToolMode`/`setYScaleToolMode` selectors with `scaleMode`/`cycleScaleMode`/`setScaleMode`
++- `handleToggleYScaleMode` now calls `cycleScaleMode()` instead of toggling boolean
++- `handleToggleBraceMode` and `handleTogglePointLabelMode` now call `setScaleMode('off')`
++- Button shows dynamic label: `'Y缩放'` / `'拆分'` / `'合并'`
++- Button title updates per mode with appropriate Chinese descriptions
++- Active state when `scaleMode !== 'off'`
++
++### `src/components/data/CurveList.tsx`
++- Replaced `yScaleToolMode` selector with `scaleMode`
++- Click handler enters split mode only when `scaleMode === 'split'`
++- Updated dependency array
++
++### `src/components/chart/WaterfallChart.tsx`
++- Replaced `yScaleToolMode` selector with `scaleMode`
++- `<CurveScaleOverlay>` renders when `scaleMode !== 'off' && activeScaledCurveId`
++
++## TypeScript Check
++No new errors introduced. All remaining errors are pre-existing (test files, CurveScaleOverlay, curveStore).
++
++## Concerns
++- The `CurveScaleOverlay` conditional originally required `activeScaledCurveId` to be truthy (guarding the `string | null` type). The brief's proposed `{scaleMode !== 'off' &&` would cause a TS error because `CurveScaleOverlay` expects `curveId: string`. The implementation keeps the `activeScaledCurveId` guard to maintain type safety.
+\ No newline at end of file
+diff --git a/.superpowers/sdd/task-5-review.diff b/.superpowers/sdd/task-5-review.diff
+new file mode 100644
+index 0000000..9698a58
+--- /dev/null
++++ b/.superpowers/sdd/task-5-review.diff
+@@ -0,0 +1,344 @@
++1f79340 feat: replace yScaleToolMode boolean with scaleMode 3-state enum
++ src/components/chart/WaterfallChart.tsx |  4 ++--
++ src/components/data/CurveList.tsx       |  6 +++---
++ src/components/toolbar/Toolbar.tsx      | 31 +++++++++++++++++--------------
++ src/store/uiStore.ts                    | 18 ++++++++++++++----
++ 4 files changed, 36 insertions(+), 23 deletions(-)
++
++diff --git a/src/components/chart/WaterfallChart.tsx b/src/components/chart/WaterfallChart.tsx
++index 07b9959..f44a3dc 100644
++--- a/src/components/chart/WaterfallChart.tsx
+++++ b/src/components/chart/WaterfallChart.tsx
++@@ -47,21 +47,21 @@ export default function WaterfallChart() {
++   const stagingOrder = useCurveStore((s) => s.stagingOrder);
++   const layerSpacing = useCurveStore((s) => s.layerSpacing);
++   const setLayerSpacing = useCurveStore((s) => s.setLayerSpacing);
++   const curveScales = useCurveStore((s) => s.curveScales);
++   const curveScaleOffsets = useCurveStore((s) => s.curveScaleOffsets);
++   const normalizeFactors = useCurveStore((s) => s.normalizeFactors);
++   const globalScale = useCurveStore((s) => s.globalScale);
++   const setCurveScale = useCurveStore((s) => s.setCurveScale);
++   const setCurveScaleOffset = useCurveStore((s) => s.setCurveScaleOffset);
++   const xRange = useUiStore((s) => s.xRange);
++-  const yScaleToolMode = useUiStore((s) => s.yScaleToolMode);
+++  const scaleMode = useUiStore((s) => s.scaleMode);
++   const activeScaledCurveId = useUiStore((s) => s.activeScaledCurveId);
++   const setActiveScaledCurveId = useUiStore((s) => s.setActiveScaledCurveId);
++   const bracePlacementMode = useUiStore((s) => s.bracePlacementMode);
++   const showGrid = useUiStore((s) => s.showGrid);
++   const showAxes = useUiStore((s) => s.showAxes);
++   const yZoomRange = useUiStore((s) => s.yZoomRange);
++   const yZoomRangeSource = useRef<'event' | 'external' | null>(null);
++ 
++   // visibleIds follows stagingOrder (only IDs that are in stagingOrder AND visible)
++   // visibleIds[0] = top of list = top of chart; visibleIds[last] = bottom (baseline)
++@@ -372,21 +372,21 @@ export default function WaterfallChart() {
++         convertXToPixel={convertXToPixel}
++         convertPixelToX={convertPixelToX}
++         xRange={xRange}
++         getLabelBaseYAtX={getLabelBaseYAtX}
++         gridTop={gridTop}
++         gridBottom={gridBottom}
++         chartWidth={chartDims.width}
++         gridLeft={gridLeft}
++         gridRight={gridRight}
++       />
++-      {yScaleToolMode && activeScaledCurveId && (
+++      {scaleMode !== 'off' && activeScaledCurveId && (
++         <CurveScaleOverlay
++           curveId={activeScaledCurveId}
++           curves={curves}
++           offsets={offsets}
++           curveScales={curveScales}
++           curveScaleOffsets={curveScaleOffsets}
++           xRange={xRange}
++           chartHeight={chartDims.height}
++           gridTop={gridTop}
++           gridBottom={gridBottom}
++diff --git a/src/components/data/CurveList.tsx b/src/components/data/CurveList.tsx
++index ca2ba47..ac6520c 100644
++--- a/src/components/data/CurveList.tsx
+++++ b/src/components/data/CurveList.tsx
++@@ -26,21 +26,21 @@ export default function CurveList({
++   const setStagingOrder = useCurveStore((s) => s.setStagingOrder);
++   const setDisplayName = useCurveStore((s) => s.setDisplayName);
++   const setBaseline = useCurveStore((s) => s.setBaseline);
++   const baselineId = useCurveStore((s) => s.baselineId);
++   const setCurveColor = useCurveStore((s) => s.setCurveColor);
++   const curves = useCurveStore((s) => s.curves);
++   const selectedCurveId = useUiStore((s) => s.selectedCurveId);
++   const setSelectedCurveId = useUiStore((s) => s.setSelectedCurveId);
++   const colorHistory = useUiStore((s) => s.colorHistory);
++   const addColorToHistory = useUiStore((s) => s.addColorToHistory);
++-  const yScaleToolMode = useUiStore((s) => s.yScaleToolMode);
+++  const scaleMode = useUiStore((s) => s.scaleMode);
++   const activeScaledCurveId = useUiStore((s) => s.activeScaledCurveId);
++   const setActiveScaledCurveId = useUiStore((s) => s.setActiveScaledCurveId);
++ 
++   const [filterText, setFilterText] = useState('');
++   const [contextMenu, setContextMenu] = useState<{
++     x: number; y: number; curveId: string;
++   } | null>(null);
++   const [panelCurveId, setPanelCurveId] = useState<string | null>(null);
++   const [panelTriggerRect, setPanelTriggerRect] = useState<DOMRect | null>(null);
++   const [editingId, setEditingId] = useState<string | null>(null);
++@@ -135,31 +135,31 @@ export default function CurveList({
++ 
++   const handleAliasCancel = useCallback(() => {
++     setEditingId(null);
++   }, []);
++ 
++   // Curve click for selection (metadata panel)
++   const handleCurveClick = useCallback(
++     (e: React.MouseEvent, id: string) => {
++       const target = e.target as HTMLElement;
++       if (target.tagName === 'INPUT' || target.tagName === 'BUTTON') return;
++-      if (yScaleToolMode) {
+++      if (scaleMode === 'split') {
++         setActiveScaledCurveId(activeScaledCurveId === id ? null : id);
++         return;
++       }
++       if (selectedCurveId === id) {
++         setSelectedCurveId(null);
++       } else {
++         setSelectedCurveId(id);
++       }
++     },
++-    [selectedCurveId, setSelectedCurveId, yScaleToolMode, activeScaledCurveId, setActiveScaledCurveId],
+++    [selectedCurveId, setSelectedCurveId, scaleMode, activeScaledCurveId, setActiveScaledCurveId],
++   );
++ 
++   // Get display name for a curve: displayName → name (SampleName) → fileName
++   const getDisplayName = (id: string): string => {
++     const c = curves[id];
++     return c?.displayName || c?.name || c?.metadata?.fileName || '';
++   };
++ 
++   // Render a single curve row
++   const renderCurveRow = (id: string, _index: number, isStaging: boolean) => {
++diff --git a/src/components/toolbar/Toolbar.tsx b/src/components/toolbar/Toolbar.tsx
++index 884ed90..5a72f06 100644
++--- a/src/components/toolbar/Toolbar.tsx
+++++ b/src/components/toolbar/Toolbar.tsx
++@@ -2,22 +2,23 @@ import { useCurveStore } from '@/store';
++ import { useUiStore } from '@/store';
++ import { exportChartImage } from '@/components/chart/exportImage';
++ 
++ export default function Toolbar() {
++   const temporal = useCurveStore.temporal;
++   const curves = useCurveStore((s) => s.curves);
++   const bracePlacementMode = useUiStore((s) => s.bracePlacementMode);
++   const setBracePlacementMode = useUiStore((s) => s.setBracePlacementMode);
++   const pointLabelPlacementMode = useUiStore((s) => s.pointLabelPlacementMode);
++   const setPointLabelPlacementMode = useUiStore((s) => s.setPointLabelPlacementMode);
++-  const yScaleToolMode = useUiStore((s) => s.yScaleToolMode);
++-  const setYScaleToolMode = useUiStore((s) => s.setYScaleToolMode);
+++  const scaleMode = useUiStore((s) => s.scaleMode);
+++  const cycleScaleMode = useUiStore((s) => s.cycleScaleMode);
+++  const setScaleMode = useUiStore((s) => s.setScaleMode);
++   const showGrid = useUiStore((s) => s.showGrid);
++   const showAxes = useUiStore((s) => s.showAxes);
++   const toggleShowGrid = useUiStore((s) => s.toggleShowGrid);
++   const toggleShowAxes = useUiStore((s) => s.toggleShowAxes);
++ 
++   const hasCurves = Object.keys(curves).length > 0;
++ 
++   const handleUndo = () => {
++     try {
++       temporal.getState().undo();
++@@ -30,45 +31,39 @@ export default function Toolbar() {
++     try {
++       temporal.getState().redo();
++     } catch {
++       // No redo available
++     }
++   };
++ 
++   const handleToggleBraceMode = () => {
++     if (!bracePlacementMode) {
++       setPointLabelPlacementMode(false);
++-      setYScaleToolMode(false);
+++      setScaleMode('off');
++       setBracePlacementMode(true);
++     } else {
++       setBracePlacementMode(false);
++     }
++   };
++ 
++   const handleTogglePointLabelMode = () => {
++     if (!pointLabelPlacementMode) {
++       setBracePlacementMode(false);
++-      setYScaleToolMode(false);
+++      setScaleMode('off');
++       setPointLabelPlacementMode(true);
++     } else {
++       setPointLabelPlacementMode(false);
++     }
++   };
++ 
++   const handleToggleYScaleMode = () => {
++-    if (!yScaleToolMode) {
++-      setBracePlacementMode(false);
++-      setPointLabelPlacementMode(false);
++-      setYScaleToolMode(true);
++-    } else {
++-      setYScaleToolMode(false);
++-    }
+++    cycleScaleMode();
++   };
++ 
++   const handleExportImage = () => {
++     exportChartImage().catch(() => {
++       alert('导出图片失败');
++     });
++   };
++ 
++   const handleExportJSON = () => {
++     const state = useCurveStore.getState();
++@@ -114,20 +109,27 @@ export default function Toolbar() {
++           });
++         } catch {
++           alert('工作区文件解析失败');
++         }
++       };
++       reader.readAsText(file);
++     };
++     input.click();
++   };
++ 
+++  const scaleLabel = scaleMode === 'off' ? 'Y缩放' : scaleMode === 'split' ? '拆分' : '合并';
+++  const scaleTitle = scaleMode === 'off'
+++    ? 'Y轴缩放：滚轮缩放，Shift+拖拽平移，双击复位'
+++    : scaleMode === 'split'
+++    ? '拆分模式：点曲线选中，滚轮缩放单条曲线'
+++    : '合并模式：滚轮缩放所有曲线';
+++
++   return (
++     <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 border-b border-gray-200">
++       <button
++         onClick={handleUndo}
++         className="text-xs px-2 py-1 rounded hover:bg-gray-200 text-gray-600"
++         title="撤销 (Ctrl+Z)"
++       >
++         ↩ 撤销
++       </button>
++       <button
++@@ -155,31 +157,32 @@ export default function Toolbar() {
++         disabled={!hasCurves}
++         className={`text-xs px-2 py-1 rounded ${
++           pointLabelPlacementMode
++             ? 'bg-blue-500 text-white'
++             : 'hover:bg-gray-200 text-gray-600'
++         } disabled:text-gray-300 disabled:cursor-not-allowed`}
++         title={pointLabelPlacementMode ? '点击取消点标签放置模式' : '插入点标签：点击图表放置'}
++       >
++         {pointLabelPlacementMode ? '放置中...' : '点标签'}
++       </button>
+++      <div className="w-px h-5 bg-gray-300" />
++       <button
++         onClick={handleToggleYScaleMode}
++         disabled={!hasCurves}
++         className={`text-xs px-2 py-1 rounded ${
++-          yScaleToolMode
+++          scaleMode !== 'off'
++             ? 'bg-blue-500 text-white'
++             : 'hover:bg-gray-200 text-gray-600'
++         } disabled:text-gray-300 disabled:cursor-not-allowed`}
++-        title={yScaleToolMode ? '点击取消Y轴缩放模式' : 'Y轴缩放：点曲线选中，滚轮/拖拽缩放，Shift+拖拽平移，双击复位'}
+++        title={scaleTitle}
++       >
++-        {yScaleToolMode ? '缩放中...' : 'Y缩放'}
+++        {scaleLabel}
++       </button>
++       <div className="w-px h-5 bg-gray-300" />
++       <button
++         onClick={toggleShowGrid}
++         className={`text-xs px-2 py-1 rounded ${
++           showGrid ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-200 text-gray-400'
++         }`}
++         title={showGrid ? '隐藏网格' : '显示网格'}
++       >
++         网格
++diff --git a/src/store/uiStore.ts b/src/store/uiStore.ts
++index a24f671..b3b5ecf 100644
++--- a/src/store/uiStore.ts
+++++ b/src/store/uiStore.ts
++@@ -7,25 +7,26 @@ interface UiState {
++   rightPanelCollapsed: boolean;
++   selectionMode: SelectionMode;
++   alignmentProgress: number | null;
++   xRange: [number, number];
++   yRange: [number, number];
++   selectedCurveId: string | null;
++   bracePlacementMode: boolean;
++   pointLabelPlacementMode: boolean;
++   showGrid: boolean;
++   showAxes: boolean;
++-  yScaleToolMode: boolean;
+++  scaleMode: 'off' | 'split' | 'merge';
++   activeScaledCurveId: string | null;
++   yZoomRange: [number, number] | null;
++   colorHistory: string[];
++-  setYScaleToolMode: (active: boolean) => void;
+++  setScaleMode: (mode: 'off' | 'split' | 'merge') => void;
+++  cycleScaleMode: () => void;
++   setActiveScaledCurveId: (id: string | null) => void;
++   setYZoomRange: (range: [number, number]) => void;
++   resetYZoomRange: () => void;
++   addColorToHistory: (color: string) => void;
++   toggleLeftPanel: () => void;
++   toggleRightPanel: () => void;
++   setSelectionMode: (mode: SelectionMode) => void;
++   setAlignmentProgress: (progress: number | null) => void;
++   setXRange: (range: [number, number]) => void;
++   setYRange: (range: [number, number]) => void;
++@@ -40,38 +41,47 @@ export const useUiStore = create<UiState>((set) => ({
++   leftPanelCollapsed: false,
++   rightPanelCollapsed: false,
++   selectionMode: 'none',
++   alignmentProgress: null,
++   xRange: [0, 10],
++   yRange: [0, 1],
++   selectedCurveId: null,
++   bracePlacementMode: false,
++   pointLabelPlacementMode: false,
++   showGrid: true,
++-  yScaleToolMode: false,
+++  scaleMode: 'off',
++   activeScaledCurveId: null,
++   yZoomRange: null,
++   colorHistory: [],
++   showAxes: false,
++   toggleLeftPanel: () =>
++     set((s) => ({ leftPanelCollapsed: !s.leftPanelCollapsed })),
++   toggleRightPanel: () =>
++     set((s) => ({ rightPanelCollapsed: !s.rightPanelCollapsed })),
++   setSelectionMode: (mode) => set({ selectionMode: mode }),
++   setAlignmentProgress: (progress) => set({ alignmentProgress: progress }),
++   setXRange: (range) => set({ xRange: range }),
++   setYRange: (range) => set({ yRange: range }),
++   setSelectedCurveId: (id) => set({ selectedCurveId: id }),
++   setBracePlacementMode: (active) => set({ bracePlacementMode: active }),
++   setPointLabelPlacementMode: (active) => set({ pointLabelPlacementMode: active }),
++   toggleShowGrid: () => set((s) => ({ showGrid: !s.showGrid })),
++   toggleShowAxes: () => set((s) => ({ showAxes: !s.showAxes })),
++-  setYScaleToolMode: (active) => set({ yScaleToolMode: active }),
+++  setScaleMode: (mode) => set({ scaleMode: mode }),
+++  cycleScaleMode: () =>
+++    set((state) => {
+++      const next: Record<string, 'off' | 'split' | 'merge'> = {
+++        off: 'split',
+++        split: 'merge',
+++        merge: 'off',
+++      };
+++      return { scaleMode: next[state.scaleMode] };
+++    }),
++   setActiveScaledCurveId: (id) => set({ activeScaledCurveId: id }),
++   setYZoomRange: (range) => set({ yZoomRange: range }),
++   resetYZoomRange: () => set({ yZoomRange: null }),
++   addColorToHistory: (color) =>
++     set((s) => {
++       const filtered = s.colorHistory.filter((c) => c !== color);
++       return { colorHistory: [color, ...filtered].slice(0, 8) };
++     }),
++ }));
+diff --git a/.superpowers/sdd/task-6-brief.md b/.superpowers/sdd/task-6-brief.md
+new file mode 100644
+index 0000000..52e1bb5
+--- /dev/null
++++ b/.superpowers/sdd/task-6-brief.md
+@@ -0,0 +1,197 @@
++### Task 6: CurveScaleOverlay — Split/merge modes, wheel-only scaling
++
++**Files:**
++- Modify: `src/components/chart/CurveScaleOverlay.tsx`
++
++**Interfaces:**
++- Consumes: `scaleMode` prop, `globalScale`, `normalizeFactors`, `setGlobalScale`, `setCurveScale`, `setCurveScaleOffset`
++- Produces: Split mode (per-curve wheel + shift+drag pan), Merge mode (global wheel), badge with composite/global scale
++
++- [ ] **Step 1: Rewrite CurveScaleOverlay**
++
++In `src/components/chart/CurveScaleOverlay.tsx`:
++
++1. Update Props interface — add `scaleMode`, `globalScale`, `normalizeFactors`, `setGlobalScale`:
++```typescript
++interface Props {
++  scaleMode: 'off' | 'split' | 'merge';
++  curveId: string;
++  curves: Record<string, CurveData>;
++  offsets: Record<string, CurveOffsets>;
++  curveScales: Record<string, number>;
++  curveScaleOffsets: Record<string, number>;
++  normalizeFactors: Record<string, number>;
++  globalScale: number;
++  xRange: [number, number];
++  chartHeight: number;
++  gridTop: number;
++  gridBottom: number;
++  visibleFrame: { yMin: number; yMax: number };
++  setCurveScale: (id: string, scale: number) => void;
++  setCurveScaleOffset: (id: string, offset: number) => void;
++  setGlobalScale: (s: number) => void;
++  onDeselect: () => void;
++}
++```
++
++2. Update destructuring:
++```typescript
++export default function CurveScaleOverlay({
++  scaleMode, curveId, curves, offsets, curveScales, curveScaleOffsets,
++  normalizeFactors, globalScale,
++  xRange, chartHeight, gridTop, gridBottom, visibleFrame,
++  setCurveScale, setCurveScaleOffset, setGlobalScale,
++  onDeselect,
++}: Props) {
++```
++
++3. Replace the `onWheel` handler to handle both modes:
++```typescript
++const onWheel = useCallback((e: React.WheelEvent) => {
++  e.preventDefault();
++  if (scaleMode === 'merge') {
++    setGlobalScale(scaleByWheel(globalScale, e.deltaY));
++  } else if (scaleMode === 'split' && isFinite(originalMin) && isFinite(originalMax)) {
++    const scale = curveScales[curveId] ?? 1;
++    const next = scaleByWheel(scale, e.deltaY);
++    setCurveScale(curveId, next);
++    setDisplayScale(next);
++  }
++}, [scaleMode, curveId, globalScale, curveScales, originalMin, originalMax, setCurveScale, setGlobalScale]);
++```
++
++4. Replace the `onMouseDown` handler — remove non-shift drag (scaleByDrag), keep shift+drag (offsetByDrag) in split mode only:
++```typescript
++const onMouseDown = (e: React.MouseEvent) => {
++  if (scaleMode !== 'split') return;
++  if (!isFinite(originalMin) || !isFinite(originalMax)) return;
++  if (!e.shiftKey) return; // non-shift: no action (drag-scale removed)
++  e.stopPropagation();
++  e.preventDefault();
++  const scaleOffset = curveScaleOffsets[curveId] ?? 0;
++  dragRef.current = { startY: e.clientY, startOffset: scaleOffset };
++  const frame = { yMin: visibleFrame.yMin, yMax: visibleFrame.yMax, gridTop, gridBottom, chartHeight };
++  const onMove = (ev: MouseEvent) => {
++    const d = dragRef.current;
++    if (!d) return;
++    const next = offsetByDrag(d.startOffset, d.startY, ev.clientY, frame);
++    setCurveScaleOffset(curveId, next);
++  };
++  const onUp = () => {
++    document.removeEventListener('mousemove', onMove);
++    document.removeEventListener('mouseup', onUp);
++    dragRef.current = null;
++  };
++  document.addEventListener('mousemove', onMove);
++  document.addEventListener('mouseup', onUp);
++};
++```
++
++5. Update `onDoubleClick`:
++```typescript
++const onDoubleClick = useCallback(() => {
++  if (scaleMode === 'merge') {
++    setGlobalScale(1);
++  } else if (scaleMode === 'split') {
++    setCurveScale(curveId, 1);
++    setCurveScaleOffset(curveId, 0);
++    setDisplayScale(1);
++  }
++}, [scaleMode, curveId, setCurveScale, setCurveScaleOffset, setGlobalScale]);
++```
++
++6. Update `onKeyDown` (Esc):
++```typescript
++const onKeyDown = useCallback((e: KeyboardEvent) => {
++  if (e.key === 'Escape') {
++    if (scaleMode === 'split') {
++      onDeselect();
++    } else if (scaleMode === 'merge') {
++      onDeselect(); // exits to off
++    }
++  }
++}, [onDeselect, scaleMode]);
++```
++
++7. Update badge display:
++```typescript
++const valid = scaleMode === 'split'
++  ? curve && curve.data.length > 0 && isFinite(originalMin) && isFinite(originalMax)
++  : true;
++
++const badgeText = scaleMode === 'merge'
++  ? `×${globalScale.toFixed(1)}`
++  : scaleMode === 'split'
++  ? `×${((normalizeFactors[curveId] ?? 1) * globalScale * scale).toFixed(1)}`
++  : '';
++
++const badgeOffset = scaleMode === 'split' ? (curveScaleOffsets[curveId] ?? 0) : 0;
++```
++
++8. Update the rendered JSX — badge:
++```typescript
++{badgeText && (
++  <div className="absolute text-[10px] font-mono text-blue-600 bg-white bg-opacity-80 px-1 rounded pointer-events-none"
++    style={{ left: 8, top: gridTop }}>
++    {badgeText}
++    {badgeOffset !== 0 && scaleMode === 'split' ? ` Δ${badgeOffset.toFixed(0)}` : ''}
++  </div>
++)}
++```
++
++- [ ] **Step 2: Update WaterfallChart to pass new props**
++
++In `src/components/chart/WaterfallChart.tsx`, update the CurveScaleOverlay usage:
++
++```typescript
++{scaleMode !== 'off' && (
++  <CurveScaleOverlay
++    scaleMode={scaleMode}
++    curveId={activeScaledCurveId ?? ''}
++    curves={curves}
++    offsets={offsets}
++    curveScales={curveScales}
++    curveScaleOffsets={curveScaleOffsets}
++    normalizeFactors={normalizeFactors}
++    globalScale={globalScale}
++    xRange={xRange}
++    chartHeight={chartDims.height}
++    gridTop={gridTop}
++    gridBottom={gridBottom}
++    visibleFrame={{ yMin: visibleYRange[0], yMax: visibleYRange[1] }}
++    setCurveScale={setCurveScale}
++    setCurveScaleOffset={setCurveScaleOffset}
++    setGlobalScale={setGlobalScale}
++    onDeselect={() => {
++      setActiveScaledCurveId(null);
++      if (scaleMode === 'merge') {
++        useUiStore.getState().setScaleMode('off');
++      }
++    }}
++  />
++)}
++```
++
++Also import `useUiStore` at top if not already:
++```typescript
++import { useUiStore } from '@/store/uiStore';
++```
++
++- [ ] **Step 3: Run TypeScript check**
++
++```bash
++npx tsc --noEmit 2>&1 | tail -20
++```
++
++Expected: No errors.
++
++- [ ] **Step 4: Commit**
++
++```bash
++git add src/components/chart/CurveScaleOverlay.tsx src/components/chart/WaterfallChart.tsx
++git commit -m "feat: rewrite CurveScaleOverlay for split/merge modes, wheel-only scaling, shift+drag pan"
++```
++
++---
++
++
+diff --git a/.superpowers/sdd/task-7-brief.md b/.superpowers/sdd/task-7-brief.md
+new file mode 100644
+index 0000000..8e14efb
+--- /dev/null
++++ b/.superpowers/sdd/task-7-brief.md
+@@ -0,0 +1,61 @@
++### Task 7: Toolbar — Normalize button and 3-state Y-scale toggle
++
++**Files:**
++- Modify: `src/components/toolbar/Toolbar.tsx`
++
++**Interfaces:**
++- Consumes: `setScaleMode`, `cycleScaleMode`, `normalizeAllPeak`, `clearNormalizeFactors`, `xRange`
++- Produces: Y-scale 3-state cycle button, normalize button, clear normalize button
++
++- [ ] **Step 1: Add normalize button to Toolbar**
++
++In `src/components/toolbar/Toolbar.tsx`:
++
++1. Add imports:
++```typescript
++import { useCurveStore } from '@/store/curveStore';
++```
++
++2. Add store bindings:
++```typescript
++const normalizeAllPeak = useCurveStore((s) => s.normalizeAllPeak);
++const clearNormalizeFactors = useCurveStore((s) => s.clearNormalizeFactors);
++const xRange = useUiStore((s) => s.xRange);
++```
++
++3. Add normalize button after the Y-scale button:
++```tsx
++<button
++  className={`px-2 py-1 text-xs rounded border border-gray-300 hover:bg-gray-100`}
++  title="归一化：各曲线峰值对齐到基准线峰值"
++  onClick={() => normalizeAllPeak(xRange)}
++>
++  归一化
++</button>
++<button
++  className="px-2 py-1 text-xs rounded border border-gray-300 hover:bg-gray-100"
++  title="清除归一化，恢复原始高度"
++  onClick={clearNormalizeFactors}
++>
++  清除归一
++</button>
++```
++
++- [ ] **Step 2: Run TypeScript check**
++
++```bash
++npx tsc --noEmit 2>&1 | tail -20
++```
++
++Expected: No errors.
++
++- [ ] **Step 3: Commit**
++
++```bash
++git add src/components/toolbar/Toolbar.tsx
++git commit -m "feat: add normalize and clear-normalize buttons to toolbar"
++```
++
++---
++
++
+diff --git a/.superpowers/sdd/task-8-brief.md b/.superpowers/sdd/task-8-brief.md
+new file mode 100644
+index 0000000..24637a8
+--- /dev/null
++++ b/.superpowers/sdd/task-8-brief.md
+@@ -0,0 +1,61 @@
++### Task 8: Persistence — Save and restore globalScale + normalizeFactors
++
++**Files:**
++- Modify: `src/persistence/index.ts`
++
++**Interfaces:**
++- Consumes: `useCurveStore.getState()`
++- Produces: `globalScale` and `normalizeFactors` in save/restore snapshot
++
++- [ ] **Step 1: Add fields to save snapshot**
++
++In `src/persistence/index.ts`, `saveWorkspace` function (around line 24-36), add to snapshot:
++```typescript
++const snapshot = {
++  version: 2,
++  curves: state.curves,
++  offsets: state.offsets,
++  baselineId: state.baselineId,
++  braces: state.braces,
++  stagingOrder: state.stagingOrder,
++  visibleCurves: state.visibleCurves,
++  layerSpacing: state.layerSpacing,
++  pointLabels: state.pointLabels,
++  globalScale: state.globalScale,           // NEW
++  normalizeFactors: state.normalizeFactors, // NEW
++  savedAt: Date.now(),
++};
++```
++
++- [ ] **Step 2: Add fields to restore**
++
++In `restoreWorkspace`, add to the type interface (around line 54-65):
++```typescript
++const snapshot = await persistenceStore.getItem<{
++  // ... existing fields ...
++  globalScale?: number;
++  normalizeFactors?: Record<string, number>;
++  // ... existing fields ...
++}>(PERSISTENCE_KEY);
++```
++
++And in the `setState` call (around line 74-83), add:
++```typescript
++useCurveStore.setState({
++  // ... existing fields ...
++  globalScale: snapshot.globalScale ?? 1,
++  normalizeFactors: snapshot.normalizeFactors ?? {},
++  // ... existing fields ...
++});
++```
++
++- [ ] **Step 3: Commit**
++
++```bash
++git add src/persistence/index.ts
++git commit -m "feat: persist globalScale and normalizeFactors in workspace JSON"
++```
++
++---
++
++
+diff --git a/.superpowers/sdd/task-9-brief.md b/.superpowers/sdd/task-9-brief.md
+new file mode 100644
+index 0000000..804f18d
+--- /dev/null
++++ b/.superpowers/sdd/task-9-brief.md
+@@ -0,0 +1,46 @@
++### Task 9: Integration Tests — Run full test suite and type check
++
++**Files:**
++- No new files
++
++- [ ] **Step 1: Run full test suite**
++
++```bash
++npx vitest run 2>&1
++```
++
++Expected: All tests pass (except the pre-existing `raw_data` fixture issue). Validate that:
++- `curveStore` tests pass (including new normalize/global actions)
++- `curveScaleMath` tests pass (scaleByDrag removed, computePeakNormalizeFactor added)
++- `computeYAxisRange` tests pass (including scaled-data tests)
++- Other tests unchanged
++
++- [ ] **Step 2: Run type check**
++
++```bash
++npx tsc --noEmit 2>&1
++```
++
++Expected: No errors.
++
++- [ ] **Step 3: Manual verification checklist**
++
++Verify in the running app:
++- [ ] Y-scale button cycles off → split → merge → off
++- [ ] Split mode: click curve → wheel scales it → badge shows composite ×{effective}
++- [ ] Split mode: shift+drag pans curve → badge shows Δ{offset}
++- [ ] Split mode: double-click resets curve to 1/0
++- [ ] Merge mode: wheel scales all curves → badge shows ×{globalScale}
++- [ ] Merge mode: double-click resets globalScale to 1
++- [ ] Normalize button: scales curves so peaks match baseline — heights visually equal
++- [ ] Clear normalize: returns to original heights
++- [ ] Undo works: normalize is one step; wheel changes are individual steps
++- [ ] Refresh page: globalScale and normalizeFactors persist
++- [ ] Export PNG: scaling matches live view
++
++- [ ] **Step 4: Commit**
++
++```bash
++git add -A
++git commit -m "chore: final integration verification, all tests pass"
++```
+diff --git a/package-lock.json b/package-lock.json
+index a21a947..4dc908c 100644
+--- a/package-lock.json
++++ b/package-lock.json
+@@ -1,19 +1,19 @@
+ {
+   "name": "autospectra-overlay",
+-  "version": "1.0.0",
++  "version": "0.3.1",
+   "lockfileVersion": 3,
+   "requires": true,
+   "packages": {
+     "": {
+       "name": "autospectra-overlay",
+-      "version": "1.0.0",
++      "version": "0.3.1",
+       "dependencies": {
+         "clsx": "^2.1.0",
+         "echarts": "^6.1.0",
+         "echarts-for-react": "^3.0.6",
+         "localforage": "^1.10.0",
+         "react": "^18.3.1",
+         "react-dom": "^18.3.1",
+         "tailwind-merge": "^2.5.0",
+         "zundo": "^2.3.0",
+         "zustand": "^5.0.0"
+diff --git a/src/components/chart/WaterfallChart.tsx b/src/components/chart/WaterfallChart.tsx
+index 07b9959..f44a3dc 100644
+--- a/src/components/chart/WaterfallChart.tsx
++++ b/src/components/chart/WaterfallChart.tsx
+@@ -47,21 +47,21 @@ export default function WaterfallChart() {
+   const stagingOrder = useCurveStore((s) => s.stagingOrder);
+   const layerSpacing = useCurveStore((s) => s.layerSpacing);
+   const setLayerSpacing = useCurveStore((s) => s.setLayerSpacing);
+   const curveScales = useCurveStore((s) => s.curveScales);
+   const curveScaleOffsets = useCurveStore((s) => s.curveScaleOffsets);
+   const normalizeFactors = useCurveStore((s) => s.normalizeFactors);
+   const globalScale = useCurveStore((s) => s.globalScale);
+   const setCurveScale = useCurveStore((s) => s.setCurveScale);
+   const setCurveScaleOffset = useCurveStore((s) => s.setCurveScaleOffset);
+   const xRange = useUiStore((s) => s.xRange);
+-  const yScaleToolMode = useUiStore((s) => s.yScaleToolMode);
++  const scaleMode = useUiStore((s) => s.scaleMode);
+   const activeScaledCurveId = useUiStore((s) => s.activeScaledCurveId);
+   const setActiveScaledCurveId = useUiStore((s) => s.setActiveScaledCurveId);
+   const bracePlacementMode = useUiStore((s) => s.bracePlacementMode);
+   const showGrid = useUiStore((s) => s.showGrid);
+   const showAxes = useUiStore((s) => s.showAxes);
+   const yZoomRange = useUiStore((s) => s.yZoomRange);
+   const yZoomRangeSource = useRef<'event' | 'external' | null>(null);
+ 
+   // visibleIds follows stagingOrder (only IDs that are in stagingOrder AND visible)
+   // visibleIds[0] = top of list = top of chart; visibleIds[last] = bottom (baseline)
+@@ -372,21 +372,21 @@ export default function WaterfallChart() {
+         convertXToPixel={convertXToPixel}
+         convertPixelToX={convertPixelToX}
+         xRange={xRange}
+         getLabelBaseYAtX={getLabelBaseYAtX}
+         gridTop={gridTop}
+         gridBottom={gridBottom}
+         chartWidth={chartDims.width}
+         gridLeft={gridLeft}
+         gridRight={gridRight}
+       />
+-      {yScaleToolMode && activeScaledCurveId && (
++      {scaleMode !== 'off' && activeScaledCurveId && (
+         <CurveScaleOverlay
+           curveId={activeScaledCurveId}
+           curves={curves}
+           offsets={offsets}
+           curveScales={curveScales}
+           curveScaleOffsets={curveScaleOffsets}
+           xRange={xRange}
+           chartHeight={chartDims.height}
+           gridTop={gridTop}
+           gridBottom={gridBottom}
+diff --git a/src/components/data/CurveList.tsx b/src/components/data/CurveList.tsx
+index ca2ba47..ac6520c 100644
+--- a/src/components/data/CurveList.tsx
++++ b/src/components/data/CurveList.tsx
+@@ -26,21 +26,21 @@ export default function CurveList({
+   const setStagingOrder = useCurveStore((s) => s.setStagingOrder);
+   const setDisplayName = useCurveStore((s) => s.setDisplayName);
+   const setBaseline = useCurveStore((s) => s.setBaseline);
+   const baselineId = useCurveStore((s) => s.baselineId);
+   const setCurveColor = useCurveStore((s) => s.setCurveColor);
+   const curves = useCurveStore((s) => s.curves);
+   const selectedCurveId = useUiStore((s) => s.selectedCurveId);
+   const setSelectedCurveId = useUiStore((s) => s.setSelectedCurveId);
+   const colorHistory = useUiStore((s) => s.colorHistory);
+   const addColorToHistory = useUiStore((s) => s.addColorToHistory);
+-  const yScaleToolMode = useUiStore((s) => s.yScaleToolMode);
++  const scaleMode = useUiStore((s) => s.scaleMode);
+   const activeScaledCurveId = useUiStore((s) => s.activeScaledCurveId);
+   const setActiveScaledCurveId = useUiStore((s) => s.setActiveScaledCurveId);
+ 
+   const [filterText, setFilterText] = useState('');
+   const [contextMenu, setContextMenu] = useState<{
+     x: number; y: number; curveId: string;
+   } | null>(null);
+   const [panelCurveId, setPanelCurveId] = useState<string | null>(null);
+   const [panelTriggerRect, setPanelTriggerRect] = useState<DOMRect | null>(null);
+   const [editingId, setEditingId] = useState<string | null>(null);
+@@ -135,31 +135,31 @@ export default function CurveList({
+ 
+   const handleAliasCancel = useCallback(() => {
+     setEditingId(null);
+   }, []);
+ 
+   // Curve click for selection (metadata panel)
+   const handleCurveClick = useCallback(
+     (e: React.MouseEvent, id: string) => {
+       const target = e.target as HTMLElement;
+       if (target.tagName === 'INPUT' || target.tagName === 'BUTTON') return;
+-      if (yScaleToolMode) {
++      if (scaleMode === 'split') {
+         setActiveScaledCurveId(activeScaledCurveId === id ? null : id);
+         return;
+       }
+       if (selectedCurveId === id) {
+         setSelectedCurveId(null);
+       } else {
+         setSelectedCurveId(id);
+       }
+     },
+-    [selectedCurveId, setSelectedCurveId, yScaleToolMode, activeScaledCurveId, setActiveScaledCurveId],
++    [selectedCurveId, setSelectedCurveId, scaleMode, activeScaledCurveId, setActiveScaledCurveId],
+   );
+ 
+   // Get display name for a curve: displayName → name (SampleName) → fileName
+   const getDisplayName = (id: string): string => {
+     const c = curves[id];
+     return c?.displayName || c?.name || c?.metadata?.fileName || '';
+   };
+ 
+   // Render a single curve row
+   const renderCurveRow = (id: string, _index: number, isStaging: boolean) => {
+diff --git a/src/components/toolbar/Toolbar.tsx b/src/components/toolbar/Toolbar.tsx
+index 884ed90..d6f0f52 100644
+--- a/src/components/toolbar/Toolbar.tsx
++++ b/src/components/toolbar/Toolbar.tsx
+@@ -2,22 +2,23 @@ import { useCurveStore } from '@/store';
+ import { useUiStore } from '@/store';
+ import { exportChartImage } from '@/components/chart/exportImage';
+ 
+ export default function Toolbar() {
+   const temporal = useCurveStore.temporal;
+   const curves = useCurveStore((s) => s.curves);
+   const bracePlacementMode = useUiStore((s) => s.bracePlacementMode);
+   const setBracePlacementMode = useUiStore((s) => s.setBracePlacementMode);
+   const pointLabelPlacementMode = useUiStore((s) => s.pointLabelPlacementMode);
+   const setPointLabelPlacementMode = useUiStore((s) => s.setPointLabelPlacementMode);
+-  const yScaleToolMode = useUiStore((s) => s.yScaleToolMode);
+-  const setYScaleToolMode = useUiStore((s) => s.setYScaleToolMode);
++  const scaleMode = useUiStore((s) => s.scaleMode);
++  const cycleScaleMode = useUiStore((s) => s.cycleScaleMode);
++  const setScaleMode = useUiStore((s) => s.setScaleMode);
+   const showGrid = useUiStore((s) => s.showGrid);
+   const showAxes = useUiStore((s) => s.showAxes);
+   const toggleShowGrid = useUiStore((s) => s.toggleShowGrid);
+   const toggleShowAxes = useUiStore((s) => s.toggleShowAxes);
+ 
+   const hasCurves = Object.keys(curves).length > 0;
+ 
+   const handleUndo = () => {
+     try {
+       temporal.getState().undo();
+@@ -30,45 +31,43 @@ export default function Toolbar() {
+     try {
+       temporal.getState().redo();
+     } catch {
+       // No redo available
+     }
+   };
+ 
+   const handleToggleBraceMode = () => {
+     if (!bracePlacementMode) {
+       setPointLabelPlacementMode(false);
+-      setYScaleToolMode(false);
++      setScaleMode('off');
+       setBracePlacementMode(true);
+     } else {
+       setBracePlacementMode(false);
+     }
+   };
+ 
+   const handleTogglePointLabelMode = () => {
+     if (!pointLabelPlacementMode) {
+       setBracePlacementMode(false);
+-      setYScaleToolMode(false);
++      setScaleMode('off');
+       setPointLabelPlacementMode(true);
+     } else {
+       setPointLabelPlacementMode(false);
+     }
+   };
+ 
+   const handleToggleYScaleMode = () => {
+-    if (!yScaleToolMode) {
++    if (scaleMode === 'off') {
+       setBracePlacementMode(false);
+       setPointLabelPlacementMode(false);
+-      setYScaleToolMode(true);
+-    } else {
+-      setYScaleToolMode(false);
+     }
++    cycleScaleMode();
+   };
+ 
+   const handleExportImage = () => {
+     exportChartImage().catch(() => {
+       alert('导出图片失败');
+     });
+   };
+ 
+   const handleExportJSON = () => {
+     const state = useCurveStore.getState();
+@@ -114,20 +113,27 @@ export default function Toolbar() {
+           });
+         } catch {
+           alert('工作区文件解析失败');
+         }
+       };
+       reader.readAsText(file);
+     };
+     input.click();
+   };
+ 
++  const scaleLabel = scaleMode === 'off' ? 'Y缩放' : scaleMode === 'split' ? '拆分' : '合并';
++  const scaleTitle = scaleMode === 'off'
++    ? 'Y轴缩放：滚轮缩放，Shift+拖拽平移，双击复位'
++    : scaleMode === 'split'
++    ? '拆分模式：点曲线选中，滚轮缩放单条曲线'
++    : '合并模式：滚轮缩放所有曲线';
++
+   return (
+     <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 border-b border-gray-200">
+       <button
+         onClick={handleUndo}
+         className="text-xs px-2 py-1 rounded hover:bg-gray-200 text-gray-600"
+         title="撤销 (Ctrl+Z)"
+       >
+         ↩ 撤销
+       </button>
+       <button
+@@ -155,31 +161,32 @@ export default function Toolbar() {
+         disabled={!hasCurves}
+         className={`text-xs px-2 py-1 rounded ${
+           pointLabelPlacementMode
+             ? 'bg-blue-500 text-white'
+             : 'hover:bg-gray-200 text-gray-600'
+         } disabled:text-gray-300 disabled:cursor-not-allowed`}
+         title={pointLabelPlacementMode ? '点击取消点标签放置模式' : '插入点标签：点击图表放置'}
+       >
+         {pointLabelPlacementMode ? '放置中...' : '点标签'}
+       </button>
++      <div className="w-px h-5 bg-gray-300" />
+       <button
+         onClick={handleToggleYScaleMode}
+         disabled={!hasCurves}
+         className={`text-xs px-2 py-1 rounded ${
+-          yScaleToolMode
++          scaleMode !== 'off'
+             ? 'bg-blue-500 text-white'
+             : 'hover:bg-gray-200 text-gray-600'
+         } disabled:text-gray-300 disabled:cursor-not-allowed`}
+-        title={yScaleToolMode ? '点击取消Y轴缩放模式' : 'Y轴缩放：点曲线选中，滚轮/拖拽缩放，Shift+拖拽平移，双击复位'}
++        title={scaleTitle}
+       >
+-        {yScaleToolMode ? '缩放中...' : 'Y缩放'}
++        {scaleLabel}
+       </button>
+       <div className="w-px h-5 bg-gray-300" />
+       <button
+         onClick={toggleShowGrid}
+         className={`text-xs px-2 py-1 rounded ${
+           showGrid ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-200 text-gray-400'
+         }`}
+         title={showGrid ? '隐藏网格' : '显示网格'}
+       >
+         网格
+diff --git a/src/store/uiStore.ts b/src/store/uiStore.ts
+index a24f671..b3b5ecf 100644
+--- a/src/store/uiStore.ts
++++ b/src/store/uiStore.ts
+@@ -7,25 +7,26 @@ interface UiState {
+   rightPanelCollapsed: boolean;
+   selectionMode: SelectionMode;
+   alignmentProgress: number | null;
+   xRange: [number, number];
+   yRange: [number, number];
+   selectedCurveId: string | null;
+   bracePlacementMode: boolean;
+   pointLabelPlacementMode: boolean;
+   showGrid: boolean;
+   showAxes: boolean;
+-  yScaleToolMode: boolean;
++  scaleMode: 'off' | 'split' | 'merge';
+   activeScaledCurveId: string | null;
+   yZoomRange: [number, number] | null;
+   colorHistory: string[];
+-  setYScaleToolMode: (active: boolean) => void;
++  setScaleMode: (mode: 'off' | 'split' | 'merge') => void;
++  cycleScaleMode: () => void;
+   setActiveScaledCurveId: (id: string | null) => void;
+   setYZoomRange: (range: [number, number]) => void;
+   resetYZoomRange: () => void;
+   addColorToHistory: (color: string) => void;
+   toggleLeftPanel: () => void;
+   toggleRightPanel: () => void;
+   setSelectionMode: (mode: SelectionMode) => void;
+   setAlignmentProgress: (progress: number | null) => void;
+   setXRange: (range: [number, number]) => void;
+   setYRange: (range: [number, number]) => void;
+@@ -40,38 +41,47 @@ export const useUiStore = create<UiState>((set) => ({
+   leftPanelCollapsed: false,
+   rightPanelCollapsed: false,
+   selectionMode: 'none',
+   alignmentProgress: null,
+   xRange: [0, 10],
+   yRange: [0, 1],
+   selectedCurveId: null,
+   bracePlacementMode: false,
+   pointLabelPlacementMode: false,
+   showGrid: true,
+-  yScaleToolMode: false,
++  scaleMode: 'off',
+   activeScaledCurveId: null,
+   yZoomRange: null,
+   colorHistory: [],
+   showAxes: false,
+   toggleLeftPanel: () =>
+     set((s) => ({ leftPanelCollapsed: !s.leftPanelCollapsed })),
+   toggleRightPanel: () =>
+     set((s) => ({ rightPanelCollapsed: !s.rightPanelCollapsed })),
+   setSelectionMode: (mode) => set({ selectionMode: mode }),
+   setAlignmentProgress: (progress) => set({ alignmentProgress: progress }),
+   setXRange: (range) => set({ xRange: range }),
+   setYRange: (range) => set({ yRange: range }),
+   setSelectedCurveId: (id) => set({ selectedCurveId: id }),
+   setBracePlacementMode: (active) => set({ bracePlacementMode: active }),
+   setPointLabelPlacementMode: (active) => set({ pointLabelPlacementMode: active }),
+   toggleShowGrid: () => set((s) => ({ showGrid: !s.showGrid })),
+   toggleShowAxes: () => set((s) => ({ showAxes: !s.showAxes })),
+-  setYScaleToolMode: (active) => set({ yScaleToolMode: active }),
++  setScaleMode: (mode) => set({ scaleMode: mode }),
++  cycleScaleMode: () =>
++    set((state) => {
++      const next: Record<string, 'off' | 'split' | 'merge'> = {
++        off: 'split',
++        split: 'merge',
++        merge: 'off',
++      };
++      return { scaleMode: next[state.scaleMode] };
++    }),
+   setActiveScaledCurveId: (id) => set({ activeScaledCurveId: id }),
+   setYZoomRange: (range) => set({ yZoomRange: range }),
+   resetYZoomRange: () => set({ yZoomRange: null }),
+   addColorToHistory: (color) =>
+     set((s) => {
+       const filtered = s.colorHistory.filter((c) => c !== color);
+       return { colorHistory: [color, ...filtered].slice(0, 8) };
+     }),
+ }));

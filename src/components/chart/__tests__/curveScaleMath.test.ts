@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { scaleByWheel, scaleByDrag, offsetByDrag, clampScale } from '../curveScaleMath';
+import { scaleByWheel, offsetByDrag, clampScale, computePeakNormalizeFactor } from '../curveScaleMath';
+import type { CurveData } from '@/types';
+import type { CurveOffsets } from '@/store/curveStore';
 
 describe('clampScale', () => {
   it('clamps to [0.1, 10]', () => {
@@ -21,18 +23,6 @@ describe('scaleByWheel', () => {
   });
 });
 
-describe('scaleByDrag', () => {
-  it('drag up (deltaPx<0) enlarges scale', () => {
-    expect(scaleByDrag(1, -100)).toBeGreaterThan(1);
-  });
-  it('drag down (deltaPx>0) shrinks scale', () => {
-    expect(scaleByDrag(1, 100)).toBeLessThan(1);
-  });
-  it('clamps the result', () => {
-    expect(scaleByDrag(10, -1000)).toBe(10);
-  });
-});
-
 describe('offsetByDrag', () => {
   const frame = { yMin: 0, yMax: 100, gridTop: 0, gridBottom: 0, chartHeight: 100 };
   it('drag up (currentPy<startPy) increases offset (curve moves up)', () => {
@@ -46,5 +36,33 @@ describe('offsetByDrag', () => {
   it('preserves start offset base', () => {
     const off = offsetByDrag(5, 50, 50, frame);
     expect(off).toBeCloseTo(5, 7);
+  });
+});
+
+describe('computePeakNormalizeFactor', () => {
+  const curve: CurveData = { name: 'test', color: '#000', data: [[0, 10], [1, 50], [2, 30], [3, 100], [5, 20]] };
+  const offset: CurveOffsets = { xOffset: 0, yOffset: 0 };
+
+  it('returns targetPeak / peakY when peak > 0', () => {
+    expect(computePeakNormalizeFactor(curve, offset, [0, 5], 200)).toBeCloseTo(2.0, 5);
+  });
+
+  it('returns 1 when peak <= 0', () => {
+    const flatCurve: CurveData = { name: 'flat', color: '#000', data: [[0, 0], [1, 0]] };
+    expect(computePeakNormalizeFactor(flatCurve, offset, [0, 1], 100)).toBe(1);
+  });
+
+  it('filters by xRange', () => {
+    expect(computePeakNormalizeFactor(curve, offset, [0, 2], 100)).toBeCloseTo(2.0, 5);
+  });
+
+  it('returns 1 when no data points in xRange', () => {
+    expect(computePeakNormalizeFactor(curve, offset, [10, 20], 100)).toBe(1);
+  });
+
+  it('accounts for xOffset', () => {
+    const shiftedCurve: CurveData = { name: 'shifted', color: '#000', data: [[100, 50]] };
+    const shiftedOffset: CurveOffsets = { xOffset: -100, yOffset: 0 };
+    expect(computePeakNormalizeFactor(shiftedCurve, shiftedOffset, [0, 10], 100)).toBeCloseTo(2.0);
   });
 });

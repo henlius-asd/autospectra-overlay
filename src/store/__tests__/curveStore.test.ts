@@ -1,6 +1,73 @@
 import { describe, it, expect } from 'vitest';
 import { deriveBaseline, useCurveStore } from '../curveStore';
-import type { BraceAnnotation } from '@/types';
+import type { BraceAnnotation, CurveData, DataPoint } from '@/types';
+
+describe('globalScale', () => {
+  it('defaults to 1', () => {
+    expect(useCurveStore.getState().globalScale).toBe(1);
+  });
+
+  it('setGlobalScale updates and clamps to [0.1, 10]', () => {
+    useCurveStore.getState().setGlobalScale(2.5);
+    expect(useCurveStore.getState().globalScale).toBe(2.5);
+    useCurveStore.getState().setGlobalScale(0.05);
+    expect(useCurveStore.getState().globalScale).toBe(0.1);
+    useCurveStore.getState().setGlobalScale(20);
+    expect(useCurveStore.getState().globalScale).toBe(10);
+  });
+
+  it('resetGlobalScale sets to 1', () => {
+    useCurveStore.getState().setGlobalScale(3);
+    useCurveStore.getState().resetGlobalScale();
+    expect(useCurveStore.getState().globalScale).toBe(1);
+  });
+});
+
+describe('normalizeFactors', () => {
+  it('defaults to empty object', () => {
+    expect(useCurveStore.getState().normalizeFactors).toEqual({});
+  });
+
+  it('setNormalizeFactor sets a factor for a curve', () => {
+    useCurveStore.getState().setNormalizeFactor('curveA', 2.0);
+    expect(useCurveStore.getState().normalizeFactors['curveA']).toBe(2.0);
+  });
+
+  it('clearNormalizeFactors resets all to empty', () => {
+    useCurveStore.getState().setNormalizeFactor('curveA', 2.0);
+    useCurveStore.getState().setNormalizeFactor('curveB', 0.5);
+    useCurveStore.getState().clearNormalizeFactors();
+    expect(useCurveStore.getState().normalizeFactors).toEqual({});
+  });
+
+  it('normalizeAllPeak sets factors relative to baseline peak', () => {
+    const curveA: CurveData = { name: 'A', color: '#000', data: [[0, 50], [1, 100], [2, 80]] as DataPoint[] };
+    const curveB: CurveData = { name: 'B', color: '#111', data: [[0, 200], [1, 150], [2, 180]] as DataPoint[] };
+    useCurveStore.getState().addCurves([curveA, curveB]);
+    const state = useCurveStore.getState();
+    const ids = Object.keys(state.curves);
+    const idA = ids[0];
+    const idB = ids[1];
+    useCurveStore.getState().toggleCurveVisibility(idA);
+    useCurveStore.getState().toggleCurveVisibility(idB);
+    // idB is last in stagingOrder → baseline
+    useCurveStore.getState().normalizeAllPeak([0, 2]);
+    const factors = useCurveStore.getState().normalizeFactors;
+    // baselinePeak = 200, curveA peak = 100, factor = 200/100 = 2
+    expect(factors[idA]).toBeCloseTo(2.0, 5);
+    // curveB peak = 200, factor = 200/200 = 1
+    expect(factors[idB]).toBeCloseTo(1.0, 5);
+  });
+
+  it('removeCurve cleans up normalizeFactors', () => {
+    const curve: CurveData = { name: 'C', color: '#000', data: [[0, 10]] as DataPoint[] };
+    useCurveStore.getState().addCurves([curve]);
+    const id = Object.keys(useCurveStore.getState().curves)[0];
+    useCurveStore.getState().setNormalizeFactor(id, 3.0);
+    useCurveStore.getState().removeCurve(id);
+    expect(useCurveStore.getState().normalizeFactors[id]).toBeUndefined();
+  });
+});
 
 describe('deriveBaseline', () => {
   it('returns null for empty stagingOrder', () => {

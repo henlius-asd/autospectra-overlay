@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { temporal, TemporalState } from 'zundo';
 import type { CurveData, BraceAnnotation, PointLabel } from '@/types';
+import { clampScale } from '@/components/chart/curveScaleMath';
 
 export interface CurveOffsets {
   xOffset: number;
@@ -15,6 +16,8 @@ interface CurveState {
   layerSpacing: number;
   curveScales: Record<string, number>;
   curveScaleOffsets: Record<string, number>;
+  normalizeFactors: Record<string, number>;
+  globalScale: number;
   baselineId: string | null;
   braces: BraceAnnotation[];
   pointLabels: PointLabel[];
@@ -28,6 +31,11 @@ interface CurveState {
   setLayerSpacing: (spacing: number) => void;
   setCurveScale: (id: string, scale: number) => void;
   setCurveScaleOffset: (id: string, offset: number) => void;
+  setGlobalScale: (s: number) => void;
+  resetGlobalScale: () => void;
+  setNormalizeFactor: (id: string, f: number) => void;
+  normalizeAllPeak: (xRange: [number, number]) => void;
+  clearNormalizeFactors: () => void;
   setCurveColor: (id: string, color: string) => void;
   setStagingOrder: (order: string[]) => void;
   setDisplayName: (id: string, displayName: string) => void;
@@ -67,6 +75,8 @@ export const useCurveStore = create<CurveState>()(
       layerSpacing: 0,
       curveScales: {},
       curveScaleOffsets: {},
+      normalizeFactors: {},
+      globalScale: 1,
       baselineId: null,
       braces: [],
       pointLabels: [],
@@ -93,18 +103,21 @@ export const useCurveStore = create<CurveState>()(
           const offsets = { ...state.offsets };
           const curveScales = { ...state.curveScales };
           const curveScaleOffsets = { ...state.curveScaleOffsets };
+          const normalizeFactors = { ...state.normalizeFactors };
           const visibleCurves = { ...state.visibleCurves };
           const stagingOrder = state.stagingOrder.filter((oid) => oid !== id);
           delete curves[id];
           delete offsets[id];
           delete curveScales[id];
           delete curveScaleOffsets[id];
+          delete normalizeFactors[id];
           delete visibleCurves[id];
           return {
             curves,
             offsets,
             curveScales,
             curveScaleOffsets,
+            normalizeFactors,
             visibleCurves,
             stagingOrder,
             baselineId: deriveBaseline(stagingOrder, visibleCurves),
@@ -117,6 +130,7 @@ export const useCurveStore = create<CurveState>()(
           const offsets = { ...state.offsets };
           const curveScales = { ...state.curveScales };
           const curveScaleOffsets = { ...state.curveScaleOffsets };
+          const normalizeFactors = { ...state.normalizeFactors };
           const visibleCurves = { ...state.visibleCurves };
           const removedIds = new Set<string>();
 
@@ -126,6 +140,7 @@ export const useCurveStore = create<CurveState>()(
               delete offsets[id];
               delete curveScales[id];
               delete curveScaleOffsets[id];
+              delete normalizeFactors[id];
               delete visibleCurves[id];
               removedIds.add(id);
             }
@@ -138,6 +153,7 @@ export const useCurveStore = create<CurveState>()(
             offsets,
             curveScales,
             curveScaleOffsets,
+            normalizeFactors,
             visibleCurves,
             stagingOrder,
             baselineId: deriveBaseline(stagingOrder, visibleCurves),
@@ -203,6 +219,55 @@ export const useCurveStore = create<CurveState>()(
         set((state) => ({
           curveScaleOffsets: { ...state.curveScaleOffsets, [id]: offset },
         })),
+
+      setGlobalScale: (s) =>
+        set(() => ({
+          globalScale: clampScale(s),
+        })),
+
+      resetGlobalScale: () => set({ globalScale: 1 }),
+
+      setNormalizeFactor: (id, f) =>
+        set((state) => ({
+          normalizeFactors: { ...state.normalizeFactors, [id]: f },
+        })),
+
+      normalizeAllPeak: (xRange) =>
+        set((state) => {
+          const baselineId = deriveBaseline(state.stagingOrder, state.visibleCurves);
+          if (!baselineId) return state;
+          const baselineCurve = state.curves[baselineId];
+          if (!baselineCurve) return state;
+          const baselineOffset = state.offsets[baselineId] ?? { xOffset: 0, yOffset: 0 };
+          let baselinePeak = -Infinity;
+          for (const [x, y] of baselineCurve.data) {
+            if (x + baselineOffset.xOffset >= xRange[0] && x + baselineOffset.xOffset <= xRange[1]) {
+              if (y > baselinePeak) baselinePeak = y;
+            }
+          }
+          if (!isFinite(baselinePeak) || baselinePeak <= 0) return state;
+          const normalizeFactors = { ...state.normalizeFactors };
+          for (const id of state.stagingOrder) {
+            if (!state.visibleCurves[id]) continue;
+            const curve = state.curves[id];
+            if (!curve) continue;
+            const offset = state.offsets[id] ?? { xOffset: 0, yOffset: 0 };
+            let peak = -Infinity;
+            for (const [x, y] of curve.data) {
+              if (x + offset.xOffset >= xRange[0] && x + offset.xOffset <= xRange[1]) {
+                if (y > peak) peak = y;
+              }
+            }
+            if (isFinite(peak) && peak > 0) {
+              normalizeFactors[id] = baselinePeak / peak;
+            } else {
+              normalizeFactors[id] = 1;
+            }
+          }
+          return { normalizeFactors };
+        }),
+
+      clearNormalizeFactors: () => set({ normalizeFactors: {} }),
 
       setCurveColor: (id, color) =>
         set((state) => {

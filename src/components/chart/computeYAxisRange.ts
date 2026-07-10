@@ -7,13 +7,6 @@ import { LABEL_PADDING_RATIO } from './WaterfallChart';
  * Tracks both rawDataMin and rawDataMax to support negative values.
  * Y-axis range is based on raw data only — per-curve scaling is applied
  * in rendering with clip: false so scaled curves can overflow the axis.
- *
- * @param visibleIds - Array of visible curve IDs in display order
- * @param curves - Map of curve ID to curve data
- * @param offsets - Map of curve ID to offsets
- * @param xRange - Current X-axis visible range [min, max]
- * @param layerSpacing - Layer spacing multiplier from UI slider
- * @returns Object containing all computed Y-axis range parameters
  */
 export function computeYAxisRange(
   visibleIds: string[],
