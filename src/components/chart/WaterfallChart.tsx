@@ -53,6 +53,7 @@ export default function WaterfallChart() {
   const globalScale = useCurveStore((s) => s.globalScale);
   const setCurveScale = useCurveStore((s) => s.setCurveScale);
   const setCurveScaleOffset = useCurveStore((s) => s.setCurveScaleOffset);
+  const setGlobalScale = useCurveStore((s) => s.setGlobalScale);
   const xRange = useUiStore((s) => s.xRange);
   const scaleMode = useUiStore((s) => s.scaleMode);
   const activeScaledCurveId = useUiStore((s) => s.activeScaledCurveId);
@@ -379,13 +380,16 @@ export default function WaterfallChart() {
         gridLeft={gridLeft}
         gridRight={gridRight}
       />
-      {scaleMode !== 'off' && activeScaledCurveId && (
+      {scaleMode !== 'off' && (
         <CurveScaleOverlay
-          curveId={activeScaledCurveId}
+          scaleMode={scaleMode}
+          curveId={activeScaledCurveId ?? ''}
           curves={curves}
           offsets={offsets}
           curveScales={curveScales}
           curveScaleOffsets={curveScaleOffsets}
+          normalizeFactors={normalizeFactors}
+          globalScale={globalScale}
           xRange={xRange}
           chartHeight={chartDims.height}
           gridTop={gridTop}
@@ -393,7 +397,13 @@ export default function WaterfallChart() {
           visibleFrame={{ yMin: visibleYRange[0], yMax: visibleYRange[1] }}
           setCurveScale={setCurveScale}
           setCurveScaleOffset={setCurveScaleOffset}
-          onDeselect={() => setActiveScaledCurveId(null)}
+          setGlobalScale={setGlobalScale}
+          onDeselect={() => {
+            setActiveScaledCurveId(null);
+            if (scaleMode === 'merge') {
+              useUiStore.getState().setScaleMode('off');
+            }
+          }}
         />
       )}
       <div className="absolute top-1/2 right-1 -translate-y-1/2 h-3/5 flex flex-col items-center gap-1.5 pointer-events-none">

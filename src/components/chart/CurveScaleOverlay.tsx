@@ -1,15 +1,18 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import type { CurveData } from '@/types';
 import type { CurveOffsets } from '@/store/curveStore';
 import { yToPixel } from './yPixelMath';
-import { scaleByWheel, scaleByDrag, offsetByDrag } from './curveScaleMath';
+import { scaleByWheel, offsetByDrag } from './curveScaleMath';
 
 interface Props {
+  scaleMode: 'off' | 'split' | 'merge';
   curveId: string;
   curves: Record<string, CurveData>;
   offsets: Record<string, CurveOffsets>;
   curveScales: Record<string, number>;
   curveScaleOffsets: Record<string, number>;
+  normalizeFactors: Record<string, number>;
+  globalScale: number;
   xRange: [number, number];
   chartHeight: number;
   gridTop: number;
@@ -17,17 +20,19 @@ interface Props {
   visibleFrame: { yMin: number; yMax: number };
   setCurveScale: (id: string, scale: number) => void;
   setCurveScaleOffset: (id: string, offset: number) => void;
+  setGlobalScale: (s: number) => void;
   onDeselect: () => void;
 }
 
 export default function CurveScaleOverlay({
-  curveId, curves, offsets, curveScales, curveScaleOffsets,
+  scaleMode, curveId, curves, offsets, curveScales, curveScaleOffsets,
+  normalizeFactors, globalScale,
   xRange, chartHeight, gridTop, gridBottom, visibleFrame,
-  setCurveScale, setCurveScaleOffset, onDeselect,
+  setCurveScale, setCurveScaleOffset, setGlobalScale,
+  onDeselect,
 }: Props) {
   const scale = curveScales[curveId] ?? 1;
   const scaleOffset = curveScaleOffsets[curveId] ?? 0;
-  const [displayScale, setDisplayScale] = useState(scale);
   const dragRef = useRef<{ startY: number; startScale: number; startOffset: number; shift: boolean } | null>(null);
 
   const curve = curves[curveId];
@@ -46,31 +51,29 @@ export default function CurveScaleOverlay({
   }
 
   const onWheel = useCallback((e: React.WheelEvent) => {
-    if (!isFinite(originalMin) || !isFinite(originalMax)) return;
     e.preventDefault();
-    const next = scaleByWheel(scale, e.deltaY);
-    setCurveScale(curveId, next);
-    setDisplayScale(next);
-  }, [curveId, scale, originalMin, originalMax, setCurveScale]);
+    if (scaleMode === 'merge') {
+      setGlobalScale(scaleByWheel(globalScale, e.deltaY));
+    } else if (scaleMode === 'split' && isFinite(originalMin) && isFinite(originalMax)) {
+      const cur = curveScales[curveId] ?? 1;
+      const next = scaleByWheel(cur, e.deltaY);
+      setCurveScale(curveId, next);
+    }
+  }, [scaleMode, curveId, globalScale, curveScales, originalMin, originalMax, setCurveScale, setGlobalScale]);
 
   const onMouseDown = (e: React.MouseEvent) => {
+    if (scaleMode !== 'split') return;
     if (!isFinite(originalMin) || !isFinite(originalMax)) return;
+    if (!e.shiftKey) return;
     e.stopPropagation();
     e.preventDefault();
-    dragRef.current = { startY: e.clientY, startScale: scale, startOffset: scaleOffset, shift: e.shiftKey };
+    dragRef.current = { startY: e.clientY, startScale: scale, startOffset: scaleOffset, shift: true };
     const frame = { yMin: visibleFrame.yMin, yMax: visibleFrame.yMax, gridTop, gridBottom, chartHeight };
     const onMove = (ev: MouseEvent) => {
       const d = dragRef.current;
       if (!d) return;
-      const deltaPx = ev.clientY - d.startY;
-      if (d.shift) {
-        const next = offsetByDrag(d.startOffset, d.startY, ev.clientY, frame);
-        setCurveScaleOffset(curveId, next);
-      } else {
-        const next = scaleByDrag(d.startScale, deltaPx);
-        setCurveScale(curveId, next);
-        setDisplayScale(next);
-      }
+      const next = offsetByDrag(d.startOffset, d.startY, ev.clientY, frame);
+      setCurveScaleOffset(curveId, next);
     };
     const onUp = () => {
       document.removeEventListener('mousemove', onMove);
@@ -81,21 +84,41 @@ export default function CurveScaleOverlay({
     document.addEventListener('mouseup', onUp);
   };
   const onDoubleClick = useCallback(() => {
-    setCurveScale(curveId, 1);
-    setCurveScaleOffset(curveId, 0);
-    setDisplayScale(1);
-  }, [curveId, setCurveScale, setCurveScaleOffset]);
+    if (scaleMode === 'merge') {
+      setGlobalScale(1);
+    } else if (scaleMode === 'split') {
+      setCurveScale(curveId, 1);
+      setCurveScaleOffset(curveId, 0);
+    }
+  }, [scaleMode, curveId, setCurveScale, setCurveScaleOffset, setGlobalScale]);
 
   const onKeyDown = useCallback((e: KeyboardEvent) => {
-    if (e.key === 'Escape') onDeselect();
-  }, [onDeselect]);
+    if (e.key === 'Escape') {
+      if (scaleMode === 'split') {
+        onDeselect();
+      } else if (scaleMode === 'merge') {
+        onDeselect();
+      }
+    }
+  }, [onDeselect, scaleMode]);
 
   useEffect(() => {
     document.addEventListener('keydown', onKeyDown);
     return () => document.removeEventListener('keydown', onKeyDown);
   }, [onKeyDown]);
 
-  const valid = curve && curve.data.length > 0 && isFinite(originalMin) && isFinite(originalMax);
+  const valid = scaleMode === 'split'
+    ? curve && curve.data.length > 0 && isFinite(originalMin) && isFinite(originalMax)
+    : true;
+
+  const badgeText = scaleMode === 'merge'
+    ? `×${globalScale.toFixed(1)}`
+    : scaleMode === 'split'
+    ? `×${((normalizeFactors[curveId] ?? 1) * globalScale * scale).toFixed(1)}`
+    : '';
+
+  const badgeOffset = scaleMode === 'split' ? (curveScaleOffsets[curveId] ?? 0) : 0;
+
   const midPy = valid
     ? yToPixel((originalMin + originalMax) / 2 * scale + scaleOffset, {
         yMin: visibleFrame.yMin, yMax: visibleFrame.yMax, gridTop, gridBottom, chartHeight,
@@ -110,14 +133,14 @@ export default function CurveScaleOverlay({
       onMouseDown={onMouseDown}
       onDoubleClick={onDoubleClick}
     >
-      {valid && (
+      {badgeText && (
         <div className="absolute text-[10px] font-mono text-blue-600 bg-white bg-opacity-80 px-1 rounded pointer-events-none"
           style={{ left: 8, top: Math.max(gridTop, midPy - 8) }}>
-          ×{displayScale.toFixed(1)}
-          {scaleOffset !== 0 ? ` Δ${scaleOffset.toFixed(0)}` : ''}
+          {badgeText}
+          {badgeOffset !== 0 && scaleMode === 'split' ? ` Δ${badgeOffset.toFixed(0)}` : ''}
         </div>
       )}
-      {!valid && (
+      {!badgeText && !valid && (
         <div className="absolute text-[10px] text-gray-400 pointer-events-none" style={{ left: 8, top: gridTop }}>—</div>
       )}
     </div>
