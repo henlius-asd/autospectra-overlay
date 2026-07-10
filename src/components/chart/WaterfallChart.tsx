@@ -148,9 +148,8 @@ export default function WaterfallChart() {
   const yAxisFullRange = useMemo(() =>
     computeYAxisRange(
       visibleIds, curves, offsets, xRange, layerSpacing,
-      normalizeFactors, globalScale, curveScales, curveScaleOffsets,
     ),
-    [visibleIds, curves, offsets, xRange, layerSpacing, normalizeFactors, globalScale, curveScales, curveScaleOffsets],
+    [visibleIds, curves, offsets, xRange, layerSpacing],
   );
 
   useEffect(() => {
@@ -214,7 +213,7 @@ export default function WaterfallChart() {
         },
         large: true,
         sampling: 'lttb' as const,
-        clip: true,
+        clip: false,
       };
     });
 
@@ -442,12 +441,13 @@ export default function WaterfallChart() {
         onChartReady={onChartReady}
         onEvents={{
           dataZoom: onDataZoom,
-          click: (params: { seriesId?: string }) => {
-            if (params.seriesId) {
-              if (selectedCurveId === params.seriesId) {
+          click: (params: { seriesId?: string; seriesIndex?: number }) => {
+            if (params.seriesIndex != null && params.seriesIndex >= 0 && params.seriesIndex < visibleIds.length) {
+              const id = visibleIds[params.seriesIndex];
+              if (selectedCurveId === id) {
                 setSelectedCurveId(null);
               } else {
-                setSelectedCurveId(params.seriesId);
+                setSelectedCurveId(id);
               }
             }
           },

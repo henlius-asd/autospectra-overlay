@@ -57,7 +57,6 @@ export async function exportChartImage(): Promise<void> {
   const visibleIds = state.stagingOrder.filter((id) => state.visibleCurves[id]);
   const rangeResult = computeYAxisRange(
     visibleIds, state.curves, state.offsets, xRange, state.layerSpacing,
-    state.normalizeFactors ?? {}, state.globalScale ?? 1, state.curveScales ?? {}, state.curveScaleOffsets ?? {},
   );
 
   const yZoomRange = useUiStore.getState().yZoomRange;
