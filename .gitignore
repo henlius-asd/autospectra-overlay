@@ -60,6 +60,7 @@ raw_data/
 
 # Superpowers (local docs)
 docs/superpowers/
+.superpowers/
 
 # Git worktrees (local)
 .worktrees/
