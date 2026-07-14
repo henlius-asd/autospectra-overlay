@@ -17,15 +17,6 @@ TBD - created by archiving change polish-annotations-and-export. Update Purpose 
 - **WHEN** 图表中有多条可见曲线且 layerSpacing > 0
 - **THEN** 点标签的纵向基线为最顶曲线（`visibleIds[0]`）在该 X 处的渲染像素 y（含该层 layerYOffset 与 offset.yOffset），而非全局 maxY 线
 
-### Requirement: 点标签无装饰外框
-
-点标签 SHALL 仅渲染文字，SHALL NOT 渲染外框矩形、对齐原点圆点或连接虚线。屏幕端渲染与导出端渲染 SHALL 一致。
-
-#### Scenario: 屏幕与导出均无外框原点虚线
-
-- **WHEN** 图表中存在已创建的点标签
-- **THEN** 屏幕显示与导出 PNG 中均只出现标签文字，不出现 rect 外框、circle 原点或 dashed line
-
 ### Requirement: 点标签可拖动
 
 已创建的点标签 SHALL 支持拖拽改变位置。横向拖拽改变标签的 X 数据坐标，纵向拖拽改变 `yOffset`。
@@ -65,41 +56,31 @@ TBD - created by archiving change polish-annotations-and-export. Update Purpose 
 
 ### Requirement: 点标签渲染
 
-点标签 SHALL 以"标签框 + 竖线 + 圆点"的形式渲染：上方为带背景的标签文字框，中间一条竖线连接到曲线上的小圆点标记。标签框字号、字体、字重、文字颜色、背景色 SHALL 取自 `labelStyle`——优先使用该标签自身的样式覆盖（若存在），否则回退到 `uiStore.labelStyle` 默认值，再回退到内置默认（字号 10）。SHALL NOT 使用硬编码字号。
+点标签 SHALL 仅渲染文字，SHALL NOT 渲染外框矩形、对齐原点圆点或连接虚线。屏幕端渲染与导出端渲染 SHALL 一致。字号、字体、字重、文字颜色 SHALL 取自 `uiStore.labelStyle` 默认值，回退到内置默认（字号 10）。SHALL NOT 使用硬编码字号。
 
 #### Scenario: 标签视觉样式
 
 - **WHEN** 一个点标签被创建并显示在图表上
-- **THEN** 标签由三部分组成：上方圆角矩形背景的文字标签、中间竖直连接线、下方在曲线上的小圆点，字号/字体/字重/颜色取自当前 `labelStyle`
+- **THEN** 标签仅渲染 `<text>` 元素，不出现 `<rect>` 外框、`<circle>` 原点或 `<line>` 连接线；字号/字体/字重/颜色取自当前 `labelStyle`
 
 #### Scenario: 调整默认字号后实时更新
 
 - **WHEN** 用户在工具栏"标签样式"面板将默认字号从 10 改为 14
-- **THEN** 所有未单独覆盖样式的点标签立即以 14px 重渲染
+- **THEN** 所有点标签立即以 14px 重渲染
 
 ### Requirement: 标签样式编辑
 
-系统 SHALL 在工具栏提供"标签样式"按钮，点击后弹出样式编辑面板，支持调整默认标签样式：字号（范围 6–28）、字体、字重（常规/加粗）、文字颜色、背景色。当用户选中某一点标签时，同一面板 SHALL 切换为编辑该标签的单独样式覆盖（可清空覆盖回退到默认）。样式变更 SHALL 纳入 zundo undo/redo。
+系统 SHALL 在工具栏提供"标签样式"按钮，点击后弹出样式编辑面板，支持调整默认标签样式：字号（范围 6–28）、字体、字重（常规/加粗）、文字颜色、背景色。该面板 SHALL 仅编辑全局默认 `LabelStyle` 存储在 `uiStore` 中，不支持编辑单个标签的样式覆盖。样式变更 SHALL NOT 纳入 zundo undo/redo。
 
 #### Scenario: 打开样式编辑面板
 
 - **WHEN** 用户点击工具栏"标签样式"按钮
 - **THEN** 弹出样式面板，显示当前默认字号/字体/字重/颜色，可调整
 
-#### Scenario: 选中单个标签编辑其样式
+#### Scenario: 调整默认字号后实时更新
 
-- **WHEN** 用户选中一个点标签后打开样式面板
-- **THEN** 面板显示该标签的样式（或"跟随默认"），用户调整 SHALL 仅作用于该标签
-
-#### Scenario: 清除单标签覆盖
-
-- **WHEN** 用户在单标签样式面板点击"恢复默认"
-- **THEN** 该标签样式覆盖被清除，回退到默认 `labelStyle`
-
-#### Scenario: 撤销样式变更
-
-- **WHEN** 用户修改默认字号后按 Ctrl+Z
-- **THEN** 字号恢复为修改前的值
+- **WHEN** 用户在样式面板调整字号从 10 改为 14
+- **THEN** 所有点标签立即以 14px 重渲染
 
 ### Requirement: 点标签导出
 
@@ -112,7 +93,7 @@ TBD - created by archiving change polish-annotations-and-export. Update Purpose 
 
 ### Requirement: 标签样式持久化
 
-默认 `labelStyle` SHALL 存储在 uiStore 中，通过 localForage 持久化到 IndexedDB，并纳入 workspace JSON 导入/导出。单标签的样式覆盖 SHALL 随标签数据持久化。
+默认 `labelStyle` SHALL 存储在 uiStore 中，通过 localForage 持久化到 IndexedDB，并纳入 workspace JSON 导入/导出。单标签无样式覆盖，无需持久化单标签样式。
 
 #### Scenario: 刷新后样式保留
 

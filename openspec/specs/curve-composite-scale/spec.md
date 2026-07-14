@@ -76,7 +76,7 @@
 
 ### Requirement: Y 轴范围自适应缩放
 
-生成 Y 轴范围时，系统 SHALL 基于原始未缩放数据（仅 `yVal + offset.yOffset`）计算 `rawDataMin` 和 `rawDataMax`。缩放后的曲线 SHALL 通过 `clip: false` 溢出轴范围。`computeYAxisRange` SHALL NOT 接受 `normalizeFactors`、`globalScale`、`curveScales`、`curveScaleOffsets` 参数。
+生成 Y 轴范围时，系统 SHALL 基于原始未缩放数据（仅 `yVal + offset.yOffset`）计算 `rawDataMin` 和 `rawDataMax`，且 SHALL 遍历每条可见曲线的**全部**数据点（SHALL NOT 按当前 `xRange` 窗口过滤）。`dataSpan`、`yRangeForLayer`、`yAxisMin`、`yAxisMax` SHALL 全部由全量数据派生，从而在用户平移/缩放 X 轴时保持稳定。缩放后的曲线 SHALL 通过 `clip: false` 溢出轴范围。`computeYAxisRange` SHALL NOT 接受 `normalizeFactors`、`globalScale`、`curveScales`、`curveScaleOffsets`、`xRange` 参数。
 
 #### Scenario: 全局放大后曲线可见变大
 
@@ -92,6 +92,11 @@
 
 - **WHEN** 用户缩放曲线后
 - **THEN** Y 轴范围保持不变（基于原始数据），只有曲线数据改变
+
+#### Scenario: X 平移/缩放不改变 Y 轴范围与层间距
+
+- **WHEN** 用户已加载曲线并通过 dataZoom 平移或缩放 X 轴到不同可视窗口（窗口内极值与全量极值不同）
+- **THEN** `yAxisMin`、`yAxisMax`、`dataSpan`、`yRangeForLayer` 保持不变，曲线不自动重缩放、曲线层（`layerYOffset`）不发生垂直错位
 
 ### Requirement: 两个独立缩放工具
 

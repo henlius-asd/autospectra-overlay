@@ -7,12 +7,17 @@ import { LABEL_PADDING_RATIO } from './WaterfallChart';
  * Tracks both rawDataMin and rawDataMax to support negative values.
  * Y-axis range is based on raw data only — per-curve scaling is applied
  * in rendering with clip: false so scaled curves can overflow the axis.
+ *
+ * The canvas (yAxisMin/Max, dataSpan, yRangeForLayer) is computed over the
+ * FULL data of every visible curve, NOT the current X viewport. This keeps
+ * the Y axis and layer spacing stable while the user pans/zooms the X axis,
+ * so curves no longer auto-rescale or shift position when the visible
+ * window's extremes change.
  */
 export function computeYAxisRange(
   visibleIds: string[],
   curves: Record<string, CurveData>,
   offsets: Record<string, CurveOffsets>,
-  xRange: [number, number],
   layerSpacing: number,
 ): {
   rawDataMin: number;
@@ -23,23 +28,21 @@ export function computeYAxisRange(
   yAxisMax: number;
   maxY: number;
 } {
-  // Track both min and max across all visible curves
+  // Track both min and max across all visible curves (full data, no X filter)
   let rawDataMin = Infinity;
   let rawDataMax = -Infinity;
 
   for (const id of visibleIds) {
     const curve = curves[id];
     const offset = offsets[id] ?? { xOffset: 0, yOffset: 0 };
-    for (const [x, yVal] of curve.data) {
-      if (x + offset.xOffset >= xRange[0] && x + offset.xOffset <= xRange[1]) {
-        const adjusted = yVal + offset.yOffset;
-        if (adjusted < rawDataMin) rawDataMin = adjusted;
-        if (adjusted > rawDataMax) rawDataMax = adjusted;
-      }
+    for (const [, yVal] of curve.data) {
+      const adjusted = yVal + offset.yOffset;
+      if (adjusted < rawDataMin) rawDataMin = adjusted;
+      if (adjusted > rawDataMax) rawDataMax = adjusted;
     }
   }
 
-  // Handle case where no data points are in range
+  // Handle case where there are no data points
   if (!isFinite(rawDataMin) || !isFinite(rawDataMax)) {
     rawDataMin = 0;
     rawDataMax = 1;

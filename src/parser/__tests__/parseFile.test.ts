@@ -161,6 +161,31 @@ describe('parseEmpowerV2 - ARW V2 format', () => {
     // V1 must NOT emit V2 warning
     expect(result.metadata!['__v2ParseWarning']).toBeUndefined();
   });
+
+  it('reports non-two-column data rows as __v2ParseWarnings', () => {
+    const v2WithBadRows =
+      'SampleName\n' +
+      'Test Channel Description\n' +
+      'PDA Date Acquired\n' +
+      '2026-01-01 Det. Units\n' +
+      'au Acq Method Set\n' +
+      'M Instrument Method Name\n' +
+      'M Comments\n' +
+      'CommentsValue 0.1\n' +           // 衔接行
+      '1.0 0.2\n' +                     // 正常数据行
+      'this is not a valid row\n' +    // 异常行：非两列数字
+      'x y z\n' +                       // 异常行：三列
+      '2.0 0.3\n';                      // 正常数据行
+
+    const result = parseFileContent('x.arw', v2WithBadRows);
+
+    expect(result.curves[0].data).toHaveLength(2); // 只有两行正常数据
+    expect(result.__v2ParseWarnings).toBeDefined();
+    expect(result.__v2ParseWarnings!.length).toBe(2);
+    expect(result.__v2ParseWarnings![0].line).toBeGreaterThan(0);
+    expect(result.__v2ParseWarnings![0].content).toContain('not a valid row');
+    expect(result.__v2ParseWarnings![1].content).toContain('x y z');
+  });
 });
 
 describe('isEmpowerV2 - negative cases', () => {
@@ -232,7 +257,7 @@ describe('transformEmpowerV2ToV1 BOM handling', () => {
       '0.008333334 -3.30694e-05\n' +
       '0.01666667 -5.171448e-05';
 
-    const v1Content = transformEmpowerV2ToV1(v2Content);
+    const v1Content = transformEmpowerV2ToV1(v2Content).content;
     expect(v1Content.startsWith('\uFEFF')).toBe(false);
     expect(v1Content.startsWith('"SampleName"')).toBe(true);
   });
@@ -249,7 +274,7 @@ describe('transformEmpowerV2ToV1 BOM handling', () => {
       '0.008333334 1.0\n' +
       '0.01666667 2.0';
 
-    const v1Content = transformEmpowerV2ToV1(v2Content);
+    const v1Content = transformEmpowerV2ToV1(v2Content).content;
     expect(v1Content.startsWith('"SampleName"')).toBe(true);
   });
 });

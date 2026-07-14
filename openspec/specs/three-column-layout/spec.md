@@ -12,11 +12,6 @@ TBD - created by archiving change phase-1-project-scaffold. Update Purpose after
 - **WHEN** 页面首次加载
 - **THEN** 左栏宽度 240px、中栏填充剩余宽度、右栏宽度 320px
 
-#### Scenario: 最小分辨率适配
-
-- **WHEN** 浏览器窗口宽度 ≥ 1366px
-- **THEN** 三栏均可见，中栏有足够渲染空间
-
 ### Requirement: 左右栏折叠与展开
 
 左栏和右栏 SHALL 各有一个折叠/展开按钮。点击折叠按钮后，面板宽度收为 48px 窄条，仅显示折叠图标。点击展开按钮恢复原宽度。折叠/展开行为 SHALL 有 CSS transition 动画过渡，且过渡 SHALL 仅作用于 width 属性。左右栏 SHALL 设置 `flex-shrink: 0`，确保在 flex 布局中不被压缩到小于指定宽度。
@@ -53,31 +48,31 @@ TBD - created by archiving change phase-1-project-scaffold. Update Purpose after
 
 ### Requirement: 各栏占位内容
 
-各栏 SHALL 包含明确的占位内容，标识后续模块的插入位置。
+各栏 SHALL 包含明确的占位内容，标识后续模块的插入位置。中栏 SHALL 直接渲染 Toolbar 和 WaterfallChart 组件，不显示"渲染区"占位文本。
 
 #### Scenario: 占位内容可见
 
 - **WHEN** 页面加载完成
-- **THEN** 左栏显示"数据区"占位文本，中栏显示"渲染区"占位文本，右栏显示"工具箱"占位文本
+- **THEN** 左栏显示"数据区"占位文本，中栏直接渲染 Toolbar 和 WaterfallChart，右栏显示"工具箱"占位文本
 
 ### Requirement: 右栏工具箱内容
 
 系统 SHALL 在右侧工具箱区域显示以下控制组件（按从上到下顺序）：
 - 元数据展示面板（MetadataPanel）：显示选中曲线的文件元数据，默认显示占位提示
+- 标签样式控制（LabelStyleControls）：控制区间标签的字体、颜色等样式
 - 自动对齐控制（AlignmentControls）：包含算法选择、ROI 范围、一键对齐按钮
-- Y 轴分层控制（AutoLayerControl）：包含层间距可视化滑块
 
 #### Scenario: 工具箱内容
 
 - **WHEN** 页面加载完成，右侧工具箱展开
-- **THEN** 从上到下依次显示"元数据"面板、"自动对齐"控制区域和"Y 轴分层"控制区域
+- **THEN** 从上到下依次显示"元数据"面板、"标签样式"控制区域和"自动对齐"控制区域
 
 ### Requirement: 工具栏大括号按钮
 
-顶部工具栏 SHALL 包含"插入大括号"按钮，用于触发大括号放置模式。
+顶部工具栏 SHALL 包含"区间标签"按钮，用于触发区间标签放置模式。
 
-#### Scenario: 工具栏显示大括号按钮
+#### Scenario: 工具栏显示区间标签按钮
 
 - **WHEN** 页面加载完成
-- **THEN** 工具栏中显示"插入大括号"按钮（位于导出按钮旁或之后）
+- **THEN** 工具栏中显示"区间标签"按钮（位于导出按钮旁或之后）
 

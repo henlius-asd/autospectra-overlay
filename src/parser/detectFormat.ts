@@ -23,7 +23,7 @@ export const EMPOWER_V2_KEYS = [
 ] as const;
 
 /**
- * Detect file format by reading the first 5 lines.
+ * Detect file format by scanning all lines for delimiter, data start, and metadata.
  * Returns FormatInfo with detected delimiter, column count, header info, and key-value metadata.
  */
 export function detectFormat(lines: string[]): FormatInfo {

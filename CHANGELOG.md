@@ -8,6 +8,14 @@ Release workflow: see [docs/VERSIONING.md](docs/VERSIONING.md).
 
 ## [Unreleased]
 
+### Added
+- ARW V2 解析：非两列数据行不再静默丢弃，改为输出 `__v2ParseWarnings` 警告（含行号与原始内容）并 `console.warn`，同时跳过该行继续解析。
+
+### Changed
+- **BREAKING** PPTX 导出由栅格图片重写为可编辑多图层矢量导出：每条曲线为独立 CUSTOM_GEOMETRY 折线 shape（降采样至 ≤200 点），点标签为椭圆+竖线+文本框组合，区间标签为二次贝塞尔弧线+竖线+文本框，X/Y 轴刻度为独立文本框。
+- 移除未使用的 `CurveScaleOverlay.tsx` 组件与 `CURVE_COLORS` 调色板（死代码）。
+- 更新 `detectFormat.ts` 注释：由"读前 5 行"修正为"全文件扫描"。
+
 ## [0.3.1] - 2026-07-09
 
 ### Fixed

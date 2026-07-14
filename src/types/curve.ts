@@ -37,4 +37,6 @@ export interface ParsedFile {
   /** Key-value metadata parsed from the file header (e.g., Waters Empower ARW format) */
   metadata?: Record<string, string>;
   curves: CurveData[];
+  /** Warnings from ARW V2 parsing (non-two-column data rows, etc.) */
+  __v2ParseWarnings?: Array<{ line: number; content: string }>;
 }

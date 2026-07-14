@@ -171,7 +171,10 @@ function parseDataRows(
  * This function returns content that is byte-for-byte compatible with the
  * existing V1 parsing pipeline (`detectFormat` + `parseFileContent`).
  */
-export function transformEmpowerV2ToV1(content: string): string {
+export function transformEmpowerV2ToV1(content: string): {
+  content: string;
+  warnings: Array<{ line: number; content: string }>;
+} {
   const normalized = content.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
   const lines = normalized.split('\n').filter(l => l.trim().length > 0);
   const knownKeys: readonly string[] = EMPOWER_V2_KEYS;
@@ -238,13 +241,19 @@ export function transformEmpowerV2ToV1(content: string): string {
   // 解析数据层（Line 8+）：y x 格式
   const dataPoints: [number, number][] = [];
   let currentX = x1;
+  const warnings: Array<{ line: number; content: string }> = [];
 
   for (let i = transitionLineIdx + 1; i < lines.length; i++) {
     const line = lines[i].trim();
     if (!line) continue;
 
     const tokens = line.split(/\s+/);
-    if (tokens.length !== 2) continue;
+    if (tokens.length !== 2) {
+      const warning = { line: i + 1, content: lines[i] };
+      warnings.push(warning);
+      console.warn(`[ARW V2] 第 ${i + 1} 行不是两列数据，已跳过: "${lines[i]}"`);
+      continue;
+    }
 
     const y = parseFloat(tokens[0]);
     const nextX = parseFloat(tokens[1]);
@@ -265,7 +274,7 @@ export function transformEmpowerV2ToV1(content: string): string {
     .map(([x, y]) => `${x}\t${y}`)
     .join('\n');
 
-  return mdLines + '\n' + dataLines + '\n';
+  return { content: mdLines + '\n' + dataLines + '\n', warnings };
 }
 
 /**
@@ -273,6 +282,10 @@ export function transformEmpowerV2ToV1(content: string): string {
  * to the regular V1 pipeline.
  */
 export function parseEmpowerV2(filename: string, content: string): ParsedFile {
-  const v1Content = transformEmpowerV2ToV1(content);
-  return parseFileContent(filename, v1Content);
+  const { content: v1Content, warnings } = transformEmpowerV2ToV1(content);
+  const result = parseFileContent(filename, v1Content);
+  if (warnings.length > 0) {
+    result.__v2ParseWarnings = warnings;
+  }
+  return result;
 }

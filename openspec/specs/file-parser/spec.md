@@ -50,23 +50,13 @@ TBD - created by archiving change phase-2-file-parser. Update Purpose after arch
 - **WHEN** 数据行有 4 列
 - **THEN** 解析为 3 个 `CurveData`（第 1 列为 Time，第 2-4 列为独立曲线），name 为 `文件名_列名`
 
-### Requirement: 表头检测
-
-若首行包含非数字字符（排除 `#`、科学计数法 `e/E`、正负号），系统 SHALL 判定为表头行，将其作为列名来源。
-
-#### Scenario: 有表头行的 CSV
-
-- **WHEN** 文件首行为 `Time,ChannelA,ChannelB`
-- **THEN** 首行被识别为表头，列名取自表头行
+> **Removed**: 表头检测
+> **Reason**: There is no header detection. Letter-starting lines (e.g., `Time,ChannelA,ChannelB`) are classified as comment/metadata lines by `isCommentLine` (which matches `/^[a-zA-Z]/`) and are skipped. The `detectHeader` function only checks lines that are neither numeric nor comment-classified, so header rows starting with a letter are never detected as headers.
+> **Migration**: Remove the `Requirement: 表头检测` block and its scenarios from the main spec. Column names are auto-generated as `Time, Channel1, Channel2, ...` based on column count. No header row parsing occurs.
 
 ### Requirement: 文件头跳过与元数据标签解析
 
-系统 SHALL 自动跳过以 `#`、`//`、`[`、字母开头的注释/元数据行。若文件前若干行为纯字符串标签行（每行一个标签值），自动按行解析为 `tags: string[]`。以首个纯数字数据行为标签区与数据区的分界。
-
-#### Scenario: 带字符串标签头的 .arw 文件
-
-- **WHEN** 文件前 3 行为 `SampleA`, `2024-01-15`, `254nm`，第 4 行起为 `0.0\t0.123`
-- **THEN** `tags` 为 `["SampleA", "2024-01-15", "254nm"]`，数据从第 4 行开始解析
+系统 SHALL 自动跳过以 `#`、`//`、`[`、字母开头的注释/元数据行。以首个纯数字数据行为标签区与数据区的分界。`ParsedFile` 不包含 `tags` 字段；字母起始行被归类为注释/元数据行并跳过，仅 `"key"\t"value"` 格式的引号行进入 `metadata`。
 
 #### Scenario: 带 # 注释行的文件
 

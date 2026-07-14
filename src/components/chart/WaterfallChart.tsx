@@ -151,9 +151,9 @@ export default function WaterfallChart() {
 
   const yAxisFullRange = useMemo(() =>
     computeYAxisRange(
-      visibleIds, curves, offsets, xRange, layerSpacing,
+      visibleIds, curves, offsets, layerSpacing,
     ),
-    [visibleIds, curves, offsets, xRange, layerSpacing],
+    [visibleIds, curves, offsets, layerSpacing],
   );
 
   useEffect(() => {
@@ -260,8 +260,7 @@ legend: {
         nameGap: 35,
         min: xMin,
         max: xMax,
-        onZero: false,
-        axisLine: { show: showXAxis },
+        axisLine: { show: showXAxis, onZero: false },
         axisTick: { show: showXAxis },
         axisLabel: { show: showXAxis },
         splitLine: { show: showGrid },

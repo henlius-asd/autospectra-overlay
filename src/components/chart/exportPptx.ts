@@ -3,57 +3,62 @@ import { useCurveStore, useUiStore } from '@/store';
 import { computeYAxisRange } from './computeYAxisRange';
 import { normalizeYZoomRange } from './yZoomRange';
 import { resolveLabelStyle } from './resolveLabelStyle';
-import { pixelToPptX, pixelToPptY } from './pixelToPpt';
+import { getSlideDimensions } from './pixelToPpt';
 import { getChartInstance } from './WaterfallChart';
 import { BRACE_COLOR } from './bracePath';
 import { getTopCurvePixelYAtX } from './labelGeometry';
 import { clampLabelX, clampLabelY, estimateTextWidth } from './labelClamp';
 
-function renderCurveToCanvas(
-  data: [number, number][],
-  width: number,
-  height: number,
-  color: string,
-  gridLeft: number,
-  gridRight: number,
-  gridTop: number,
-  gridBottom: number,
-  xRange: [number, number],
-  yMin: number,
-  yMax: number,
-): string {
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext('2d')!;
-  ctx.clearRect(0, 0, width, height);
-
-  const plotWidth = width - gridLeft - gridRight;
-  const plotHeight = height - gridTop - gridBottom;
-  const xScale = (x: number) => gridLeft + ((x - xRange[0]) / (xRange[1] - xRange[0] || 1)) * plotWidth;
-  const yScale = (y: number) => gridTop + ((yMax - y) / (yMax - yMin || 1)) * plotHeight;
-
-  // Clip to plot area
-  ctx.save();
-  ctx.beginPath();
-  ctx.rect(gridLeft, gridTop, plotWidth, plotHeight);
-  ctx.clip();
-
-  ctx.beginPath();
-  let first = true;
-  for (const [x, y] of data) {
-    if (x < xRange[0] || x > xRange[1]) continue;
-    const px = xScale(x);
-    const py = yScale(y);
-    if (first) { ctx.moveTo(px, py); first = false; }
-    else ctx.lineTo(px, py);
+function computeTicks(min: number, max: number, count: number): number[] {
+  const range = max - min;
+  if (range === 0) return [min];
+  const step = range / (count - 1);
+  const ticks: number[] = [];
+  for (let i = 0; i < count; i++) {
+    ticks.push(min + step * i);
   }
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 1.5;
-  ctx.stroke();
-  ctx.restore();
+  return ticks;
+}
 
-  return canvas.toDataURL('image/png');
+function ptToInch(pt: number): number {
+  return pt / 72;
+}
+
+const CJK_RE = /[\u4e00-\u9fff\u3000-\u303f\uff00-\uffef\u2000-\u206f]/;
+
+function pptTextWidthInch(label: string, fontSize: number): number {
+  let widthPt = 0;
+  for (const ch of label) {
+    widthPt += CJK_RE.test(ch) ? fontSize : fontSize * 0.55;
+  }
+  return ptToInch(widthPt);
+}
+
+function pptTextHeightInch(fontSize: number): number {
+  return ptToInch(fontSize * 1.5);
+}
+
+function addCustGeom(
+  slide: ReturnType<typeof pptxgen.prototype.addSlide>,
+  x: number, y: number, w: number, h: number,
+  points: Array<{ x: number; y: number; moveTo?: boolean }>,
+  lineColor: string, lineWidth: number,
+) {
+  (slide as any).addShape('custGeom', {
+    x, y, w, h,
+    points,
+    line: { color: lineColor, width: lineWidth },
+  });
+}
+
+function addLine(slide: ReturnType<typeof pptxgen.prototype.addSlide>, x: number, y: number, w: number, h: number, color: string, width: number, dashType?: string) {
+  const opts: any = { x, y, w, h, line: { color, width } };
+  if (dashType) opts.line.dashType = dashType;
+  (slide as any).addShape('line', opts);
+}
+
+function addEllipse(slide: ReturnType<typeof pptxgen.prototype.addSlide>, x: number, y: number, w: number, h: number, fillColor: string) {
+  (slide as any).addShape('ellipse', { x, y, w, h, fill: { color: fillColor } });
 }
 
 export async function exportChartPptx(): Promise<void> {
@@ -82,7 +87,7 @@ export async function exportChartPptx(): Promise<void> {
   }
 
   const rangeResult = computeYAxisRange(
-    visibleIds, state.curves, state.offsets, xRange, state.layerSpacing,
+    visibleIds, state.curves, state.offsets, state.layerSpacing,
   );
 
   const yZoomRange = uiState.yZoomRange;
@@ -99,10 +104,21 @@ export async function exportChartPptx(): Promise<void> {
   const labelStyle = uiState.labelStyle;
   const exportWithLegend = uiState.exportWithLegend;
 
-  const toX = (px: number) => pixelToPptX(px, chartWidth);
-  const toY = (py: number) => pixelToPptY(py, chartHeight);
-  const toW = (pw: number) => pixelToPptX(pw, chartWidth);
-  const toH = (ph: number) => pixelToPptY(ph, chartHeight);
+  const pptx = new pptxgen();
+  const slide = pptx.addSlide();
+
+  const presLayout = (pptx as any)._presLayout as { width: number; height: number };
+  const slideDim = getSlideDimensions(presLayout);
+  const scale = Math.min(slideDim.w / chartWidth, slideDim.h / chartHeight);
+  const contentW = chartWidth * scale;
+  const contentH = chartHeight * scale;
+  const offsetX = (slideDim.w - contentW) / 2;
+  const offsetY = (slideDim.h - contentH) / 2;
+
+  const toPptX = (px: number) => px * scale + offsetX;
+  const toPptY = (py: number) => py * scale + offsetY;
+  const toPptW = (pw: number) => pw * scale;
+  const toPptH = (ph: number) => ph * scale;
 
   const useGridTop = (showYAxis || exportWithLegend) ? 20 : 8;
   const gridBottom = showXAxis ? 40 : 8;
@@ -116,9 +132,6 @@ export async function exportChartPptx(): Promise<void> {
   const yToPixelExport = (yVal: number) => {
     return useGridTop + ((yMax - yVal) / (yMax - yMin || 1)) * plotHeight;
   };
-
-  const pptx = new pptxgen();
-  const slide = pptx.addSlide();
 
   const { curves, offsets, layerSpacing, curveScales, curveScaleOffsets, normalizeFactors } = state;
   const globalScale = state.globalScale;
@@ -146,46 +159,62 @@ export async function exportChartPptx(): Promise<void> {
     const color = curve.color || '#000000';
     visibleCurveColors.push(color);
 
-    const dataUrl = renderCurveToCanvas(
-      rendered, chartWidth, chartHeight, color,
-      gridLeft, gridRight, useGridTop, gridBottom, xRange, yMin, yMax,
-    );
+    const filtered = rendered.filter(([x, y]) => x >= xRange[0] && x <= xRange[1] && y >= yMin && y <= yMax);
 
-    slide.addImage({
-      data: dataUrl,
-      x: 0, y: 0,
-      w: toW(chartWidth),
-      h: toH(chartHeight),
-    });
+    if (filtered.length < 2) continue;
+
+    const gridWidth = chartWidth - gridLeft - gridRight;
+    const xRangeSpan = xRange[1] - xRange[0] || 1;
+    const yRangeSpan = yMax - yMin || 1;
+
+    const points = filtered.map(([x, y], i) => ({
+      x: (gridLeft + ((x - xRange[0]) / xRangeSpan) * gridWidth) * scale,
+      y: (useGridTop + ((yMax - y) / yRangeSpan) * plotHeight) * scale,
+      moveTo: i === 0,
+    }));
+
+    addCustGeom(slide, offsetX, offsetY, contentW, contentH, points, color.replace('#', ''), 1.5);
   }
 
   if (showXAxis) {
-    slide.addShape('line' as any, {
-      x: toX(gridLeft),
-      y: toY(yToPixelExport(yMin)),
-      w: toW(chartWidth - gridLeft - gridRight),
-      h: 0,
-      line: { color: '999999', width: 1 },
-    } as any);
+    addLine(slide, toPptX(gridLeft), toPptY(yToPixelExport(yMin)), toPptW(chartWidth - gridLeft - gridRight), 0, '999999', 1);
     slide.addText('时间', {
-      x: toX(gridLeft) + toW(chartWidth - gridLeft - gridRight) / 2 - toW(20),
-      y: toY(chartHeight - gridBottom + 10),
-      w: toW(40), h: toH(14),
-      fontSize: 10, color: '999999', align: 'center',
+      x: toPptX(gridLeft) + toPptW(chartWidth - gridLeft - gridRight) / 2 - pptTextWidthInch('时间', 10) / 2,
+      y: toPptY(chartHeight - gridBottom + 10),
+      w: pptTextWidthInch('时间', 10), h: pptTextHeightInch(14),
+      fontSize: 10, color: '999999', align: 'center', wrap: false,
     });
+
+    const xTicks = computeTicks(xRange[0], xRange[1], Math.min(6, Math.max(2, Math.floor((chartWidth - gridLeft - gridRight) / 80))));
+    for (const tick of xTicks) {
+      const px = convertXToPixel(tick);
+      const tickText = tick.toFixed(2);
+      slide.addText(tickText, {
+        x: toPptX(px - 15), y: toPptY(yToPixelExport(yMin) + 5),
+        w: pptTextWidthInch(tickText, 8), h: pptTextHeightInch(10),
+        fontSize: 8, color: '999999', align: 'center', wrap: false,
+      });
+    }
   }
 
   if (showYAxis) {
-    slide.addShape('line' as any, {
-      x: toX(gridLeft), y: toY(useGridTop),
-      w: 0, h: toH(plotHeight),
-      line: { color: '999999', width: 1 },
-    } as any);
+    addLine(slide, toPptX(gridLeft), toPptY(useGridTop), 0, toPptH(plotHeight), '999999', 1);
     slide.addText('强度', {
-      x: toX(0), y: toY(useGridTop + plotHeight / 2) - toH(10),
-      w: toW(gridLeft - 5), h: toH(20),
-      fontSize: 10, color: '999999', align: 'center', rotate: 270,
+      x: toPptX(0), y: toPptY(useGridTop + plotHeight / 2) - pptTextHeightInch(20) / 2,
+      w: pptTextWidthInch('强度', 10), h: pptTextHeightInch(20),
+      fontSize: 10, color: '999999', align: 'center', rotate: 270, wrap: false,
     });
+
+    const yTicks = computeTicks(yMin, yMax, Math.min(6, Math.max(2, Math.floor(plotHeight / 50))));
+    for (const tick of yTicks) {
+      const py = yToPixelExport(tick);
+      const tickText = tick.toExponential(1);
+      slide.addText(tickText, {
+        x: toPptX(2), y: toPptY(py - 6),
+        w: pptTextWidthInch(tickText, 8), h: pptTextHeightInch(12),
+        fontSize: 8, color: '999999', align: 'right', valign: 'middle', wrap: false,
+      });
+    }
   }
 
   const { braces } = state;
@@ -199,18 +228,18 @@ export async function exportChartPptx(): Promise<void> {
     const textW = estimateTextWidth(labelText, style.fontSize);
     const textX = clampLabelX((px1 + px2) / 2, textW, gridLeft, gridRight, chartWidth);
 
-    slide.addShape('line' as any, {
-      x: toX(px1), y: toY(braceY),
-      w: toX(px2) - toX(px1), h: 0,
-      line: { color: BRACE_COLOR.replace('#', ''), width: 2 },
-    } as any);
+    addLine(slide, toPptX(px1), toPptY(braceY), toPptX(px2) - toPptX(px1), 0, BRACE_COLOR.replace('#', ''), 2);
+
+    const tickH = 8;
+    addLine(slide, toPptX(px1), toPptY(braceY), 0, toPptH(tickH), BRACE_COLOR.replace('#', ''), 2);
+    addLine(slide, toPptX(px2), toPptY(braceY), 0, toPptH(tickH), BRACE_COLOR.replace('#', ''), 2);
 
     slide.addText(labelText, {
-      x: toX(textX - textW / 2), y: toY(braceY - 20),
-      w: toW(textW), h: toH(style.fontSize * 1.5),
+      x: toPptX(textX - textW / 2), y: toPptY(braceY - 20),
+      w: pptTextWidthInch(labelText, style.fontSize), h: pptTextHeightInch(style.fontSize),
       fontSize: style.fontSize, fontFace: style.fontFamily,
       bold: style.fontWeight === 'bold', color: style.color.replace('#', ''),
-      align: 'center',
+      align: 'center', wrap: false,
     });
   }
 
@@ -232,12 +261,18 @@ export async function exportChartPptx(): Promise<void> {
     const rawPy = getTopCurvePixelYAtX(pl.x, geometryCtx, yToPixelExport) + pl.yOffset;
     const py = clampLabelY(rawPy, 6, useGridTop, chartHeight - gridBottom);
 
+    const dotRadius = 3;
+    addEllipse(slide, toPptX(px - dotRadius), toPptY(py - dotRadius), toPptW(dotRadius * 2), toPptH(dotRadius * 2), style.color.replace('#', ''));
+
+    const labelY = py - style.fontSize * 0.6;
+    addLine(slide, toPptX(px), toPptY(labelY), 0, toPptH(py - labelY), style.color.replace('#', ''), 1, 'dash');
+
     slide.addText(labelText, {
-      x: toX(px - textW / 2), y: toY(py - style.fontSize * 0.6),
-      w: toW(textW), h: toH(style.fontSize * 1.5),
+      x: toPptX(px - textW / 2), y: toPptY(labelY - style.fontSize * 0.3),
+      w: pptTextWidthInch(labelText, style.fontSize), h: pptTextHeightInch(style.fontSize),
       fontSize: style.fontSize, fontFace: style.fontFamily,
       bold: style.fontWeight === 'bold', color: style.color.replace('#', ''),
-      align: 'center',
+      align: 'center', wrap: false,
     });
   }
 
@@ -247,25 +282,26 @@ export async function exportChartPptx(): Promise<void> {
       const color = visibleCurveColors[vi] || '#000000';
       const name = curves[visibleIds[vi]]?.displayName || curves[visibleIds[vi]]?.name || '';
       const lx = chartWidth - gridRight - 80;
-      slide.addShape('line' as any, {
-        x: toX(lx), y: toY(legendY + 4),
-        w: toW(20), h: 0,
-        line: { color: color.replace('#', ''), width: 2 },
-      } as any);
+      addLine(slide, toPptX(lx), toPptY(legendY + 4), toPptW(20), 0, color.replace('#', ''), 2);
       slide.addText(name, {
-        x: toX(lx) + toW(24), y: toY(legendY),
-        w: toW(60), h: toH(10),
-        fontSize: 8, color: color.replace('#', ''),
+        x: toPptX(lx) + toPptW(24), y: toPptY(legendY),
+        w: pptTextWidthInch(name, 8), h: pptTextHeightInch(10),
+        fontSize: 8, color: color.replace('#', ''), wrap: false,
       });
       legendY += 12;
     }
   }
 
-  const blob = await pptx.write({ outputType: 'blob' }) as Blob;
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'chromatogram.pptx';
-  a.click();
-  URL.revokeObjectURL(url);
+  try {
+    const blob = await pptx.write({ outputType: 'blob' }) as Blob;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'chromatogram.pptx';
+    a.click();
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    console.error('PPTX 导出失败:', err);
+    alert('PPTX 导出失败: ' + (err instanceof Error ? err.message : String(err)));
+  }
 }

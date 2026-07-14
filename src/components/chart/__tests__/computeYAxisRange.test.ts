@@ -16,7 +16,6 @@ describe('computeYAxisRange', () => {
       ['c1', 'c2'],
       curves,
       offsets,
-      [0, 2],
       0.15,
     );
 
@@ -33,7 +32,7 @@ describe('computeYAxisRange', () => {
       c1: { name: 'curve1', data: [[0, -10], [1, 20], [2, 30]] },
     };
     const offsets = { c1: { xOffset: 0, yOffset: 0 } };
-    const result = computeYAxisRange(['c1'], curves, offsets, [0, 2], 0);
+    const result = computeYAxisRange(['c1'], curves, offsets, 0);
 
     expect(result.rawDataMin).toBe(-10);
     expect(result.rawDataMax).toBe(30);
@@ -48,7 +47,7 @@ describe('computeYAxisRange', () => {
       c1: { name: 'curve1', data: [[0, -30], [1, -20], [2, -10]] },
     };
     const offsets = { c1: { xOffset: 0, yOffset: 0 } };
-    const result = computeYAxisRange(['c1'], curves, offsets, [0, 2], 0);
+    const result = computeYAxisRange(['c1'], curves, offsets, 0);
 
     expect(result.rawDataMin).toBe(-30);
     expect(result.rawDataMax).toBe(-10);
@@ -62,7 +61,7 @@ describe('computeYAxisRange', () => {
       c1: { name: 'curve1', data: [[0, 5], [1, 5], [2, 5]] },
     };
     const offsets = { c1: { xOffset: 0, yOffset: 0 } };
-    const result = computeYAxisRange(['c1'], curves, offsets, [0, 2], 0);
+    const result = computeYAxisRange(['c1'], curves, offsets, 0);
 
     expect(result.dataSpan).toBe(1); // default span when dataSpan === 0
     expect(result.yAxisMin).toBeLessThan(5);
@@ -84,12 +83,26 @@ describe('computeYAxisRange', () => {
       ['c1', 'c2', 'c3'],
       curves,
       offsets,
-      [0, 1],
       0.15,
     );
 
     // dataSpan = 100, spacingBudget = 2 * 0.15 = 0.3
     // yRangeForLayer = 100 / (1 - 0.3) = 142.857...
     expect(result.yRangeForLayer).toBeCloseTo(142.857, 2);
+  });
+
+  it('should compute over full data, ignoring X viewport (fixed canvas)', () => {
+    // Same curves, but the visible X window only covers a flat sub-range.
+    // Because computeYAxisRange no longer filters by X, the result must equal
+    // the full-data computation — the canvas stays stable when X pans.
+    const curves: Record<string, CurveData> = {
+      c1: { name: 'curve1', data: [[0, 0], [1, 10], [2, 100], [3, 10], [4, 0]] },
+    };
+    const offsets = { c1: { xOffset: 0, yOffset: 0 } };
+
+    const full = computeYAxisRange(['c1'], curves, offsets, 0);
+    expect(full.rawDataMin).toBe(0);
+    expect(full.rawDataMax).toBe(100);
+    expect(full.dataSpan).toBe(100);
   });
 });
