@@ -3,9 +3,14 @@ import { ThreeColumnLayout } from '@/components/layout';
 import { initPersistence, restoreWorkspace } from '@/persistence';
 import { useCurveStore } from '@/store';
 
-export default function App() {
-  const curves = useCurveStore((s) => s.curves);
+function isEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  return target.tagName === 'INPUT' ||
+    target.tagName === 'TEXTAREA' ||
+    target.isContentEditable;
+}
 
+export default function App() {
   // Initialize persistence and restore workspace on mount
   useEffect(() => {
     initPersistence();
@@ -15,25 +20,24 @@ export default function App() {
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+      if (isEditableTarget(e.target)) return;
+
+      const mod = e.ctrlKey || e.metaKey;
+
+      if (mod && e.key === 'z' && !e.shiftKey) {
         e.preventDefault();
-        const store = useCurveStore as unknown as {
-          temporal: { undo: () => void };
-        };
-        store.temporal?.undo();
+        useCurveStore.temporal.getState().undo();
       }
-      if ((e.ctrlKey || e.metaKey) && e.key === 'y') {
+
+      if (mod && (e.key === 'y' || (e.key === 'Z' && e.shiftKey))) {
         e.preventDefault();
-        const store = useCurveStore as unknown as {
-          temporal: { redo: () => void };
-        };
-        store.temporal?.redo();
+        useCurveStore.temporal.getState().redo();
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [curves]);
+  }, []);
 
   return <ThreeColumnLayout />;
 }

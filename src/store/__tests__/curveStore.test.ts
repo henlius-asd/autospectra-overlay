@@ -1,6 +1,21 @@
-import { describe, it, expect } from 'vitest';
-import { deriveBaseline, useCurveStore } from '../curveStore';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { deriveBaseline, useCurveStore, UNDO_COOL_OFF_MS } from '../curveStore';
 import type { BraceAnnotation, CurveData, DataPoint } from '@/types';
+
+const CURVE_STORE_INITIAL = {
+  curves: {} as Record<string, CurveData>,
+  offsets: {} as Record<string, { xOffset: number; yOffset: number }>,
+  visibleCurves: {},
+  stagingOrder: [] as string[],
+  layerSpacing: 0,
+  curveScales: {},
+  curveScaleOffsets: {},
+  normalizeFactors: {},
+  globalScale: 1,
+  baselineId: null as string | null,
+  braces: [] as BraceAnnotation[],
+  pointLabels: [] as { id: string; x: number; yOffset: number; label: string }[],
+};
 
 describe('globalScale', () => {
   it('defaults to 1', () => {
@@ -147,5 +162,96 @@ describe('updateBrace', () => {
     useCurveStore.getState().updateBrace('missing', { label: 'x' });
     expect(useCurveStore.getState().braces).toHaveLength(1);
     expect(useCurveStore.getState().braces[0].label).toBe('a');
+  });
+});
+
+describe('undo cool-off', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    useCurveStore.temporal.getState().clear();
+    useCurveStore.setState(CURVE_STORE_INITIAL);
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('slider high-frequency calls do not evict early history', () => {
+    const curve: CurveData = { name: 'C1', color: '#000', data: [[0, 10]] as DataPoint[] };
+    useCurveStore.getState().addCurves([curve]);
+    vi.advanceTimersByTime(UNDO_COOL_OFF_MS + 1);
+
+    const pastBeforeDrag = useCurveStore.temporal.getState().pastStates.length;
+    expect(pastBeforeDrag).toBeGreaterThan(0);
+
+    for (let i = 0; i < 100; i++) {
+      useCurveStore.getState().setLayerSpacing(i * 0.001);
+    }
+    vi.advanceTimersByTime(UNDO_COOL_OFF_MS + 1);
+
+    const pastAfterDrag = useCurveStore.temporal.getState().pastStates;
+    expect(pastAfterDrag.length).toBeGreaterThanOrEqual(pastBeforeDrag);
+  });
+
+  it('discrete operations spaced apart produce separate history entries', () => {
+    useCurveStore.getState().setLayerSpacing(0.1);
+    vi.advanceTimersByTime(UNDO_COOL_OFF_MS + 1);
+    const count1 = useCurveStore.temporal.getState().pastStates.length;
+
+    useCurveStore.getState().setLayerSpacing(0.2);
+    vi.advanceTimersByTime(UNDO_COOL_OFF_MS + 1);
+    const count2 = useCurveStore.temporal.getState().pastStates.length;
+
+    expect(count2).toBeGreaterThan(count1);
+  });
+});
+
+describe('temporal store undo/redo availability', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    useCurveStore.temporal.getState().clear();
+    useCurveStore.setState(CURVE_STORE_INITIAL);
+    useCurveStore.temporal.getState().clear();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('no history when store is fresh', () => {
+    const ts = useCurveStore.temporal.getState();
+    expect(ts.pastStates).toHaveLength(0);
+    expect(ts.futureStates).toHaveLength(0);
+  });
+
+  it('pastStates non-empty after an action, futureStates empty', () => {
+    useCurveStore.getState().setLayerSpacing(0.5);
+    vi.advanceTimersByTime(UNDO_COOL_OFF_MS + 1);
+
+    const ts = useCurveStore.temporal.getState();
+    expect(ts.pastStates.length).toBeGreaterThan(0);
+    expect(ts.futureStates).toHaveLength(0);
+  });
+
+  it('futureStates non-empty after undo', () => {
+    useCurveStore.getState().setLayerSpacing(0.5);
+    vi.advanceTimersByTime(UNDO_COOL_OFF_MS + 1);
+
+    useCurveStore.temporal.getState().undo();
+
+    const ts = useCurveStore.temporal.getState();
+    expect(ts.futureStates.length).toBeGreaterThan(0);
+  });
+
+  it('redo restores state after undo', () => {
+    useCurveStore.getState().setLayerSpacing(0.5);
+    vi.advanceTimersByTime(UNDO_COOL_OFF_MS + 1);
+    const stateAfterSet = useCurveStore.getState().layerSpacing;
+
+    useCurveStore.temporal.getState().undo();
+    expect(useCurveStore.getState().layerSpacing).toBe(0);
+
+    useCurveStore.temporal.getState().redo();
+    expect(useCurveStore.getState().layerSpacing).toBe(stateAfterSet);
   });
 });
