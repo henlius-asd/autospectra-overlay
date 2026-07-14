@@ -1,3 +1,5 @@
+import type { LabelStyle } from './curve';
+
 /** Point label annotation — a single X position with a label above the top curve */
 export interface PointLabel {
   id: string;
@@ -7,4 +9,6 @@ export interface PointLabel {
   yOffset: number;
   /** Display label text */
   label: string;
+  /** Per-label style override (merges with default labelStyle) */
+  labelStyle?: Partial<LabelStyle>;
 }

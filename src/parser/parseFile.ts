@@ -172,7 +172,7 @@ function parseDataRows(
  * existing V1 parsing pipeline (`detectFormat` + `parseFileContent`).
  */
 export function transformEmpowerV2ToV1(content: string): string {
-  const normalized = content.replace(/^/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+  const normalized = content.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n').replace(/\r/g, '\n');
   const lines = normalized.split('\n').filter(l => l.trim().length > 0);
   const knownKeys: readonly string[] = EMPOWER_V2_KEYS;
 

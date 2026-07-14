@@ -3,6 +3,12 @@ import { temporal, TemporalState } from 'zundo';
 import type { CurveData, BraceAnnotation, PointLabel } from '@/types';
 import { clampScale } from '@/components/chart/curveScaleMath';
 
+export const UNDO_COOL_OFF_MS = 400; // zundo handleSet cool-off window
+
+let coolOffTimer: ReturnType<typeof setTimeout> | null = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let coolOffPending: any = null;
+
 export interface CurveOffsets {
   xOffset: number;
   yOffset: number;
@@ -19,6 +25,7 @@ interface CurveState {
   normalizeFactors: Record<string, number>;
   globalScale: number;
   baselineId: string | null;
+  locked: Record<string, boolean>;
   braces: BraceAnnotation[];
   pointLabels: PointLabel[];
   // Actions
@@ -43,6 +50,9 @@ interface CurveState {
   updatePointLabel: (id: string, updates: Partial<PointLabel>) => void;
   removePointLabel: (id: string) => void;
   updateBrace: (id: string, updates: Partial<BraceAnnotation>) => void;
+  setCurveOffset: (id: string, offset: Partial<CurveOffsets>) => void;
+  toggleCurveLocked: (id: string) => void;
+  resetWorkspace: () => void;
 }
 
 // For zundo temporal typing
@@ -78,6 +88,7 @@ export const useCurveStore = create<CurveState>()(
       normalizeFactors: {},
       globalScale: 1,
       baselineId: null,
+      locked: {},
       braces: [],
       pointLabels: [],
 
@@ -316,7 +327,45 @@ export const useCurveStore = create<CurveState>()(
         set((state) => ({
           braces: state.braces.map((b) => (b.id === id ? { ...b, ...updates } : b)),
         })),
+      setCurveOffset: (id, offset) =>
+        set((state) => ({
+          offsets: { ...state.offsets, [id]: { ...state.offsets[id], ...offset } },
+        })),
+      toggleCurveLocked: (id) =>
+        set((state) => ({ locked: { ...state.locked, [id]: !state.locked[id] } })),
+      resetWorkspace: () =>
+        set({
+          offsets: {},
+          visibleCurves: {},
+          stagingOrder: [],
+          layerSpacing: 0,
+          curveScales: {},
+          curveScaleOffsets: {},
+          normalizeFactors: {},
+          globalScale: 1,
+          baselineId: null,
+          locked: {},
+          braces: [],
+          pointLabels: [],
+        }),
     }),
-    { limit: 50 },
+    {
+      limit: 50,
+      handleSet: (handleSet) => (state) => {
+        if (coolOffTimer) {
+          coolOffPending = state;
+          clearTimeout(coolOffTimer);
+        } else {
+          handleSet(state);
+        }
+        coolOffTimer = setTimeout(() => {
+          coolOffTimer = null;
+          if (coolOffPending) {
+            handleSet(coolOffPending);
+            coolOffPending = null;
+          }
+        }, UNDO_COOL_OFF_MS);
+      },
+    },
   ),
 );

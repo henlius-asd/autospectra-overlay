@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { join } from 'path';
-import { parseFileContent } from '@/parser/parseFile';
+import { parseFileContent, transformEmpowerV2ToV1 } from '@/parser/parseFile';
 import { isEmpowerV2 } from '@/parser/detectFormat';
 
 // Minimal ARW fixture mirroring test/sample_tags.arw
@@ -216,5 +216,40 @@ describe('parseEmpowerV2 - real data from raw_data directory', () => {
     // 验证第二个数据点：(x2=0.01666667, y2=-5.171448e-05)
     expect(result.curves[0].data[1][0]).toBeCloseTo(0.01666667, 8);
     expect(result.curves[0].data[1][1]).toBeCloseTo(-5.171448e-05, 10);
+  });
+});
+
+describe('transformEmpowerV2ToV1 BOM handling', () => {
+  it('strips UTF-8 BOM from V2 content', () => {
+    const v2Content = '\uFEFFSampleName\n' +
+      'ASD-A-2604002-001 NR Channel Description\n' +
+      'PDA - 220 nm Date Acquired\n' +
+      '4/30/2026 11:54:06 PM CST Det. Units\n' +
+      'au Acq Method Set\n' +
+      'HLX109_TP_003_01_CE_153_IM Instrument Method Name\n' +
+      'HLX109_TP_003_01_CE_153_IM Comments\n' +
+      'Run samples 0.008333334\n' +
+      '0.008333334 -3.30694e-05\n' +
+      '0.01666667 -5.171448e-05';
+
+    const v1Content = transformEmpowerV2ToV1(v2Content);
+    expect(v1Content.startsWith('\uFEFF')).toBe(false);
+    expect(v1Content.startsWith('"SampleName"')).toBe(true);
+  });
+
+  it('no BOM V2 content parses identically', () => {
+    const v2Content = 'SampleName\n' +
+      'ASD Sample Channel Description\n' +
+      'PDA Date Acquired\n' +
+      '2026 Det. Units\n' +
+      'au Acq Method Set\n' +
+      'Method Instrument Method Name\n' +
+      'Method Comments\n' +
+      'notes 0.008333334\n' +
+      '0.008333334 1.0\n' +
+      '0.01666667 2.0';
+
+    const v1Content = transformEmpowerV2ToV1(v2Content);
+    expect(v1Content.startsWith('"SampleName"')).toBe(true);
   });
 });

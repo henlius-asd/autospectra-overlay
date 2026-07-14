@@ -1,3 +1,20 @@
+/** Label style configuration */
+export interface LabelStyle {
+  fontSize: number;
+  fontFamily: string;
+  fontWeight: 'normal' | 'bold';
+  color: string;
+  backgroundColor: string;
+}
+
+export const DEFAULT_LABEL_STYLE: LabelStyle = {
+  fontSize: 10,
+  fontFamily: 'sans-serif',
+  fontWeight: 'normal',
+  color: '#333333',
+  backgroundColor: 'rgba(255,255,255,0.9)',
+};
+
 /** Curve data point: [time, value] */
 export type DataPoint = [number, number];
 
