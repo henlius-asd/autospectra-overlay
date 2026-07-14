@@ -1,6 +1,7 @@
 import { useUiStore } from '@/store';
 import MetadataPanel from '@/components/toolbox/MetadataPanel';
 import AlignmentControls from '@/components/toolbox/AlignmentControls';
+import LabelStyleControls from '@/components/toolbox/LabelStyleControls';
 
 export default function RightPanel() {
   const collapsed = useUiStore((s) => s.rightPanelCollapsed);
@@ -28,6 +29,8 @@ export default function RightPanel() {
       {!collapsed && (
         <div className="flex-1 overflow-y-auto">
           <MetadataPanel />
+          <div className="border-t border-gray-200" />
+          <LabelStyleControls />
           <div className="border-t border-gray-200" />
           <AlignmentControls />
         </div>

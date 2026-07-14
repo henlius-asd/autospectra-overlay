@@ -11,6 +11,7 @@ interface CurveListProps {
   onSelectAll: () => void;
   onDeselectAll: () => void;
   onRemoveSelected: () => void;
+  onClearErrors: () => void;
 }
 
 export default function CurveList({
@@ -21,6 +22,7 @@ export default function CurveList({
   onSelectAll,
   onDeselectAll,
   onRemoveSelected,
+  onClearErrors,
 }: CurveListProps) {
   const stagingOrder = useCurveStore((s) => s.stagingOrder);
   const setStagingOrder = useCurveStore((s) => s.setStagingOrder);
@@ -242,6 +244,15 @@ export default function CurveList({
     <div className="flex-1 overflow-y-auto flex flex-col">
       {errors.length > 0 && (
         <div className="p-2">
+          <div className="flex items-center justify-between mb-1">
+            <span className="text-xs text-red-400">解析错误</span>
+            <button
+              onClick={onClearErrors}
+              className="text-xs text-gray-400 hover:text-red-500"
+            >
+              清除
+            </button>
+          </div>
           {errors.map((err, i) => (
             <div
               key={i}

@@ -3,6 +3,7 @@ import { useCurveStore, useUiStore } from '@/store';
 import { roiMaxPeakAlignment } from '@/engine';
 import AlignmentWorker from '@/workers/alignment.worker?worker';
 import type { CurveOffsets } from '@/store';
+import type { AlignmentResult } from '@/types';
 
 /** Apply offset to data points, returning offset-adjusted data */
 function applyOffset(
@@ -13,8 +14,35 @@ function applyOffset(
   return data.map(([x, y]) => [x + offset.xOffset, y + offset.yOffset] as [number, number]);
 }
 
+function alignWithWorker(
+  refData: [number, number][],
+  targetData: [number, number][],
+  roiStart: number,
+  roiEnd: number,
+  searchRange: number,
+): Promise<AlignmentResult> {
+  return new Promise<AlignmentResult>((resolve, reject) => {
+    const worker = new AlignmentWorker();
+    worker.onmessage = (e) => {
+      resolve(e.data);
+      worker.terminate();
+    };
+    worker.onerror = () => {
+      worker.terminate();
+      reject(new Error('对齐 Worker 执行失败'));
+    };
+    worker.onmessageerror = () => {
+      worker.terminate();
+      reject(new Error('对齐 Worker 消息解析失败'));
+    };
+    worker.postMessage({ refData, targetData, roiStart, roiEnd, searchRange });
+  });
+}
+
 export default function AlignmentControls() {
   const curves = useCurveStore((s) => s.curves);
+  const visibleCurves = useCurveStore((s) => s.visibleCurves);
+  const stagingOrder = useCurveStore((s) => s.stagingOrder);
   const baselineId = useCurveStore((s) => s.baselineId);
   const xRange = useUiStore((s) => s.xRange);
 
@@ -23,7 +51,7 @@ export default function AlignmentControls() {
   const [roiEnd, setRoiEnd] = useState(10);
   const [progress, setProgress] = useState<number | null>(null);
 
-  const ids = Object.keys(curves);
+  const visibleIds = stagingOrder.filter((id) => visibleCurves[id]);
   const baselineCurve = baselineId ? curves[baselineId] : null;
 
   // Sync ROI to current X-axis visible range
@@ -33,71 +61,52 @@ export default function AlignmentControls() {
   }, [xRange]);
 
   const handleAlign = async () => {
-    if (!baselineCurve || ids.length < 2) return;
+    if (!baselineCurve || visibleIds.length < 2) return;
 
     setProgress(0);
-    const targetIds = ids.filter((id) => id !== baselineId);
+    const targetIds = visibleIds.filter((id) => id !== baselineId);
 
-    // Read latest offsets from store to avoid stale closure
     const newOffsets = { ...useCurveStore.getState().offsets };
-
-    // Apply current offsets so algorithm computes incremental adjustment
+    const locked = useCurveStore.getState().locked;
     const baselineOffset = newOffsets[baselineId!] ?? { xOffset: 0, yOffset: 0 };
     const adjBaseline = applyOffset(baselineCurve.data, baselineOffset);
 
-    if (algorithm === 'roi-peak') {
-      for (let i = 0; i < targetIds.length; i++) {
-        const targetCurve = curves[targetIds[i]];
-        const targetOffset = newOffsets[targetIds[i]] ?? { xOffset: 0, yOffset: 0 };
-        // Shift target to baseline's coordinate system so ROI extraction
-        // works correctly even when target has a large xOffset
-        const adjTarget = applyOffset(targetCurve.data, {
-          xOffset: baselineOffset.xOffset,
-          yOffset: targetOffset.yOffset,
-        });
-        const result = roiMaxPeakAlignment.align(adjBaseline, adjTarget, roiStart, roiEnd);
-        // result.xOffset is in baseline's coordinate system;
-        // new absolute offset = result.xOffset + baselineOffset.xOffset
-        newOffsets[targetIds[i]] = { ...targetOffset, xOffset: result.xOffset + baselineOffset.xOffset };
-        setProgress(((i + 1) / targetIds.length) * 100);
+    try {
+      if (algorithm === 'roi-peak') {
+        for (let i = 0; i < targetIds.length; i++) {
+          const targetCurve = curves[targetIds[i]];
+          if (locked[targetIds[i]]) continue;
+          const targetOffset = newOffsets[targetIds[i]] ?? { xOffset: 0, yOffset: 0 };
+          const adjTarget = applyOffset(targetCurve.data, {
+            xOffset: baselineOffset.xOffset,
+            yOffset: targetOffset.yOffset,
+          });
+          const result = roiMaxPeakAlignment.align(adjBaseline, adjTarget, roiStart, roiEnd);
+          newOffsets[targetIds[i]] = { ...targetOffset, xOffset: result.xOffset + baselineOffset.xOffset };
+          setProgress(((i + 1) / targetIds.length) * 100);
+        }
+      } else {
+        for (let i = 0; i < targetIds.length; i++) {
+          const targetCurve = curves[targetIds[i]];
+          if (locked[targetIds[i]]) continue;
+          const targetOffset = newOffsets[targetIds[i]] ?? { xOffset: 0, yOffset: 0 };
+          const adjTarget = applyOffset(targetCurve.data, {
+            xOffset: baselineOffset.xOffset,
+            yOffset: targetOffset.yOffset,
+          });
+          const result = await alignWithWorker(adjBaseline, adjTarget, roiStart, roiEnd, 120);
+          newOffsets[targetIds[i]] = { ...targetOffset, xOffset: result.xOffset + baselineOffset.xOffset };
+          setProgress(((i + 1) / targetIds.length) * 100);
+        }
       }
-    } else {
-      // Cross-correlation via Web Worker
-      for (let i = 0; i < targetIds.length; i++) {
-        const targetCurve = curves[targetIds[i]];
-        const targetOffset = newOffsets[targetIds[i]] ?? { xOffset: 0, yOffset: 0 };
-        // Shift target to baseline's coordinate system so ROI extraction
-        // works correctly even when target has a large xOffset
-        const adjTarget = applyOffset(targetCurve.data, {
-          xOffset: baselineOffset.xOffset,
-          yOffset: targetOffset.yOffset,
-        });
-        const result = await new Promise<{ xOffset: number; correlationScore: number }>(
-          (resolve) => {
-            const worker = new AlignmentWorker();
-            worker.onmessage = (e) => {
-              resolve(e.data);
-              worker.terminate();
-            };
-            worker.postMessage({
-              refData: adjBaseline,
-              targetData: adjTarget,
-              roiStart,
-              roiEnd,
-              searchRange: 120,
-            });
-          },
-        );
-        // result.xOffset is in baseline's coordinate system;
-        // new absolute offset = result.xOffset + baselineOffset.xOffset
-        newOffsets[targetIds[i]] = { ...targetOffset, xOffset: result.xOffset + baselineOffset.xOffset };
-        setProgress(((i + 1) / targetIds.length) * 100);
-      }
-    }
 
-    // Apply all offset changes in a single state update
-    useCurveStore.setState({ offsets: newOffsets });
-    setProgress(null);
+      useCurveStore.setState({ offsets: newOffsets });
+    } catch (err) {
+      console.error('对齐失败:', err);
+      alert('对齐失败');
+    } finally {
+      setProgress(null);
+    }
   };
 
   return (
@@ -141,7 +150,7 @@ export default function AlignmentControls() {
 
       <button
         onClick={handleAlign}
-        disabled={progress !== null || !baselineCurve || ids.length < 2}
+        disabled={progress !== null || !baselineCurve || visibleIds.length < 2}
         className="w-full py-1.5 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
       >
         {progress !== null ? `对齐中... ${Math.round(progress)}%` : '一键对齐'}

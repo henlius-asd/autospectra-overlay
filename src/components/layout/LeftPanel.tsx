@@ -29,6 +29,7 @@ export default function LeftPanel() {
 
       const newCurves: CurveData[] = results.parsed.curves;
       if (newCurves.length > 0) {
+        setErrors([]);
         addCurves(newCurves);
       }
     },
@@ -66,6 +67,7 @@ export default function LeftPanel() {
             onSelectAll={() => setAllCurvesVisibility(true)}
             onDeselectAll={() => setAllCurvesVisibility(false)}
             onRemoveSelected={removeSelectedCurves}
+            onClearErrors={() => setErrors([])}
           />
         </div>
       )}

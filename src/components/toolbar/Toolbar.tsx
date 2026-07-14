@@ -1,6 +1,8 @@
+import { useStore } from 'zustand';
 import { useCurveStore } from '@/store';
 import { useUiStore } from '@/store';
 import { exportChartImage } from '@/components/chart/exportImage';
+import { buildWorkspaceSnapshot, applyWorkspaceSnapshot, clearWorkspace } from '@/persistence';
 
 export default function Toolbar() {
   const temporal = useCurveStore.temporal;
@@ -17,9 +19,25 @@ export default function Toolbar() {
   const toggleGlobalScaleMode = useUiStore((s) => s.toggleGlobalScaleMode);
   const togglePerCurveScaleMode = useUiStore((s) => s.togglePerCurveScaleMode);
   const showGrid = useUiStore((s) => s.showGrid);
-  const showAxes = useUiStore((s) => s.showAxes);
+const showXAxis = useUiStore((s) => s.showXAxis);
+  const showYAxis = useUiStore((s) => s.showYAxis);
+  const exportWithLegend = useUiStore((s) => s.exportWithLegend);
   const toggleShowGrid = useUiStore((s) => s.toggleShowGrid);
-  const toggleShowAxes = useUiStore((s) => s.toggleShowAxes);
+  const toggleShowXAxis = useUiStore((s) => s.toggleShowXAxis);
+  const toggleShowYAxis = useUiStore((s) => s.toggleShowYAxis);
+  const toggleExportWithLegend = useUiStore((s) => s.toggleExportWithLegend);
+  const manualMoveMode = useUiStore((s) => s.manualMoveMode);
+  const setManualMoveMode = useUiStore((s) => s.setManualMoveMode);
+  const selectedCurveId = useUiStore((s) => s.selectedCurveId);
+  const toggleCurveLocked = useCurveStore((s) => s.toggleCurveLocked);
+  const locked = useCurveStore((s) => s.locked);
+  const toggleRightPanel = useUiStore((s) => s.toggleRightPanel);
+  const rightPanelCollapsed = useUiStore((s) => s.rightPanelCollapsed);
+  const resetWorkspace = useCurveStore((s) => s.resetWorkspace);
+  const resetUiForNewWorkspace = useUiStore((s) => s.resetUiForNewWorkspace);
+
+  const canUndo = useStore(useCurveStore.temporal, (s) => s.pastStates.length > 0);
+  const canRedo = useStore(useCurveStore.temporal, (s) => s.futureStates.length > 0);
 
   const hasCurves = Object.keys(curves).length > 0;
 
@@ -81,11 +99,21 @@ export default function Toolbar() {
     });
   };
 
+  const handleExportPptx = async () => {
+    try {
+      const { exportChartPptx } = await import('@/components/chart/exportPptx');
+      await exportChartPptx();
+    } catch {
+      alert('导出 PPTX 失败');
+    }
+  };
+
   const handleExportJSON = () => {
     const state = useCurveStore.getState();
     const uiState = useUiStore.getState();
+    const snapshot = buildWorkspaceSnapshot(state);
     const blob = new Blob(
-      [JSON.stringify({ curves: state.curves, offsets: state.offsets, baselineId: state.baselineId, braces: state.braces, stagingOrder: state.stagingOrder, visibleCurves: state.visibleCurves, layerSpacing: state.layerSpacing, pointLabels: state.pointLabels, curveScales: state.curveScales, curveScaleOffsets: state.curveScaleOffsets, yZoomRange: uiState.yZoomRange, colorHistory: uiState.colorHistory }, null, 2)],
+      [JSON.stringify({ ...snapshot, yZoomRange: uiState.yZoomRange, colorHistory: uiState.colorHistory, exportWithLegend: uiState.exportWithLegend, labelStyle: uiState.labelStyle, showGrid: uiState.showGrid, showXAxis: uiState.showXAxis, showYAxis: uiState.showYAxis, xRange: uiState.xRange }, null, 2)],
       { type: 'application/json' },
     );
     const url = URL.createObjectURL(blob);
@@ -107,21 +135,16 @@ export default function Toolbar() {
       reader.onload = () => {
         try {
           const data = JSON.parse(reader.result as string);
-          useCurveStore.setState({
-            curves: data.curves ?? {},
-            offsets: data.offsets ?? {},
-            baselineId: data.baselineId ?? null,
-            braces: data.braces ?? [],
-            stagingOrder: data.stagingOrder ?? [],
-            visibleCurves: data.visibleCurves ?? {},
-            layerSpacing: data.layerSpacing ?? 0,
-            pointLabels: data.pointLabels ?? [],
-            curveScales: data.curveScales ?? {},
-            curveScaleOffsets: data.curveScaleOffsets ?? {},
-          });
+          useCurveStore.setState(applyWorkspaceSnapshot(data));
           useUiStore.setState({
             colorHistory: data.colorHistory ?? [],
             yZoomRange: data.yZoomRange ?? null,
+            exportWithLegend: data.exportWithLegend ?? false,
+            labelStyle: data.labelStyle ?? undefined,
+            showGrid: data.showGrid ?? true,
+            showXAxis: data.showXAxis ?? true,
+            showYAxis: data.showYAxis ?? false,
+            xRange: data.xRange ?? [0, 10],
           });
         } catch {
           alert('工作区文件解析失败');
@@ -132,19 +155,29 @@ export default function Toolbar() {
     input.click();
   };
 
+  const handleNewWorkspace = () => {
+    if (!confirm('确认新建工作区？当前曲线数据保留，但偏移、缩放、标注、层间距将被清空')) return;
+    resetWorkspace();
+    resetUiForNewWorkspace();
+    useCurveStore.temporal.getState().clear();
+    clearWorkspace();
+  };
+
   return (
     <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 border-b border-gray-200">
       <button
         onClick={handleUndo}
-        className="text-xs px-2 py-1 rounded hover:bg-gray-200 text-gray-600"
+        disabled={!canUndo}
+        className="text-xs px-2 py-1 rounded hover:bg-gray-200 text-gray-600 disabled:text-gray-300 disabled:cursor-not-allowed"
         title="撤销 (Ctrl+Z)"
       >
         ↩ 撤销
       </button>
       <button
         onClick={handleRedo}
-        className="text-xs px-2 py-1 rounded hover:bg-gray-200 text-gray-600"
-        title="重做 (Ctrl+Y)"
+        disabled={!canRedo}
+        className="text-xs px-2 py-1 rounded hover:bg-gray-200 text-gray-600 disabled:text-gray-300 disabled:cursor-not-allowed"
+        title="重做 (Ctrl+Y / Ctrl+Shift+Z)"
       >
         ↪ 重做
       </button>
@@ -172,6 +205,43 @@ export default function Toolbar() {
         title={pointLabelPlacementMode ? '点击取消点标签放置模式' : '插入点标签：点击图表放置'}
       >
         {pointLabelPlacementMode ? '放置中...' : '点标签'}
+      </button>
+      <button
+        onClick={() => {
+          if (!manualMoveMode) {
+            setBracePlacementMode(false);
+            setPointLabelPlacementMode(false);
+            useUiStore.setState({ globalScaleMode: false, perCurveScaleMode: false });
+          }
+          setManualMoveMode(!manualMoveMode);
+        }}
+        disabled={!hasCurves}
+        className={`text-xs px-2 py-1 rounded ${
+          manualMoveMode
+            ? 'bg-blue-500 text-white'
+            : 'hover:bg-gray-200 text-gray-600'
+        } disabled:text-gray-300 disabled:cursor-not-allowed`}
+        title="手动移动：选中曲线后拖拽移动，锁定后横向禁用"
+      >
+        {manualMoveMode ? '移动中...' : '手动移动'}
+      </button>
+      {manualMoveMode && selectedCurveId && (
+        <button
+          onClick={() => toggleCurveLocked(selectedCurveId)}
+          className={`text-xs px-2 py-1 rounded ${
+            locked[selectedCurveId] ? 'bg-red-100 text-red-700' : 'hover:bg-gray-200 text-gray-400'
+          }`}
+          title={locked[selectedCurveId] ? '解锁横向移动' : '锁定横向移动'}
+        >
+          {locked[selectedCurveId] ? '已锁定' : '锁定'}
+        </button>
+      )}
+      <button
+        onClick={() => { if (rightPanelCollapsed) toggleRightPanel(); }}
+        className="text-xs px-2 py-1 rounded hover:bg-gray-200 text-gray-600"
+        title="标签样式：字号、字体、颜色（在工具箱中编辑）"
+      >
+        标签样式
       </button>
       <div className="w-px h-5 bg-gray-300" />
       <button
@@ -226,13 +296,22 @@ export default function Toolbar() {
         网格
       </button>
       <button
-        onClick={toggleShowAxes}
+        onClick={toggleShowXAxis}
         className={`text-xs px-2 py-1 rounded ${
-          showAxes ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-200 text-gray-400'
+          showXAxis ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-200 text-gray-400'
         }`}
-        title={showAxes ? '隐藏坐标轴' : '显示坐标轴'}
+        title={showXAxis ? '隐藏 X 轴' : '显示 X 轴'}
       >
-        坐标轴
+        X 轴
+      </button>
+      <button
+        onClick={toggleShowYAxis}
+        className={`text-xs px-2 py-1 rounded ${
+          showYAxis ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-200 text-gray-400'
+        }`}
+        title={showYAxis ? '隐藏 Y 轴' : '显示 Y 轴'}
+      >
+        Y 轴
       </button>
       <div className="w-px h-5 bg-gray-300" />
       <button
@@ -242,6 +321,23 @@ export default function Toolbar() {
         title="导出当前渲染图层为 PNG"
       >
         导出图片
+      </button>
+      <button
+        onClick={handleExportPptx}
+        className="text-xs px-2 py-1 rounded hover:bg-gray-200 text-gray-600"
+        disabled={!hasCurves}
+        title="导出为可编辑 PPTX（独立 shape）"
+      >
+        导出 PPTX
+      </button>
+      <button
+        onClick={toggleExportWithLegend}
+        className={`text-xs px-2 py-1 rounded ${
+          exportWithLegend ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-200 text-gray-400'
+        }`}
+        title={exportWithLegend ? '导出含图例（开启）' : '导出不含图例（关闭）'}
+      >
+        含图例
       </button>
       <button
         onClick={handleExportJSON}
@@ -255,6 +351,14 @@ export default function Toolbar() {
         className="text-xs px-2 py-1 rounded hover:bg-gray-200 text-gray-600"
       >
         导入工作区
+      </button>
+      <div className="w-px h-5 bg-gray-300" />
+      <button
+        onClick={handleNewWorkspace}
+        className="text-xs px-2 py-1 rounded hover:bg-red-100 text-red-500"
+        title="重置偏移、缩放、标注、层间距，保留曲线数据与显示偏好"
+      >
+        新建工作区
       </button>
       <span
         className="ml-auto text-[10px] text-gray-400 font-mono tabular-nums select-none"
