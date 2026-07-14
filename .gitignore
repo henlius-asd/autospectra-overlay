@@ -48,6 +48,9 @@ opencode.json
 # Kilo（local state）
 .kilo/
 
+# Agents
+.agents/
+
 # Test coverage
 coverage/
 
