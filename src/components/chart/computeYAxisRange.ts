@@ -59,7 +59,7 @@ export function computeYAxisRange(
     : dataSpan / (1 - spacingBudget);
 
   // Y-axis bounds with padding
-  const padding = dataSpan * 0.02;
+  const padding = dataSpan * 0.08;
   const yAxisMin = Math.min(0, rawDataMin) - padding;
   const yAxisMax = rawDataMin + yRangeForLayer * (1 + LABEL_PADDING_RATIO);
 

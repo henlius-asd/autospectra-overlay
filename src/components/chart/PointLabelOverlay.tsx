@@ -3,6 +3,7 @@ import type { PointerEvent as ReactPointerEvent } from 'react';
 import { useCurveStore, useUiStore } from '@/store';
 import type { PointLabel } from '@/types';
 import { clampLabelX, clampLabelY, estimateTextWidth } from './labelClamp';
+import { resolveLabelStyle } from './resolveLabelStyle';
 
 interface PointLabelOverlayProps {
   width: number;
@@ -37,6 +38,7 @@ export default function PointLabelOverlay({
   const removePointLabel = useCurveStore((s) => s.removePointLabel);
   const pointLabelPlacementMode = useUiStore((s) => s.pointLabelPlacementMode);
   const setPointLabelPlacementMode = useUiStore((s) => s.setPointLabelPlacementMode);
+  const labelStyle = useUiStore((s) => s.labelStyle);
 
   const [editingLabel, setEditingLabel] = useState<PointLabel | null>(null);
   const [labelInput, setLabelInput] = useState('');
@@ -151,8 +153,9 @@ export default function PointLabelOverlay({
         onPointerUp={handlePointerUp}
       >
         {visibleLabels.map((pl) => {
+          const style = resolveLabelStyle(pl.labelStyle, labelStyle);
           const labelText = pl.label || '未命名';
-          const textW = estimateTextWidth(labelText, 10);
+          const textW = estimateTextWidth(labelText, style.fontSize);
           const rawPx = convertXToPixel(pl.x);
           const px = clampLabelX(rawPx, textW, gridLeft, gridRight, chartWidth);
           const rawPy = getLabelBaseYAtX(pl.x) + pl.yOffset;
@@ -167,8 +170,10 @@ export default function PointLabelOverlay({
                 x={px}
                 y={py + 3}
                 textAnchor="middle"
-                fontSize={10}
-                fill="#333"
+                fontSize={style.fontSize}
+                fontFamily={style.fontFamily}
+                fontWeight={style.fontWeight}
+                fill={style.color}
                 onClick={(e) => {
                   e.stopPropagation();
                   handleLabelClick(pl);

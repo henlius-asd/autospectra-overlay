@@ -1,8 +1,10 @@
 import { useMemo, useCallback, useEffect, useRef, useState } from 'react';
+import type { MouseEvent } from 'react';
 import ReactECharts from 'echarts-for-react';
 import { useCurveStore, useUiStore } from '@/store';
 import BraceOverlay from './BraceOverlay';
 import PointLabelOverlay from './PointLabelOverlay';
+import ManualMoveOverlay from './ManualMoveOverlay';
 import type { EChartsOption } from 'echarts';
 import type { EChartsInstance } from 'echarts-for-react';
 import { computeYAxisRange } from './computeYAxisRange';
@@ -62,8 +64,10 @@ export default function WaterfallChart() {
   const bracePlacementMode = useUiStore((s) => s.bracePlacementMode);
   const scaleModeActive = globalScaleMode || perCurveScaleMode;
   const showGrid = useUiStore((s) => s.showGrid);
-  const showAxes = useUiStore((s) => s.showAxes);
+  const showXAxis = useUiStore((s) => s.showXAxis);
+  const showYAxis = useUiStore((s) => s.showYAxis);
   const yZoomRange = useUiStore((s) => s.yZoomRange);
+  const manualMoveMode = useUiStore((s) => s.manualMoveMode);
   const yZoomRangeSource = useRef<'event' | 'external' | null>(null);
 
   // visibleIds follows stagingOrder (only IDs that are in stagingOrder AND visible)
@@ -234,10 +238,13 @@ export default function WaterfallChart() {
     return {
       title: { show: false },
       tooltip: { show: false },
-      legend: {
+legend: {
         show: visibleIds.length > 1,
         top: 8,
         type: 'scroll',
+        icon: 'line',
+        itemWidth: 20,
+        itemHeight: 14,
       },
       grid: {
         left: 60,
@@ -247,30 +254,29 @@ export default function WaterfallChart() {
       },
       xAxis: {
         type: 'value',
-        // @deprecated Axes hidden by default; will be removed in future version
-        show: showAxes,
-        name: showAxes ? '时间' : '',
+        show: showXAxis,
+        name: showXAxis ? '时间' : '',
         nameLocation: 'center',
         nameGap: 35,
         min: xMin,
         max: xMax,
-        axisLine: { show: showAxes },
-        axisTick: { show: showAxes },
-        axisLabel: { show: showAxes },
+        onZero: false,
+        axisLine: { show: showXAxis },
+        axisTick: { show: showXAxis },
+        axisLabel: { show: showXAxis },
         splitLine: { show: showGrid },
       },
       yAxis: {
         type: 'value',
-        // @deprecated Axes hidden by default; will be removed in future version
-        show: showAxes,
-        name: showAxes ? '强度' : '',
+        show: showYAxis,
+        name: showYAxis ? '强度' : '',
         nameLocation: 'center',
         nameGap: 45,
         min: yAxisFullRange.yAxisMin,
         max: yAxisFullRange.yAxisMax,
-        axisLine: { show: showAxes },
-        axisTick: { show: showAxes },
-        axisLabel: { show: showAxes },
+        axisLine: { show: showYAxis },
+        axisTick: { show: showYAxis },
+        axisLabel: { show: showYAxis },
         splitLine: { show: showGrid },
       },
       dataZoom: (() => {
@@ -299,7 +305,7 @@ export default function WaterfallChart() {
       series,
       animation: false,
     };
-  }, [curves, offsets, visibleCurves, layerSpacing, stagingOrder, visibleIds, xRange, bracePlacementMode, showGrid, showAxes, curveScales, curveScaleOffsets, normalizeFactors, globalScale, scaleModeActive]);
+  }, [curves, offsets, visibleCurves, layerSpacing, stagingOrder, visibleIds, xRange, bracePlacementMode, showGrid, showXAxis, showYAxis, curveScales, curveScaleOffsets, normalizeFactors, globalScale, scaleModeActive]);
 
   const convertXToPixel = (xVal: number): number => {
     if (!chartInstance) return 0;
@@ -388,13 +394,13 @@ export default function WaterfallChart() {
       gridTop, gridBottom, chartHeight: chartDims.height,
     };
 
-    const onMouseDown = (e: MouseEvent) => {
+    const onMouseDown = (e: globalThis.MouseEvent) => {
       if (!e.shiftKey) return;
       e.preventDefault();
       const startY = e.clientY;
       const startOffset = curveScaleOffsets[selectedCurveId!] ?? 0;
 
-      const onMove = (ev: MouseEvent) => {
+      const onMove = (ev: globalThis.MouseEvent) => {
         const next = offsetByDrag(startOffset, startY, ev.clientY, frame);
         setCurveScaleOffset(selectedCurveId!, next);
       };
@@ -432,8 +438,53 @@ export default function WaterfallChart() {
     ? (curveScaleOffsets[selectedCurveId] ?? 0)
     : 0;
 
+  const handleChartClick = useCallback((e: MouseEvent<HTMLDivElement>) => {
+    if (!chartInstance || visibleIds.length === 0) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const px = e.clientX - rect.left;
+    const py = e.clientY - rect.top;
+    const plotW = chartDims.width - gridLeft - gridRight;
+    const plotH = chartDims.height - gridTop - gridBottom;
+    const dataX = xRange[0] + ((px - gridLeft) / plotW) * (xRange[1] - xRange[0]);
+    const { yAxisMin, yAxisMax } = yAxisFullRange;
+    const dataY = yAxisMax - ((py - gridTop) / plotH) * (yAxisMax - yAxisMin);
+
+    let bestId: string | null = null;
+    let bestDist = Infinity;
+    for (const id of visibleIds) {
+      const curve = curves[id];
+      if (!curve) continue;
+      const offset = offsets[id] ?? { xOffset: 0, yOffset: 0 };
+      const layerIndex = visibleIds.length - 1 - visibleIds.indexOf(id);
+      const layerYOffset = layerIndex * layerSpacing * yAxisFullRange.yRangeForLayer;
+      const normalize = normalizeFactors[id] ?? 1;
+      const manual = curveScales[id] ?? 1;
+      const composite = normalize * globalScale * manual;
+      const scaleOffset = curveScaleOffsets[id] ?? 0;
+      const data = curve.data;
+      let lo = 0; let hi = data.length - 1;
+      while (lo < hi) {
+        const mid = (lo + hi) >> 1;
+        if (data[mid][0] + offset.xOffset < dataX) lo = mid + 1;
+        else hi = mid;
+      }
+      const idx = lo > 0 && lo < data.length &&
+        Math.abs(data[lo][0] + offset.xOffset - dataX) > Math.abs(data[lo - 1][0] + offset.xOffset - dataX)
+        ? lo - 1 : lo;
+      if (idx < 0 || idx >= data.length) continue;
+      const cy = data[idx][1] * composite + scaleOffset + layerYOffset + offset.yOffset;
+      const dist = Math.abs(cy - dataY);
+      if (dist < bestDist) { bestDist = dist; bestId = id; }
+    }
+    if (bestId) {
+      setSelectedCurveId(selectedCurveId === bestId ? null : bestId);
+    }
+  }, [chartInstance, visibleIds, xRange, gridLeft, gridTop, gridRight, gridBottom,
+      chartDims, yAxisFullRange, curves, offsets, layerSpacing, normalizeFactors,
+      curveScales, globalScale, curveScaleOffsets, selectedCurveId, setSelectedCurveId]);
+
   return (
-    <div className="relative w-full h-full" ref={chartContainerRef} onDoubleClick={scaleModeActive ? onChartDoubleClick : undefined}>
+    <div className="relative w-full h-full" ref={chartContainerRef} onDoubleClick={scaleModeActive ? onChartDoubleClick : undefined} onClick={handleChartClick}>
       <ReactECharts
         option={option}
         replaceMerge={['series', 'dataZoom']}
@@ -482,6 +533,19 @@ export default function WaterfallChart() {
         gridLeft={gridLeft}
         gridRight={gridRight}
       />
+      {manualMoveMode && (
+        <ManualMoveOverlay
+          chartWidth={chartDims.width}
+          chartHeight={chartDims.height}
+          xRange={xRange}
+          gridLeft={gridLeft}
+          gridRight={gridRight}
+          gridTop={gridTop}
+          gridBottom={gridBottom}
+          visibleYMin={yAxisFullRange.yAxisMin}
+          visibleYMax={yAxisFullRange.yAxisMax}
+        />
+      )}
       <div className="absolute top-1/2 right-1 -translate-y-1/2 h-3/5 flex flex-col items-center gap-1.5 pointer-events-none">
         <span className="text-[10px] text-gray-500 font-mono tabular-nums">
           {layerSpacing.toFixed(3)}

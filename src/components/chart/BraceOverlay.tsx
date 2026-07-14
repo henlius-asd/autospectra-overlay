@@ -4,6 +4,7 @@ import { useCurveStore, useUiStore } from '@/store';
 import type { BraceAnnotation } from '@/types';
 import { bracePath, BRACE_COLOR } from './bracePath';
 import { clampLabelX, estimateTextWidth } from './labelClamp';
+import { resolveLabelStyle } from './resolveLabelStyle';
 
 interface BraceOverlayProps {
   width: number;
@@ -27,6 +28,7 @@ export default function BraceOverlay({
   const updateBrace = useCurveStore((s) => s.updateBrace);
   const bracePlacementMode = useUiStore((s) => s.bracePlacementMode);
   const setBracePlacementMode = useUiStore((s) => s.setBracePlacementMode);
+  const labelStyle = useUiStore((s) => s.labelStyle);
 
   const [editingBrace, setEditingBrace] = useState<BraceAnnotation | null>(null);
   const [dragStart, setDragStart] = useState<number | null>(null);
@@ -213,11 +215,12 @@ export default function BraceOverlay({
           onPointerUp={handlePointerUp}
         >
           {/* Render existing braces */}
-          {visibleBraces.map((brace) => {
+{visibleBraces.map((brace) => {
+            const style = resolveLabelStyle(brace.labelStyle, labelStyle);
             const px1 = convertXToPixel(brace.startX);
             const px2 = convertXToPixel(brace.endX);
             const labelText = brace.label || '未命名';
-            const textW = estimateTextWidth(labelText, 11);
+            const textW = estimateTextWidth(labelText, style.fontSize);
             const textX = clampLabelX(
               (px1 + px2) / 2,
               textW,
@@ -237,7 +240,7 @@ export default function BraceOverlay({
                   stroke={BRACE_COLOR}
                   strokeWidth={2}
                   onClick={(e) => {
-                    if (dragMovedRef.current) return; // suppress click after drag
+                    if (dragMovedRef.current) return;
                     e.stopPropagation();
                     handleBraceClick(brace);
                   }}
@@ -246,8 +249,10 @@ export default function BraceOverlay({
                   x={textX}
                   y={y - 10}
                   textAnchor="middle"
-                  fontSize={11}
-                  fill={BRACE_COLOR}
+                  fontSize={style.fontSize}
+                  fontFamily={style.fontFamily}
+                  fontWeight={style.fontWeight}
+                  fill={style.color}
                   onClick={(e) => {
                     if (dragMovedRef.current) return;
                     e.stopPropagation();

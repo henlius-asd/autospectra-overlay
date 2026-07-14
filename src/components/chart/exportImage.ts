@@ -6,6 +6,7 @@ import { normalizeYZoomRange } from './yZoomRange';
 import { yToPixel } from './yPixelMath';
 import { getTopCurvePixelYAtX, topCurvePeak } from './labelGeometry';
 import { clampLabelX, clampLabelY, estimateTextWidth } from './labelClamp';
+import { resolveLabelStyle } from './resolveLabelStyle';
 
 /**
  * Local reimplementation of WaterfallChart's convertXToPixel.
@@ -28,7 +29,7 @@ function convertXToPixel(
  *
  * Snapshots the live ECharts option, swaps to an export-only option
  * (legend hidden, dataZoom slider removed but `start`/`end` zoom
- * preserved via an `inside` zoom, grid tightened by `showAxes`),
+ * preserved via an `inside` zoom, grid tightened by `showXAxis`/`showYAxis`),
  * captures the canvas, composites the SVG overlay using the shared
  * geometry helpers (no decorations, clamped), then restores in `finally`.
  */
@@ -40,8 +41,11 @@ export async function exportChartImage(): Promise<void> {
   }
 
   const uiState = useUiStore.getState();
-  // @deprecated Axes hidden by default; will be removed in future version
-  const showAxes = uiState.showAxes;
+  const showXAxis = uiState.showXAxis;
+  const showYAxis = uiState.showYAxis;
+  const showAnyAxis = showXAxis || showYAxis;
+  const exportWithLegend = uiState.exportWithLegend;
+  const labelStyle = uiState.labelStyle;
 
   // Snapshot the live option so we can restore EXACTLY after export.
   const snapshot = structuredClone(instance.getOption()) as Record<string, unknown>;
@@ -69,13 +73,15 @@ export async function exportChartImage(): Promise<void> {
   insideZoom.push(yInsideZoom);
 
   const exportOpt = {
-    legend: { show: false },
+legend: exportWithLegend
+      ? { show: true, icon: 'line', itemWidth: 20, itemHeight: 14 }
+      : { show: false },
     dataZoom: insideZoom,
     grid: {
       left: 60,
       right: 48,
-      top: showAxes ? 20 : 8,
-      bottom: showAxes ? 40 : 8,
+      top: showYAxis ? 20 : 8,
+      bottom: showXAxis ? 40 : 8,
     },
   };
 
@@ -89,7 +95,7 @@ export async function exportChartImage(): Promise<void> {
     const url = instance.getDataURL({
       type: 'png',
       pixelRatio,
-      backgroundColor: showAxes ? '#fff' : 'transparent',
+      backgroundColor: showAnyAxis ? '#fff' : 'transparent',
     });
 
     const canvas = document.createElement('canvas');
@@ -115,8 +121,8 @@ export async function exportChartImage(): Promise<void> {
     const grid = option.grid?.[0];
     const gridLeft = typeof grid?.left === 'number' ? grid.left : 60;
     const gridRight = typeof grid?.right === 'number' ? grid.right : 48;
-    const gridTop = typeof grid?.top === 'number' ? grid.top : (showAxes ? 20 : 8);
-    const gridBottom = typeof grid?.bottom === 'number' ? grid.bottom : (showAxes ? 40 : 8);
+    const gridTop = typeof grid?.top === 'number' ? grid.top : (showYAxis ? 20 : 8);
+    const gridBottom = typeof grid?.bottom === 'number' ? grid.bottom : (showXAxis ? 40 : 8);
 
     const { braces } = state;
 
@@ -163,7 +169,8 @@ export async function exportChartImage(): Promise<void> {
       svgEl.appendChild(pathEl);
 
       const labelText = brace.label || '未命名';
-      const textWScaled = estimateTextWidth(labelText, 11) * pixelRatio;
+      const style = resolveLabelStyle(brace.labelStyle, labelStyle);
+      const textWScaled = estimateTextWidth(labelText, style.fontSize) * pixelRatio;
       const textXScaled = clampLabelX(
         (px1 + px2) / 2,
         textWScaled,
@@ -174,8 +181,10 @@ export async function exportChartImage(): Promise<void> {
       const textEl = document.createElementNS(ns, 'text');
       textEl.setAttribute('x', String(textXScaled));
       textEl.setAttribute('y', String(braceYScaled - 10 * pixelRatio));
-      textEl.setAttribute('font-size', String(11 * pixelRatio));
-      textEl.setAttribute('fill', BRACE_COLOR);
+      textEl.setAttribute('font-size', String(style.fontSize * pixelRatio));
+      textEl.setAttribute('font-family', style.fontFamily);
+      textEl.setAttribute('font-weight', style.fontWeight);
+      textEl.setAttribute('fill', style.color);
       textEl.setAttribute('text-anchor', 'middle');
       textEl.textContent = labelText;
       svgEl.appendChild(textEl);
@@ -194,8 +203,9 @@ export async function exportChartImage(): Promise<void> {
       yRangeForLayer: rangeResult.yRangeForLayer,
     };
     for (const pl of visiblePointLabels) {
+      const style = resolveLabelStyle(pl.labelStyle, labelStyle);
       const labelText = pl.label || '未命名';
-      const textW = estimateTextWidth(labelText, 10);
+      const textW = estimateTextWidth(labelText, style.fontSize);
       const rawPx = convertXToPixel(pl.x, xRange, chartWidth, gridLeft, gridRight);
       const px = clampLabelX(rawPx, textW, gridLeft, gridRight, chartWidth);
       const rawPy = getTopCurvePixelYAtX(pl.x, geometryCtx, yToPixelExport) + pl.yOffset;
@@ -204,8 +214,10 @@ export async function exportChartImage(): Promise<void> {
       const textEl = document.createElementNS(ns, 'text');
       textEl.setAttribute('x', String(px * pixelRatio));
       textEl.setAttribute('y', String((py + 3) * pixelRatio));
-      textEl.setAttribute('font-size', String(10 * pixelRatio));
-      textEl.setAttribute('fill', '#333');
+      textEl.setAttribute('font-size', String(style.fontSize * pixelRatio));
+      textEl.setAttribute('font-family', style.fontFamily);
+      textEl.setAttribute('font-weight', style.fontWeight);
+      textEl.setAttribute('fill', style.color);
       textEl.setAttribute('text-anchor', 'middle');
       textEl.textContent = labelText;
       svgEl.appendChild(textEl);
