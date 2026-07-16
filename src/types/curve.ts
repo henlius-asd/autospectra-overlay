@@ -12,7 +12,7 @@ export const DEFAULT_LABEL_STYLE: LabelStyle = {
   fontFamily: 'sans-serif',
   fontWeight: 'normal',
   color: '#333333',
-  backgroundColor: 'rgba(255,255,255,0.9)',
+  backgroundColor: '#ffffff',
 };
 
 /** Curve data point: [time, value] */

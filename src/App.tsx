@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { ThreeColumnLayout } from '@/components/layout';
 import { initPersistence, restoreWorkspace } from '@/persistence';
 import { useCurveStore } from '@/store';
+import Toast from '@/components/ui/Toast';
 
 function isEditableTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
@@ -39,5 +40,10 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  return <ThreeColumnLayout />;
+  return (
+    <>
+      <ThreeColumnLayout />
+      <Toast />
+    </>
+  );
 }

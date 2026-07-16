@@ -78,7 +78,7 @@ function saveWorkspace() {
       console.warn('Failed to persist workspace:', err);
     });
     const uiState = useUiStore.getState();
-    const uiSnapshot = { showGrid: uiState.showGrid, showXAxis: uiState.showXAxis, showYAxis: uiState.showYAxis, exportWithLegend: uiState.exportWithLegend, labelStyle: uiState.labelStyle, xRange: uiState.xRange, yZoomRange: uiState.yZoomRange, colorHistory: uiState.colorHistory };
+    const uiSnapshot = { showGrid: uiState.showGrid, showXAxis: uiState.showXAxis, showYAxis: uiState.showYAxis, showLegend: uiState.showLegend, exportWithLegend: uiState.exportWithLegend, labelStyle: uiState.labelStyle, xRange: uiState.xRange, yZoomRange: uiState.yZoomRange, colorHistory: uiState.colorHistory };
     persistenceStore.setItem(UI_PERSISTENCE_KEY, uiSnapshot).catch((err) => {
       console.warn('Failed to persist UI state:', err);
     });
@@ -95,12 +95,12 @@ export async function restoreWorkspace(): Promise<boolean> {
 
     if (snapshot && snapshot.curves && Object.keys(snapshot.curves as Record<string, unknown>).length > 0) {
       useCurveStore.setState(applyWorkspaceSnapshot(snapshot));
-      const uiSnapshot = await persistenceStore.getItem<{ showGrid?: boolean; showAxes?: boolean; showXAxis?: boolean; showYAxis?: boolean; exportWithLegend?: boolean; labelStyle?: Record<string, unknown>; xRange?: [number, number]; yZoomRange?: [number, number] | null; colorHistory?: string[] }>(UI_PERSISTENCE_KEY);
+      const uiSnapshot = await persistenceStore.getItem<{ showGrid?: boolean; showAxes?: boolean; showXAxis?: boolean; showYAxis?: boolean; showLegend?: boolean; exportWithLegend?: boolean; labelStyle?: Record<string, unknown>; xRange?: [number, number]; yZoomRange?: [number, number] | null; colorHistory?: string[] }>(UI_PERSISTENCE_KEY);
       if (uiSnapshot) {
         const oldShowAxes = uiSnapshot.showAxes;
         const showXAxis = (oldShowAxes !== undefined) ? oldShowAxes : (uiSnapshot.showXAxis ?? true);
         const showYAxis = (oldShowAxes !== undefined) ? oldShowAxes : (uiSnapshot.showYAxis ?? false);
-        useUiStore.setState({ showGrid: uiSnapshot.showGrid ?? true, showXAxis, showYAxis, exportWithLegend: uiSnapshot.exportWithLegend ?? false, xRange: uiSnapshot.xRange ?? [0, 10], yZoomRange: uiSnapshot.yZoomRange ?? null, colorHistory: uiSnapshot.colorHistory ?? [] });
+        useUiStore.setState({ showGrid: uiSnapshot.showGrid ?? true, showXAxis, showYAxis, showLegend: uiSnapshot.showLegend ?? true, exportWithLegend: uiSnapshot.exportWithLegend ?? false, xRange: uiSnapshot.xRange ?? [0, 10], yZoomRange: uiSnapshot.yZoomRange ?? null, colorHistory: uiSnapshot.colorHistory ?? [] });
         if (uiSnapshot.labelStyle) {
           useUiStore.setState({ labelStyle: uiSnapshot.labelStyle as unknown as LabelStyle });
         }
@@ -119,7 +119,7 @@ export async function restoreWorkspace(): Promise<boolean> {
 export function initPersistence() {
   useCurveStore.subscribe(() => { saveWorkspace(); });
   useUiStore.subscribe((state, prev) => {
-    if (state.showGrid !== prev.showGrid || state.showXAxis !== prev.showXAxis || state.showYAxis !== prev.showYAxis || state.exportWithLegend !== prev.exportWithLegend || state.labelStyle !== prev.labelStyle || state.xRange[0] !== prev.xRange[0] || state.xRange[1] !== prev.xRange[1] || state.yZoomRange?.[0] !== prev.yZoomRange?.[0] || state.yZoomRange?.[1] !== prev.yZoomRange?.[1] || state.colorHistory.length !== prev.colorHistory.length) { saveWorkspace(); }
+    if (state.showGrid !== prev.showGrid || state.showXAxis !== prev.showXAxis || state.showYAxis !== prev.showYAxis || state.showLegend !== prev.showLegend || state.exportWithLegend !== prev.exportWithLegend || state.labelStyle !== prev.labelStyle || state.xRange[0] !== prev.xRange[0] || state.xRange[1] !== prev.xRange[1] || state.yZoomRange?.[0] !== prev.yZoomRange?.[0] || state.yZoomRange?.[1] !== prev.yZoomRange?.[1] || state.colorHistory.length !== prev.colorHistory.length) { saveWorkspace(); }
   });
 }
 

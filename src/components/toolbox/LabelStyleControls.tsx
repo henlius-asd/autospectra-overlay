@@ -2,6 +2,18 @@ import { useUiStore } from '@/store';
 
 const FONT_FAMILIES = ['sans-serif', 'serif', 'monospace', 'Arial', 'SimSun', 'KaiTi'];
 
+/** Convert rgba/rgb color to #rrggbb for <input type="color"> compatibility */
+function toHexColor(color: string): string {
+  if (color.startsWith('#')) return color;
+  const match = color.match(/rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+  if (match) {
+    return '#' + [match[1], match[2], match[3]]
+      .map((n) => parseInt(n).toString(16).padStart(2, '0'))
+      .join('');
+  }
+  return '#ffffff';
+}
+
 export default function LabelStyleControls() {
   const labelStyle = useUiStore((s) => s.labelStyle);
   const setLabelStyle = useUiStore((s) => s.setLabelStyle);
@@ -54,7 +66,7 @@ export default function LabelStyleControls() {
         <div className="flex items-center gap-2 mt-1">
           <input
             type="color"
-            value={labelStyle.color}
+            value={toHexColor(labelStyle.color)}
             onChange={(e) => { addColorToHistory(e.target.value); setLabelStyle({ color: e.target.value }); }}
             className="w-6 h-6 rounded cursor-pointer border border-gray-300"
           />
@@ -77,7 +89,7 @@ export default function LabelStyleControls() {
         <div className="flex items-center gap-2 mt-1">
           <input
             type="color"
-            value={labelStyle.backgroundColor}
+            value={toHexColor(labelStyle.backgroundColor)}
             onChange={(e) => { addColorToHistory(e.target.value); setLabelStyle({ backgroundColor: e.target.value }); }}
             className="w-6 h-6 rounded cursor-pointer border border-gray-300"
           />

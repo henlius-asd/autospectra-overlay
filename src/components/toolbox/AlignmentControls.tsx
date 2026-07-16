@@ -101,9 +101,9 @@ export default function AlignmentControls() {
       }
 
       useCurveStore.setState({ offsets: newOffsets });
-    } catch (err) {
+} catch (err) {
       console.error('对齐失败:', err);
-      alert('对齐失败');
+      useUiStore.getState().showToast('对齐失败', 'error');
     } finally {
       setProgress(null);
     }

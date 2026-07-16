@@ -3,6 +3,26 @@ import { useCurveStore } from '@/store';
 import { useUiStore } from '@/store';
 import { exportChartImage } from '@/components/chart/exportImage';
 import { buildWorkspaceSnapshot, applyWorkspaceSnapshot, clearWorkspace } from '@/persistence';
+import Dropdown from '@/components/ui/Dropdown';
+import type { DropdownItem } from '@/components/ui/Dropdown';
+import {
+  UndoIcon, RedoIcon, BraceIcon, PointLabelIcon, MoveIcon, LockIcon,
+  BoxSelectIcon, ZoomGlobalIcon, ZoomCurveIcon,
+  ExportImageIcon, ExportPptxIcon, ExportWorkspaceIcon, ImportWorkspaceIcon,
+  NewWorkspaceIcon,
+} from '@/components/ui/icons';
+
+function modeButtonClass(active: boolean): string {
+  return `flex items-center justify-center w-7 h-7 rounded ${
+    active
+      ? 'bg-blue-500 text-white'
+      : 'text-gray-600 hover:bg-gray-200'
+  } disabled:text-gray-300 disabled:cursor-not-allowed`;
+}
+
+function actionButtonClass(): string {
+  return 'flex items-center justify-center w-7 h-7 rounded text-gray-600 hover:bg-gray-200 disabled:text-gray-300 disabled:cursor-not-allowed';
+}
 
 export default function Toolbar() {
   const temporal = useCurveStore.temporal;
@@ -11,28 +31,17 @@ export default function Toolbar() {
   const setBracePlacementMode = useUiStore((s) => s.setBracePlacementMode);
   const pointLabelPlacementMode = useUiStore((s) => s.pointLabelPlacementMode);
   const setPointLabelPlacementMode = useUiStore((s) => s.setPointLabelPlacementMode);
-  const normalizeAllPeak = useCurveStore((s) => s.normalizeAllPeak);
-  const clearNormalizeFactors = useCurveStore((s) => s.clearNormalizeFactors);
-  const xRange = useUiStore((s) => s.xRange);
   const globalScaleMode = useUiStore((s) => s.globalScaleMode);
   const perCurveScaleMode = useUiStore((s) => s.perCurveScaleMode);
   const toggleGlobalScaleMode = useUiStore((s) => s.toggleGlobalScaleMode);
   const togglePerCurveScaleMode = useUiStore((s) => s.togglePerCurveScaleMode);
-  const showGrid = useUiStore((s) => s.showGrid);
-const showXAxis = useUiStore((s) => s.showXAxis);
-  const showYAxis = useUiStore((s) => s.showYAxis);
-  const exportWithLegend = useUiStore((s) => s.exportWithLegend);
-  const toggleShowGrid = useUiStore((s) => s.toggleShowGrid);
-  const toggleShowXAxis = useUiStore((s) => s.toggleShowXAxis);
-  const toggleShowYAxis = useUiStore((s) => s.toggleShowYAxis);
-  const toggleExportWithLegend = useUiStore((s) => s.toggleExportWithLegend);
   const manualMoveMode = useUiStore((s) => s.manualMoveMode);
   const setManualMoveMode = useUiStore((s) => s.setManualMoveMode);
+  const brushMode = useUiStore((s) => s.brushMode);
+  const setBrushMode = useUiStore((s) => s.setBrushMode);
   const selectedCurveId = useUiStore((s) => s.selectedCurveId);
   const toggleCurveLocked = useCurveStore((s) => s.toggleCurveLocked);
   const locked = useCurveStore((s) => s.locked);
-  const toggleRightPanel = useUiStore((s) => s.toggleRightPanel);
-  const rightPanelCollapsed = useUiStore((s) => s.rightPanelCollapsed);
   const resetWorkspace = useCurveStore((s) => s.resetWorkspace);
   const resetUiForNewWorkspace = useUiStore((s) => s.resetUiForNewWorkspace);
 
@@ -60,7 +69,7 @@ const showXAxis = useUiStore((s) => s.showXAxis);
   const handleToggleBraceMode = () => {
     if (!bracePlacementMode) {
       setPointLabelPlacementMode(false);
-      useUiStore.setState({ globalScaleMode: false, perCurveScaleMode: false });
+      useUiStore.setState({ globalScaleMode: false, perCurveScaleMode: false, brushMode: false });
       setBracePlacementMode(true);
     } else {
       setBracePlacementMode(false);
@@ -70,7 +79,7 @@ const showXAxis = useUiStore((s) => s.showXAxis);
   const handleTogglePointLabelMode = () => {
     if (!pointLabelPlacementMode) {
       setBracePlacementMode(false);
-      useUiStore.setState({ globalScaleMode: false, perCurveScaleMode: false });
+      useUiStore.setState({ globalScaleMode: false, perCurveScaleMode: false, brushMode: false });
       setPointLabelPlacementMode(true);
     } else {
       setPointLabelPlacementMode(false);
@@ -81,6 +90,7 @@ const showXAxis = useUiStore((s) => s.showXAxis);
     if (!globalScaleMode) {
       setBracePlacementMode(false);
       setPointLabelPlacementMode(false);
+      setBrushMode(false);
     }
     toggleGlobalScaleMode();
   };
@@ -89,13 +99,34 @@ const showXAxis = useUiStore((s) => s.showXAxis);
     if (!perCurveScaleMode) {
       setBracePlacementMode(false);
       setPointLabelPlacementMode(false);
+      setBrushMode(false);
     }
     togglePerCurveScaleMode();
   };
 
+  const handleToggleBrushMode = () => {
+    if (!brushMode) {
+      setBracePlacementMode(false);
+      setPointLabelPlacementMode(false);
+      useUiStore.setState({ globalScaleMode: false, perCurveScaleMode: false });
+      setBrushMode(true);
+    } else {
+      setBrushMode(false);
+    }
+  };
+
+  const handleToggleManualMove = () => {
+    if (!manualMoveMode) {
+      setBracePlacementMode(false);
+      setPointLabelPlacementMode(false);
+      useUiStore.setState({ globalScaleMode: false, perCurveScaleMode: false, brushMode: false });
+    }
+    setManualMoveMode(!manualMoveMode);
+  };
+
   const handleExportImage = () => {
     exportChartImage().catch(() => {
-      alert('导出图片失败');
+      useUiStore.getState().showToast('导出图片失败', 'error');
     });
   };
 
@@ -104,7 +135,7 @@ const showXAxis = useUiStore((s) => s.showXAxis);
       const { exportChartPptx } = await import('@/components/chart/exportPptx');
       await exportChartPptx();
     } catch {
-      alert('导出 PPTX 失败');
+      useUiStore.getState().showToast('导出 PPTX 失败', 'error');
     }
   };
 
@@ -113,7 +144,7 @@ const showXAxis = useUiStore((s) => s.showXAxis);
     const uiState = useUiStore.getState();
     const snapshot = buildWorkspaceSnapshot(state);
     const blob = new Blob(
-      [JSON.stringify({ ...snapshot, yZoomRange: uiState.yZoomRange, colorHistory: uiState.colorHistory, exportWithLegend: uiState.exportWithLegend, labelStyle: uiState.labelStyle, showGrid: uiState.showGrid, showXAxis: uiState.showXAxis, showYAxis: uiState.showYAxis, xRange: uiState.xRange }, null, 2)],
+      [JSON.stringify({ ...snapshot, yZoomRange: uiState.yZoomRange, colorHistory: uiState.colorHistory, showLegend: uiState.showLegend, exportWithLegend: uiState.exportWithLegend, labelStyle: uiState.labelStyle, showGrid: uiState.showGrid, showXAxis: uiState.showXAxis, showYAxis: uiState.showYAxis, xRange: uiState.xRange }, null, 2)],
       { type: 'application/json' },
     );
     const url = URL.createObjectURL(blob);
@@ -139,6 +170,7 @@ const showXAxis = useUiStore((s) => s.showXAxis);
           useUiStore.setState({
             colorHistory: data.colorHistory ?? [],
             yZoomRange: data.yZoomRange ?? null,
+            showLegend: data.showLegend ?? true,
             exportWithLegend: data.exportWithLegend ?? false,
             labelStyle: data.labelStyle ?? undefined,
             showGrid: data.showGrid ?? true,
@@ -147,7 +179,7 @@ const showXAxis = useUiStore((s) => s.showXAxis);
             xRange: data.xRange ?? [0, 10],
           });
         } catch {
-          alert('工作区文件解析失败');
+          useUiStore.getState().showToast('工作区文件解析失败', 'error');
         }
       };
       reader.readAsText(file);
@@ -163,205 +195,109 @@ const showXAxis = useUiStore((s) => s.showXAxis);
     clearWorkspace();
   };
 
+  const exportDropdownItems: DropdownItem[] = [
+    { icon: ExportImageIcon, label: '导出图片', onClick: handleExportImage },
+    { icon: ExportPptxIcon, label: '导出 PPTX', onClick: handleExportPptx },
+  ];
+
+  const workspaceDropdownItems: DropdownItem[] = [
+    { icon: ExportWorkspaceIcon, label: '导出工作区', onClick: handleExportJSON },
+    { icon: ImportWorkspaceIcon, label: '导入工作区', onClick: handleImportJSON },
+    { icon: NewWorkspaceIcon, label: '新建工作区', onClick: handleNewWorkspace, danger: true },
+  ];
+
   return (
-    <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 border-b border-gray-200">
+    <div className="flex items-center gap-1 px-2 py-1.5 bg-gray-100 border-b border-gray-200 relative z-50">
       <button
         onClick={handleUndo}
         disabled={!canUndo}
-        className="text-xs px-2 py-1 rounded hover:bg-gray-200 text-gray-600 disabled:text-gray-300 disabled:cursor-not-allowed"
+        className={actionButtonClass()}
         title="撤销 (Ctrl+Z)"
       >
-        ↩ 撤销
+        <UndoIcon className="w-[18px] h-[18px]" />
       </button>
       <button
         onClick={handleRedo}
         disabled={!canRedo}
-        className="text-xs px-2 py-1 rounded hover:bg-gray-200 text-gray-600 disabled:text-gray-300 disabled:cursor-not-allowed"
+        className={actionButtonClass()}
         title="重做 (Ctrl+Y / Ctrl+Shift+Z)"
       >
-        ↪ 重做
+        <RedoIcon className="w-[18px] h-[18px]" />
       </button>
-      <div className="w-px h-5 bg-gray-300" />
+      <div className="w-px h-5 bg-gray-300 mx-1" />
       <button
         onClick={handleToggleBraceMode}
         disabled={!hasCurves}
-        className={`text-xs px-2 py-1 rounded ${
-          bracePlacementMode
-            ? 'bg-blue-500 text-white'
-            : 'hover:bg-gray-200 text-gray-600'
-        } disabled:text-gray-300 disabled:cursor-not-allowed`}
+        className={modeButtonClass(bracePlacementMode)}
         title={bracePlacementMode ? '点击取消区间标签放置模式' : '插入区间标签：拖拽图表区域选择区间'}
       >
-        {bracePlacementMode ? '放置中...' : '区间标签'}
+        <BraceIcon className="w-[18px] h-[18px]" />
       </button>
       <button
         onClick={handleTogglePointLabelMode}
         disabled={!hasCurves}
-        className={`text-xs px-2 py-1 rounded ${
-          pointLabelPlacementMode
-            ? 'bg-blue-500 text-white'
-            : 'hover:bg-gray-200 text-gray-600'
-        } disabled:text-gray-300 disabled:cursor-not-allowed`}
+        className={modeButtonClass(pointLabelPlacementMode)}
         title={pointLabelPlacementMode ? '点击取消点标签放置模式' : '插入点标签：点击图表放置'}
       >
-        {pointLabelPlacementMode ? '放置中...' : '点标签'}
+        <PointLabelIcon className="w-[18px] h-[18px]" />
       </button>
       <button
-        onClick={() => {
-          if (!manualMoveMode) {
-            setBracePlacementMode(false);
-            setPointLabelPlacementMode(false);
-            useUiStore.setState({ globalScaleMode: false, perCurveScaleMode: false });
-          }
-          setManualMoveMode(!manualMoveMode);
-        }}
+        onClick={handleToggleBrushMode}
         disabled={!hasCurves}
-        className={`text-xs px-2 py-1 rounded ${
-          manualMoveMode
-            ? 'bg-blue-500 text-white'
-            : 'hover:bg-gray-200 text-gray-600'
-        } disabled:text-gray-300 disabled:cursor-not-allowed`}
+        className={modeButtonClass(brushMode)}
+        title={brushMode ? '点击取消框选缩放模式' : '框选缩放：拖拽图表区域框选矩形，松开后缩放至该区域'}
+      >
+        <BoxSelectIcon className="w-[18px] h-[18px]" />
+      </button>
+      <div className="w-px h-5 bg-gray-300 mx-1" />
+      <button
+        onClick={handleToggleManualMove}
+        disabled={!hasCurves}
+        className={modeButtonClass(manualMoveMode)}
         title="手动移动：选中曲线后拖拽移动，锁定后横向禁用"
       >
-        {manualMoveMode ? '移动中...' : '手动移动'}
+        <MoveIcon className="w-[18px] h-[18px]" />
       </button>
       {manualMoveMode && selectedCurveId && (
         <button
           onClick={() => toggleCurveLocked(selectedCurveId)}
-          className={`text-xs px-2 py-1 rounded ${
-            locked[selectedCurveId] ? 'bg-red-100 text-red-700' : 'hover:bg-gray-200 text-gray-400'
+          className={`flex items-center justify-center w-7 h-7 rounded ${
+            locked[selectedCurveId] ? 'bg-red-100 text-red-700' : 'text-gray-400 hover:bg-gray-200'
           }`}
           title={locked[selectedCurveId] ? '解锁横向移动' : '锁定横向移动'}
         >
-          {locked[selectedCurveId] ? '已锁定' : '锁定'}
+          <LockIcon className="w-[18px] h-[18px]" />
         </button>
       )}
       <button
-        onClick={() => { if (rightPanelCollapsed) toggleRightPanel(); }}
-        className="text-xs px-2 py-1 rounded hover:bg-gray-200 text-gray-600"
-        title="标签样式：字号、字体、颜色（在工具箱中编辑）"
-      >
-        标签样式
-      </button>
-      <div className="w-px h-5 bg-gray-300" />
-      <button
         onClick={handleToggleGlobalScale}
         disabled={!hasCurves}
-        className={`text-xs px-2 py-1 rounded ${
-          globalScaleMode
-            ? 'bg-blue-500 text-white'
-            : 'hover:bg-gray-200 text-gray-600'
-        } disabled:text-gray-300 disabled:cursor-not-allowed`}
+        className={modeButtonClass(globalScaleMode)}
         title="全局缩放：滚轮缩放所有曲线，双击复位"
       >
-        全局缩放
+        <ZoomGlobalIcon className="w-[18px] h-[18px]" />
       </button>
       <button
         onClick={handleTogglePerCurveScale}
         disabled={!hasCurves}
-        className={`text-xs px-2 py-1 rounded ${
-          perCurveScaleMode
-            ? 'bg-blue-500 text-white'
-            : 'hover:bg-gray-200 text-gray-600'
-        } disabled:text-gray-300 disabled:cursor-not-allowed`}
+        className={modeButtonClass(perCurveScaleMode)}
         title="单曲线缩放：点曲线选中，滚轮缩放，Shift+拖拽平移，双击复位"
       >
-        单曲线
+        <ZoomCurveIcon className="w-[18px] h-[18px]" />
       </button>
-      <div className="w-px h-5 bg-gray-300" />
-      <button
-        disabled={!hasCurves}
-        className={`px-2 py-1 text-xs rounded border border-gray-300 hover:bg-gray-100 disabled:text-gray-300 disabled:cursor-not-allowed`}
-        title="归一化：各曲线峰值对齐到基准线峰值"
-        onClick={() => normalizeAllPeak(xRange)}
-      >
-        归一化
-      </button>
-      <button
-        disabled={!hasCurves}
-        className="px-2 py-1 text-xs rounded border border-gray-300 hover:bg-gray-100 disabled:text-gray-300 disabled:cursor-not-allowed"
-        title="还原归一化，恢复原始高度"
-        onClick={clearNormalizeFactors}
-      >
-        还原归一
-      </button>
-      <div className="w-px h-5 bg-gray-300" />
-      <button
-        onClick={toggleShowGrid}
-        className={`text-xs px-2 py-1 rounded ${
-          showGrid ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-200 text-gray-400'
-        }`}
-        title={showGrid ? '隐藏网格' : '显示网格'}
-      >
-        网格
-      </button>
-      <button
-        onClick={toggleShowXAxis}
-        className={`text-xs px-2 py-1 rounded ${
-          showXAxis ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-200 text-gray-400'
-        }`}
-        title={showXAxis ? '隐藏 X 轴' : '显示 X 轴'}
-      >
-        X 轴
-      </button>
-      <button
-        onClick={toggleShowYAxis}
-        className={`text-xs px-2 py-1 rounded ${
-          showYAxis ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-200 text-gray-400'
-        }`}
-        title={showYAxis ? '隐藏 Y 轴' : '显示 Y 轴'}
-      >
-        Y 轴
-      </button>
-      <div className="w-px h-5 bg-gray-300" />
-      <button
-        onClick={handleExportImage}
-        className="text-xs px-2 py-1 rounded hover:bg-gray-200 text-gray-600"
-        disabled={!hasCurves}
-        title="导出当前渲染图层为 PNG"
-      >
-        导出图片
-      </button>
-      <button
-        onClick={handleExportPptx}
-        className="text-xs px-2 py-1 rounded hover:bg-gray-200 text-gray-600"
-        disabled={!hasCurves}
-        title="导出为可编辑 PPTX（独立 shape）"
-      >
-        导出 PPTX
-      </button>
-      <button
-        onClick={toggleExportWithLegend}
-        className={`text-xs px-2 py-1 rounded ${
-          exportWithLegend ? 'bg-blue-100 text-blue-700' : 'hover:bg-gray-200 text-gray-400'
-        }`}
-        title={exportWithLegend ? '导出含图例（开启）' : '导出不含图例（关闭）'}
-      >
-        含图例
-      </button>
-      <button
-        onClick={handleExportJSON}
-        className="text-xs px-2 py-1 rounded hover:bg-gray-200 text-gray-600"
-        disabled={!hasCurves}
-      >
-        导出工作区
-      </button>
-      <button
-        onClick={handleImportJSON}
-        className="text-xs px-2 py-1 rounded hover:bg-gray-200 text-gray-600"
-      >
-        导入工作区
-      </button>
-      <div className="w-px h-5 bg-gray-300" />
-      <button
-        onClick={handleNewWorkspace}
-        className="text-xs px-2 py-1 rounded hover:bg-red-100 text-red-500"
-        title="重置偏移、缩放、标注、层间距，保留曲线数据与显示偏好"
-      >
-        新建工作区
-      </button>
+      <div className="w-px h-5 bg-gray-300 mx-1" />
+      <Dropdown
+        label="导出"
+        icon={ExportImageIcon}
+        items={exportDropdownItems}
+      />
+      <Dropdown
+        label="工作区"
+        icon={NewWorkspaceIcon}
+        items={workspaceDropdownItems}
+      />
       <span
-        className="ml-auto text-[10px] text-gray-400 font-mono tabular-nums select-none"
+        className="ml-auto text-[10px] text-gray-400 font-mono tabular-nums select-none whitespace-nowrap"
         title="当前构建版本（来自 package.json，与发布 tag 对应）"
       >
         v{__APP_VERSION__}

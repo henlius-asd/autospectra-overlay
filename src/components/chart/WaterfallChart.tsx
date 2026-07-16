@@ -48,7 +48,6 @@ export default function WaterfallChart() {
   const visibleCurves = useCurveStore((s) => s.visibleCurves);
   const stagingOrder = useCurveStore((s) => s.stagingOrder);
   const layerSpacing = useCurveStore((s) => s.layerSpacing);
-  const setLayerSpacing = useCurveStore((s) => s.setLayerSpacing);
   const curveScales = useCurveStore((s) => s.curveScales);
   const curveScaleOffsets = useCurveStore((s) => s.curveScaleOffsets);
   const normalizeFactors = useCurveStore((s) => s.normalizeFactors);
@@ -62,13 +61,17 @@ export default function WaterfallChart() {
   const selectedCurveId = useUiStore((s) => s.selectedCurveId);
   const setSelectedCurveId = useUiStore((s) => s.setSelectedCurveId);
   const bracePlacementMode = useUiStore((s) => s.bracePlacementMode);
+  const brushMode = useUiStore((s) => s.brushMode);
+  const setBrushMode = useUiStore((s) => s.setBrushMode);
   const scaleModeActive = globalScaleMode || perCurveScaleMode;
   const showGrid = useUiStore((s) => s.showGrid);
   const showXAxis = useUiStore((s) => s.showXAxis);
   const showYAxis = useUiStore((s) => s.showYAxis);
+  const showLegend = useUiStore((s) => s.showLegend);
   const yZoomRange = useUiStore((s) => s.yZoomRange);
   const manualMoveMode = useUiStore((s) => s.manualMoveMode);
   const yZoomRangeSource = useRef<'event' | 'external' | null>(null);
+  const brushRafId = useRef<number | null>(null);
 
   // visibleIds follows stagingOrder (only IDs that are in stagingOrder AND visible)
   // visibleIds[0] = top of list = top of chart; visibleIds[last] = bottom (baseline)
@@ -239,7 +242,7 @@ export default function WaterfallChart() {
       title: { show: false },
       tooltip: { show: false },
 legend: {
-        show: visibleIds.length > 1,
+        show: showLegend && visibleIds.length > 1,
         top: 8,
         type: 'scroll',
         icon: 'line',
@@ -282,9 +285,8 @@ legend: {
         if (bracePlacementMode) {
           return [{ id: 'xZoomSlider', type: 'slider', xAxisIndex: 0, bottom: 10 }];
         }
-        // When scale mode is active, disable 'inside' dataZoom so ECharts
-        // doesn't capture wheel events — our native container listener handles scaling.
-        const xInside = scaleModeActive
+        const disableInside = scaleModeActive || brushMode;
+        const xInside = disableInside
           ? { id: 'xZoom', type: 'slider', xAxisIndex: 0, bottom: 10, show: false }
           : { id: 'xZoom', type: 'inside' as const, xAxisIndex: 0 };
         const xZoom: EChartsOption['dataZoom'] = [
@@ -292,7 +294,7 @@ legend: {
           { id: 'xZoomSlider', type: 'slider', xAxisIndex: 0, bottom: 10 },
         ];
         const yMinSpan = 0.05 * (yAxisFullRange.dataSpan || 1);
-        const yInside: Record<string, unknown> = scaleModeActive
+        const yInside: Record<string, unknown> = disableInside
           ? { id: 'yZoom', type: 'slider', yAxisIndex: 0, show: false, filterMode: 'none', minValueSpan: yMinSpan }
           : { id: 'yZoom', type: 'inside', yAxisIndex: 0, filterMode: 'none', minValueSpan: yMinSpan };
         const ySlider: Record<string, unknown> = {
@@ -303,8 +305,46 @@ legend: {
       })(),
       series,
       animation: false,
+      ...(brushMode ? {
+        brush: {
+          brushType: 'rect' as const,
+          brushMode: 'single' as const,
+          removeOnClick: true,
+          xAxisIndex: 0,
+          yAxisIndex: 0,
+        },
+      } : {}),
     };
-  }, [curves, offsets, visibleCurves, layerSpacing, stagingOrder, visibleIds, xRange, bracePlacementMode, showGrid, showXAxis, showYAxis, curveScales, curveScaleOffsets, normalizeFactors, globalScale, scaleModeActive]);
+
+  }, [curves, offsets, visibleCurves, layerSpacing, stagingOrder, visibleIds, xRange, bracePlacementMode, showGrid, showXAxis, showYAxis, showLegend, curveScales, curveScaleOffsets, normalizeFactors, globalScale, scaleModeActive, brushMode]);
+
+  // Activate ECharts brush via takeGlobalCursor dispatch.
+  // Without toolbox, brushModel.brushOption stays empty and enableBrush never
+  // registers pointer handlers. takeGlobalCursor is the official API the toolbox
+  // uses to activate brush interaction. Deactivation is handled automatically
+  // by brush component disposal via replaceMerge, so we only dispatch on activation.
+  useEffect(() => {
+    if (!chartInstance || !brushMode) return;
+    try {
+      chartInstance.dispatchAction({
+        type: 'takeGlobalCursor',
+        key: 'brush',
+        brushOption: { brushType: 'rect', brushMode: 'single' },
+      });
+    } catch {
+      // Instance may be disposed during HMR / StrictMode double-invoke
+    }
+  }, [brushMode]);
+
+  // Cancel any pending brush zoom rAF on unmount
+  useEffect(() => {
+    return () => {
+      if (brushRafId.current !== null) {
+        cancelAnimationFrame(brushRafId.current);
+        brushRafId.current = null;
+      }
+    };
+  }, []);
 
   const convertXToPixel = (xVal: number): number => {
     if (!chartInstance) return 0;
@@ -341,10 +381,13 @@ legend: {
     });
   const peak = topCurvePeak(yAxisFullRange.rawDataMin, yAxisFullRange.yRangeForLayer);
 
-  const gridTop = visibleIds.length > 1 ? 50 : 20;
-  const gridBottom = 60;
-  const gridLeft = 60;
-  const gridRight = 48;
+  const widthRatio = Math.min(1, Math.max(0, (chartDims.width - 900) / 700));
+  const gridLeft = Math.round(40 + widthRatio * 20);
+  const gridRight = Math.round(32 + widthRatio * 16);
+  const gridBottom = Math.round(40 + widthRatio * 20);
+  const gridTop = visibleIds.length > 1
+    ? Math.round(40 + widthRatio * 10)
+    : Math.round(15 + widthRatio * 5);
 
   const braceY = Math.max(gridTop + 8, convertYToPixel(peak) - 14);
 
@@ -437,6 +480,64 @@ legend: {
     ? (curveScaleOffsets[selectedCurveId] ?? 0)
     : 0;
 
+  const handleBrushSelected = useCallback((params: { areas?: Array<Record<string, unknown>> }) => {
+    const areas = params.areas;
+    if (!areas || areas.length === 0) return;
+    const area = areas[0];
+    const coordRange = area.coordRange as unknown;
+    if (!coordRange) return;
+    // For rect type, coordRange is [[xMin, xMax], [yMin, yMax]]
+    let xMin: number, xMax: number, yMin: number, yMax: number;
+    if (Array.isArray((coordRange as unknown[])[0])) {
+      const cr = coordRange as number[][];
+      [xMin, xMax] = cr[0];
+      [yMin, yMax] = cr[1];
+    } else {
+      const cr = coordRange as number[];
+      [xMin, xMax, yMin, yMax] = cr;
+    }
+
+    useUiStore.getState().setXRange([xMin, xMax]);
+    useUiStore.getState().setYZoomRange([yMin, yMax]);
+    setBrushMode(false);
+
+    // Defer dataZoom dispatch to after React re-render + echarts-for-react setOption
+    // (which replaces the dataZoom array via replaceMerge, losing any setOption ranges).
+    // Using dispatchAction after rAF ensures the zoom persists past the re-render.
+    brushRafId.current = requestAnimationFrame(() => {
+      brushRafId.current = null;
+      if (!chartInstance) return;
+      try {
+        chartInstance.dispatchAction({
+          type: 'dataZoom',
+          dataZoomId: 'xZoom',
+          startValue: xMin,
+          endValue: xMax,
+        });
+        chartInstance.dispatchAction({
+          type: 'dataZoom',
+          dataZoomId: 'xZoomSlider',
+          startValue: xMin,
+          endValue: xMax,
+        });
+        chartInstance.dispatchAction({
+          type: 'dataZoom',
+          dataZoomId: 'yZoom',
+          startValue: yMin,
+          endValue: yMax,
+        });
+        chartInstance.dispatchAction({
+          type: 'dataZoom',
+          dataZoomId: 'yZoomSlider',
+          startValue: yMin,
+          endValue: yMax,
+        });
+      } catch {
+        // Instance may be disposed during HMR
+      }
+    });
+  }, [setBrushMode]);
+
   const handleChartClick = useCallback((e: MouseEvent<HTMLDivElement>) => {
     if (!chartInstance || visibleIds.length === 0) return;
     const rect = e.currentTarget.getBoundingClientRect();
@@ -486,11 +587,12 @@ legend: {
     <div className="relative w-full h-full" ref={chartContainerRef} onDoubleClick={scaleModeActive ? onChartDoubleClick : undefined} onClick={handleChartClick}>
       <ReactECharts
         option={option}
-        replaceMerge={['series', 'dataZoom']}
+        replaceMerge={['series', 'dataZoom', 'brush']}
         style={{ width: '100%', height: '100%' }}
         onChartReady={onChartReady}
         onEvents={{
           dataZoom: onDataZoom,
+          brushEnd: handleBrushSelected,
           click: (params: { seriesId?: string; seriesIndex?: number }) => {
             if (params.seriesIndex != null && params.seriesIndex >= 0 && params.seriesIndex < visibleIds.length) {
               const id = visibleIds[params.seriesIndex];
@@ -545,21 +647,6 @@ legend: {
           visibleYMax={yAxisFullRange.yAxisMax}
         />
       )}
-      <div className="absolute top-1/2 right-1 -translate-y-1/2 h-3/5 flex flex-col items-center gap-1.5 pointer-events-none">
-        <span className="text-[10px] text-gray-500 font-mono tabular-nums">
-          {layerSpacing.toFixed(3)}
-        </span>
-        <input
-          type="range"
-          min={0}
-          max={0.5}
-          step={0.001}
-          value={layerSpacing}
-          onChange={(e) => setLayerSpacing(parseFloat(e.target.value))}
-          className="layer-slider flex-1 w-3 pointer-events-auto"
-          title="Y 轴层间距（占可见范围比例）"
-        />
-      </div>
     </div>
   );
 }
