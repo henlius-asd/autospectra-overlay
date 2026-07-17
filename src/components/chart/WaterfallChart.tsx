@@ -5,6 +5,7 @@ import { useCurveStore, useUiStore } from '@/store';
 import BraceOverlay from './BraceOverlay';
 import PointLabelOverlay from './PointLabelOverlay';
 import ManualMoveOverlay from './ManualMoveOverlay';
+import HudShortcuts from '@/components/ui/HudShortcuts';
 import type { EChartsOption } from 'echarts';
 import type { EChartsInstance } from 'echarts-for-react';
 import { computeYAxisRange } from './computeYAxisRange';
@@ -56,20 +57,17 @@ export default function WaterfallChart() {
   const setCurveScaleOffset = useCurveStore((s) => s.setCurveScaleOffset);
   const setGlobalScale = useCurveStore((s) => s.setGlobalScale);
   const xRange = useUiStore((s) => s.xRange);
-  const globalScaleMode = useUiStore((s) => s.globalScaleMode);
-  const perCurveScaleMode = useUiStore((s) => s.perCurveScaleMode);
+  const interactionMode = useUiStore((s) => s.interactionMode);
+  const setInteractionMode = useUiStore((s) => s.setInteractionMode);
+  const spaceHeld = useUiStore((s) => s.spaceHeld);
   const selectedCurveId = useUiStore((s) => s.selectedCurveId);
   const setSelectedCurveId = useUiStore((s) => s.setSelectedCurveId);
-  const bracePlacementMode = useUiStore((s) => s.bracePlacementMode);
-  const brushMode = useUiStore((s) => s.brushMode);
-  const setBrushMode = useUiStore((s) => s.setBrushMode);
-  const scaleModeActive = globalScaleMode || perCurveScaleMode;
+  const scaleModeActive = interactionMode === 'zoomGlobal' || interactionMode === 'zoomCurve';
   const showGrid = useUiStore((s) => s.showGrid);
   const showXAxis = useUiStore((s) => s.showXAxis);
   const showYAxis = useUiStore((s) => s.showYAxis);
   const showLegend = useUiStore((s) => s.showLegend);
   const yZoomRange = useUiStore((s) => s.yZoomRange);
-  const manualMoveMode = useUiStore((s) => s.manualMoveMode);
   const yZoomRangeSource = useRef<'event' | 'external' | null>(null);
   const brushRafId = useRef<number | null>(null);
 
@@ -213,7 +211,9 @@ export default function WaterfallChart() {
         type: 'line' as const,
         data: renderedData,
         smooth: false,
-        symbol: 'none',
+        symbol: 'circle',
+        showSymbol: false,
+        itemStyle: { color: curve.color || '#000000' },
         lineStyle: {
           color: curve.color || '#000000',
           width: 1.5,
@@ -245,7 +245,7 @@ legend: {
         show: showLegend && visibleIds.length > 1,
         top: 8,
         type: 'scroll',
-        icon: 'line',
+        icon: 'inherit',
         itemWidth: 20,
         itemHeight: 14,
       },
@@ -282,10 +282,10 @@ legend: {
         splitLine: { show: showGrid },
       },
       dataZoom: (() => {
-        if (bracePlacementMode) {
+        if (interactionMode === 'brace') {
           return [{ id: 'xZoomSlider', type: 'slider', xAxisIndex: 0, bottom: 10 }];
         }
-        const disableInside = scaleModeActive || brushMode;
+        const disableInside = interactionMode !== 'select' && !spaceHeld;
         const xInside = disableInside
           ? { id: 'xZoom', type: 'slider', xAxisIndex: 0, bottom: 10, show: false }
           : { id: 'xZoom', type: 'inside' as const, xAxisIndex: 0 };
@@ -305,7 +305,7 @@ legend: {
       })(),
       series,
       animation: false,
-      ...(brushMode ? {
+      ...(interactionMode === 'brush' ? {
         brush: {
           brushType: 'rect' as const,
           brushMode: 'single' as const,
@@ -316,7 +316,7 @@ legend: {
       } : {}),
     };
 
-  }, [curves, offsets, visibleCurves, layerSpacing, stagingOrder, visibleIds, xRange, bracePlacementMode, showGrid, showXAxis, showYAxis, showLegend, curveScales, curveScaleOffsets, normalizeFactors, globalScale, scaleModeActive, brushMode]);
+  }, [curves, offsets, visibleCurves, layerSpacing, stagingOrder, visibleIds, xRange, interactionMode, spaceHeld, showGrid, showXAxis, showYAxis, showLegend, curveScales, curveScaleOffsets, normalizeFactors, globalScale]);
 
   // Activate ECharts brush via takeGlobalCursor dispatch.
   // Without toolbox, brushModel.brushOption stays empty and enableBrush never
@@ -324,7 +324,7 @@ legend: {
   // uses to activate brush interaction. Deactivation is handled automatically
   // by brush component disposal via replaceMerge, so we only dispatch on activation.
   useEffect(() => {
-    if (!chartInstance || !brushMode) return;
+    if (!chartInstance || interactionMode !== 'brush') return;
     try {
       chartInstance.dispatchAction({
         type: 'takeGlobalCursor',
@@ -334,7 +334,7 @@ legend: {
     } catch {
       // Instance may be disposed during HMR / StrictMode double-invoke
     }
-  }, [brushMode]);
+  }, [interactionMode]);
 
   // Cancel any pending brush zoom rAF on unmount
   useEffect(() => {
@@ -413,23 +413,23 @@ legend: {
 
     const onWheel = (e: WheelEvent) => {
       e.preventDefault();
-      const perCurveActive = perCurveScaleMode && selectedCurveId;
+      const perCurveActive = interactionMode === 'zoomCurve' && selectedCurveId;
       if (perCurveActive) {
         const cur = curveScales[selectedCurveId!] ?? 1;
         setCurveScale(selectedCurveId!, scaleByWheel(cur, e.deltaY));
-      } else if (globalScaleMode) {
+      } else if (interactionMode === 'zoomGlobal') {
         setGlobalScale(scaleByWheel(globalScale, e.deltaY));
       }
     };
 
     container.addEventListener('wheel', onWheel, { passive: false });
     return () => container.removeEventListener('wheel', onWheel);
-  }, [scaleModeActive, globalScaleMode, perCurveScaleMode, selectedCurveId, globalScale, curveScales, setCurveScale, setGlobalScale]);
+  }, [scaleModeActive, interactionMode, selectedCurveId, globalScale, curveScales, setCurveScale, setGlobalScale]);
 
   // Native mousedown for shift+drag pan (per-curve mode only)
   useEffect(() => {
     const container = chartContainerRef.current;
-    if (!container || !perCurveScaleMode || !selectedCurveId) return;
+    if (!container || interactionMode !== 'zoomCurve' || !selectedCurveId) return;
 
     const frame = {
       yMin: visibleYRange[0], yMax: visibleYRange[1],
@@ -456,27 +456,27 @@ legend: {
 
     container.addEventListener('mousedown', onMouseDown);
     return () => container.removeEventListener('mousedown', onMouseDown);
-  }, [perCurveScaleMode, selectedCurveId, curveScaleOffsets, visibleYRange, gridTop, gridBottom, chartDims.height, setCurveScaleOffset]);
+  }, [interactionMode, selectedCurveId, curveScaleOffsets, visibleYRange, gridTop, gridBottom, chartDims.height, setCurveScaleOffset]);
 
   // Double-click handler for reset
   const onChartDoubleClick = useCallback(() => {
-    if (perCurveScaleMode && selectedCurveId) {
+    if (interactionMode === 'zoomCurve' && selectedCurveId) {
       setCurveScale(selectedCurveId, 1);
       setCurveScaleOffset(selectedCurveId, 0);
-    } else if (globalScaleMode) {
+    } else if (interactionMode === 'zoomGlobal') {
       setGlobalScale(1);
     }
-  }, [perCurveScaleMode, globalScaleMode, selectedCurveId, setCurveScale, setCurveScaleOffset, setGlobalScale]);
+  }, [interactionMode, selectedCurveId, setCurveScale, setCurveScaleOffset, setGlobalScale]);
 
   const scaleBadge = scaleModeActive ? (
-    globalScaleMode && !(perCurveScaleMode && selectedCurveId)
+    interactionMode === 'zoomGlobal'
       ? `×${globalScale.toFixed(1)}`
-      : perCurveScaleMode && selectedCurveId
+      : interactionMode === 'zoomCurve' && selectedCurveId
       ? `×${((normalizeFactors[selectedCurveId] ?? 1) * globalScale * (curveScales[selectedCurveId] ?? 1)).toFixed(1)}`
       : null
   ) : null;
 
-  const scaleBadgeOffset = perCurveScaleMode && selectedCurveId
+  const scaleBadgeOffset = interactionMode === 'zoomCurve' && selectedCurveId
     ? (curveScaleOffsets[selectedCurveId] ?? 0)
     : 0;
 
@@ -499,7 +499,7 @@ legend: {
 
     useUiStore.getState().setXRange([xMin, xMax]);
     useUiStore.getState().setYZoomRange([yMin, yMax]);
-    setBrushMode(false);
+    setInteractionMode('select');
 
     // Defer dataZoom dispatch to after React re-render + echarts-for-react setOption
     // (which replaces the dataZoom array via replaceMerge, losing any setOption ranges).
@@ -536,7 +536,7 @@ legend: {
         // Instance may be disposed during HMR
       }
     });
-  }, [setBrushMode]);
+  }, [setInteractionMode]);
 
   const handleChartClick = useCallback((e: MouseEvent<HTMLDivElement>) => {
     if (!chartInstance || visibleIds.length === 0) return;
@@ -612,6 +612,7 @@ legend: {
           {scaleBadgeOffset !== 0 ? ` Δ${scaleBadgeOffset.toFixed(0)}` : ''}
         </div>
       )}
+      <HudShortcuts />
       <BraceOverlay
         width={chartDims.width}
         height={chartDims.height}
@@ -634,7 +635,7 @@ legend: {
         gridLeft={gridLeft}
         gridRight={gridRight}
       />
-      {manualMoveMode && (
+      {interactionMode === 'move' && (
         <ManualMoveOverlay
           chartWidth={chartDims.width}
           chartHeight={chartDims.height}

@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { ThreeColumnLayout } from '@/components/layout';
 import { initPersistence, restoreWorkspace } from '@/persistence';
 import { useCurveStore } from '@/store';
+import { useGlobalKeyboard } from '@/hooks/useGlobalKeyboard';
 import Toast from '@/components/ui/Toast';
 
 function isEditableTarget(target: EventTarget | null): boolean {
@@ -12,6 +13,8 @@ function isEditableTarget(target: EventTarget | null): boolean {
 }
 
 export default function App() {
+  useGlobalKeyboard();
+
   // Initialize persistence and restore workspace on mount
   useEffect(() => {
     initPersistence();

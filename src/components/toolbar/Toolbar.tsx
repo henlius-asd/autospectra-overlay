@@ -5,8 +5,9 @@ import { exportChartImage } from '@/components/chart/exportImage';
 import { buildWorkspaceSnapshot, applyWorkspaceSnapshot, clearWorkspace } from '@/persistence';
 import Dropdown from '@/components/ui/Dropdown';
 import type { DropdownItem } from '@/components/ui/Dropdown';
+import type { InteractionMode } from '@/types';
 import {
-  UndoIcon, RedoIcon, BraceIcon, PointLabelIcon, MoveIcon, LockIcon,
+  UndoIcon, RedoIcon, SelectIcon, BraceIcon, PointLabelIcon, MoveIcon, LockIcon,
   BoxSelectIcon, ZoomGlobalIcon, ZoomCurveIcon,
   ExportImageIcon, ExportPptxIcon, ExportWorkspaceIcon, ImportWorkspaceIcon,
   NewWorkspaceIcon,
@@ -24,21 +25,15 @@ function actionButtonClass(): string {
   return 'flex items-center justify-center w-7 h-7 rounded text-gray-600 hover:bg-gray-200 disabled:text-gray-300 disabled:cursor-not-allowed';
 }
 
+function separator() {
+  return <div className="w-px h-5 bg-gray-300 mx-1" />;
+}
+
 export default function Toolbar() {
   const temporal = useCurveStore.temporal;
   const curves = useCurveStore((s) => s.curves);
-  const bracePlacementMode = useUiStore((s) => s.bracePlacementMode);
-  const setBracePlacementMode = useUiStore((s) => s.setBracePlacementMode);
-  const pointLabelPlacementMode = useUiStore((s) => s.pointLabelPlacementMode);
-  const setPointLabelPlacementMode = useUiStore((s) => s.setPointLabelPlacementMode);
-  const globalScaleMode = useUiStore((s) => s.globalScaleMode);
-  const perCurveScaleMode = useUiStore((s) => s.perCurveScaleMode);
-  const toggleGlobalScaleMode = useUiStore((s) => s.toggleGlobalScaleMode);
-  const togglePerCurveScaleMode = useUiStore((s) => s.togglePerCurveScaleMode);
-  const manualMoveMode = useUiStore((s) => s.manualMoveMode);
-  const setManualMoveMode = useUiStore((s) => s.setManualMoveMode);
-  const brushMode = useUiStore((s) => s.brushMode);
-  const setBrushMode = useUiStore((s) => s.setBrushMode);
+  const interactionMode = useUiStore((s) => s.interactionMode);
+  const setInteractionMode = useUiStore((s) => s.setInteractionMode);
   const selectedCurveId = useUiStore((s) => s.selectedCurveId);
   const toggleCurveLocked = useCurveStore((s) => s.toggleCurveLocked);
   const locked = useCurveStore((s) => s.locked);
@@ -66,62 +61,12 @@ export default function Toolbar() {
     }
   };
 
-  const handleToggleBraceMode = () => {
-    if (!bracePlacementMode) {
-      setPointLabelPlacementMode(false);
-      useUiStore.setState({ globalScaleMode: false, perCurveScaleMode: false, brushMode: false });
-      setBracePlacementMode(true);
+  const handleToolClick = (mode: InteractionMode) => {
+    if (interactionMode === mode) {
+      setInteractionMode('select');
     } else {
-      setBracePlacementMode(false);
+      setInteractionMode(mode);
     }
-  };
-
-  const handleTogglePointLabelMode = () => {
-    if (!pointLabelPlacementMode) {
-      setBracePlacementMode(false);
-      useUiStore.setState({ globalScaleMode: false, perCurveScaleMode: false, brushMode: false });
-      setPointLabelPlacementMode(true);
-    } else {
-      setPointLabelPlacementMode(false);
-    }
-  };
-
-  const handleToggleGlobalScale = () => {
-    if (!globalScaleMode) {
-      setBracePlacementMode(false);
-      setPointLabelPlacementMode(false);
-      setBrushMode(false);
-    }
-    toggleGlobalScaleMode();
-  };
-
-  const handleTogglePerCurveScale = () => {
-    if (!perCurveScaleMode) {
-      setBracePlacementMode(false);
-      setPointLabelPlacementMode(false);
-      setBrushMode(false);
-    }
-    togglePerCurveScaleMode();
-  };
-
-  const handleToggleBrushMode = () => {
-    if (!brushMode) {
-      setBracePlacementMode(false);
-      setPointLabelPlacementMode(false);
-      useUiStore.setState({ globalScaleMode: false, perCurveScaleMode: false });
-      setBrushMode(true);
-    } else {
-      setBrushMode(false);
-    }
-  };
-
-  const handleToggleManualMove = () => {
-    if (!manualMoveMode) {
-      setBracePlacementMode(false);
-      setPointLabelPlacementMode(false);
-      useUiStore.setState({ globalScaleMode: false, perCurveScaleMode: false, brushMode: false });
-    }
-    setManualMoveMode(!manualMoveMode);
   };
 
   const handleExportImage = () => {
@@ -206,102 +151,76 @@ export default function Toolbar() {
     { icon: NewWorkspaceIcon, label: '新建工作区', onClick: handleNewWorkspace, danger: true },
   ];
 
+  const toolButton = (mode: InteractionMode, Icon: React.ComponentType<React.SVGProps<SVGSVGElement>>, title: string, disabled: boolean) => (
+    <button
+      onClick={() => handleToolClick(mode)}
+      disabled={disabled}
+      className={modeButtonClass(interactionMode === mode)}
+      title={title}
+    >
+      <Icon className="w-[18px] h-[18px]" />
+    </button>
+  );
+
   return (
     <div className="flex items-center gap-1 px-2 py-1.5 bg-gray-100 border-b border-gray-200 relative z-50">
-      <button
-        onClick={handleUndo}
-        disabled={!canUndo}
-        className={actionButtonClass()}
-        title="撤销 (Ctrl+Z)"
-      >
-        <UndoIcon className="w-[18px] h-[18px]" />
-      </button>
-      <button
-        onClick={handleRedo}
-        disabled={!canRedo}
-        className={actionButtonClass()}
-        title="重做 (Ctrl+Y / Ctrl+Shift+Z)"
-      >
-        <RedoIcon className="w-[18px] h-[18px]" />
-      </button>
-      <div className="w-px h-5 bg-gray-300 mx-1" />
-      <button
-        onClick={handleToggleBraceMode}
-        disabled={!hasCurves}
-        className={modeButtonClass(bracePlacementMode)}
-        title={bracePlacementMode ? '点击取消区间标签放置模式' : '插入区间标签：拖拽图表区域选择区间'}
-      >
-        <BraceIcon className="w-[18px] h-[18px]" />
-      </button>
-      <button
-        onClick={handleTogglePointLabelMode}
-        disabled={!hasCurves}
-        className={modeButtonClass(pointLabelPlacementMode)}
-        title={pointLabelPlacementMode ? '点击取消点标签放置模式' : '插入点标签：点击图表放置'}
-      >
-        <PointLabelIcon className="w-[18px] h-[18px]" />
-      </button>
-      <button
-        onClick={handleToggleBrushMode}
-        disabled={!hasCurves}
-        className={modeButtonClass(brushMode)}
-        title={brushMode ? '点击取消框选缩放模式' : '框选缩放：拖拽图表区域框选矩形，松开后缩放至该区域'}
-      >
-        <BoxSelectIcon className="w-[18px] h-[18px]" />
-      </button>
-      <div className="w-px h-5 bg-gray-300 mx-1" />
-      <button
-        onClick={handleToggleManualMove}
-        disabled={!hasCurves}
-        className={modeButtonClass(manualMoveMode)}
-        title="手动移动：选中曲线后拖拽移动，锁定后横向禁用"
-      >
-        <MoveIcon className="w-[18px] h-[18px]" />
-      </button>
-      {manualMoveMode && selectedCurveId && (
+      <div className="flex items-center gap-1">
+        {toolButton('select', SelectIcon, '一般选中：点击选中曲线，拖拽平移画布', false)}
+        {toolButton('brush', BoxSelectIcon, '框选放大：拖拽框选矩形区域，松开后缩放至该区域', !hasCurves)}
+        {separator()}
+        {toolButton('brace', BraceIcon, '插入区间标签：拖拽图表区域选择区间', !hasCurves)}
+        {toolButton('pointLabel', PointLabelIcon, '插入点标签：点击图表放置', !hasCurves)}
+        {separator()}
+        {toolButton('move', MoveIcon, '手动移动：选中曲线后拖拽移动，锁定后横向禁用', !hasCurves)}
+        {interactionMode === 'move' && selectedCurveId && (
+          <button
+            onClick={() => toggleCurveLocked(selectedCurveId)}
+            className={`flex items-center justify-center w-7 h-7 rounded ${
+              locked[selectedCurveId] ? 'bg-red-100 text-red-700' : 'text-gray-400 hover:bg-gray-200'
+            }`}
+            title={locked[selectedCurveId] ? '解锁横向移动' : '锁定横向移动'}
+          >
+            <LockIcon className="w-[18px] h-[18px]" />
+          </button>
+        )}
+        {toolButton('zoomGlobal', ZoomGlobalIcon, '全局缩放：滚轮缩放所有曲线，双击复位', !hasCurves)}
+        {toolButton('zoomCurve', ZoomCurveIcon, '单曲线缩放：点击曲线选中，滚轮缩放，Shift+拖拽平移，双击复位', !hasCurves)}
+      </div>
+      <div className="flex items-center gap-1 ml-auto">
         <button
-          onClick={() => toggleCurveLocked(selectedCurveId)}
-          className={`flex items-center justify-center w-7 h-7 rounded ${
-            locked[selectedCurveId] ? 'bg-red-100 text-red-700' : 'text-gray-400 hover:bg-gray-200'
-          }`}
-          title={locked[selectedCurveId] ? '解锁横向移动' : '锁定横向移动'}
+          onClick={handleUndo}
+          disabled={!canUndo}
+          className={actionButtonClass()}
+          title="撤销 (Ctrl+Z)"
         >
-          <LockIcon className="w-[18px] h-[18px]" />
+          <UndoIcon className="w-[18px] h-[18px]" />
         </button>
-      )}
-      <button
-        onClick={handleToggleGlobalScale}
-        disabled={!hasCurves}
-        className={modeButtonClass(globalScaleMode)}
-        title="全局缩放：滚轮缩放所有曲线，双击复位"
-      >
-        <ZoomGlobalIcon className="w-[18px] h-[18px]" />
-      </button>
-      <button
-        onClick={handleTogglePerCurveScale}
-        disabled={!hasCurves}
-        className={modeButtonClass(perCurveScaleMode)}
-        title="单曲线缩放：点曲线选中，滚轮缩放，Shift+拖拽平移，双击复位"
-      >
-        <ZoomCurveIcon className="w-[18px] h-[18px]" />
-      </button>
-      <div className="w-px h-5 bg-gray-300 mx-1" />
-      <Dropdown
-        label="导出"
-        icon={ExportImageIcon}
-        items={exportDropdownItems}
-      />
-      <Dropdown
-        label="工作区"
-        icon={NewWorkspaceIcon}
-        items={workspaceDropdownItems}
-      />
-      <span
-        className="ml-auto text-[10px] text-gray-400 font-mono tabular-nums select-none whitespace-nowrap"
-        title="当前构建版本（来自 package.json，与发布 tag 对应）"
-      >
-        v{__APP_VERSION__}
-      </span>
+        <button
+          onClick={handleRedo}
+          disabled={!canRedo}
+          className={actionButtonClass()}
+          title="重做 (Ctrl+Y / Ctrl+Shift+Z)"
+        >
+          <RedoIcon className="w-[18px] h-[18px]" />
+        </button>
+        <div className="w-px h-5 bg-gray-300 mx-1" />
+        <Dropdown
+          label="导出"
+          icon={ExportImageIcon}
+          items={exportDropdownItems}
+        />
+        <Dropdown
+          label="工作区"
+          icon={NewWorkspaceIcon}
+          items={workspaceDropdownItems}
+        />
+        <span
+          className="text-[10px] text-gray-400 font-mono tabular-nums select-none whitespace-nowrap"
+          title="当前构建版本（来自 package.json，与发布 tag 对应）"
+        >
+          v{__APP_VERSION__}
+        </span>
+      </div>
     </div>
   );
 }

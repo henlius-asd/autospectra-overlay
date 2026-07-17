@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { LabelStyle } from '@/types';
+import type { LabelStyle, InteractionMode } from '@/types';
 import { DEFAULT_LABEL_STYLE } from '@/types';
 
 export type SelectionMode = 'none' | 'roi';
@@ -18,25 +18,21 @@ interface UiState {
   xRange: [number, number];
   yRange: [number, number];
   selectedCurveId: string | null;
-  bracePlacementMode: boolean;
-  pointLabelPlacementMode: boolean;
-  manualMoveMode: boolean;
+  interactionMode: InteractionMode;
+  spaceHeld: boolean;
   showGrid: boolean;
   showXAxis: boolean;
   showYAxis: boolean;
   showLegend: boolean;
   exportWithLegend: boolean;
   labelStyle: LabelStyle;
-  globalScaleMode: boolean;
-  perCurveScaleMode: boolean;
-  brushMode: boolean;
-yZoomRange: [number, number] | null;
+  yZoomRange: [number, number] | null;
   colorHistory: string[];
   toast: ToastState | null;
   showToast: (message: string, type: ToastState['type']) => void;
-  toggleGlobalScaleMode: () => void;
-  togglePerCurveScaleMode: () => void;
-  setBrushMode: (active: boolean) => void;
+  setInteractionMode: (mode: InteractionMode) => void;
+  resetInteractionMode: () => void;
+  setSpaceHeld: (held: boolean) => void;
   setYZoomRange: (range: [number, number]) => void;
   resetYZoomRange: () => void;
   addColorToHistory: (color: string) => void;
@@ -47,9 +43,6 @@ yZoomRange: [number, number] | null;
   setXRange: (range: [number, number]) => void;
   setYRange: (range: [number, number]) => void;
   setSelectedCurveId: (id: string | null) => void;
-  setBracePlacementMode: (active: boolean) => void;
-  setPointLabelPlacementMode: (active: boolean) => void;
-  setManualMoveMode: (active: boolean) => void;
   toggleShowGrid: () => void;
   toggleShowXAxis: () => void;
   toggleShowYAxis: () => void;
@@ -69,16 +62,12 @@ export const useUiStore = create<UiState>((set) => ({
   xRange: [0, 10],
   yRange: [0, 1],
   selectedCurveId: null,
-  bracePlacementMode: false,
-  pointLabelPlacementMode: false,
-  manualMoveMode: false,
+  interactionMode: 'select',
+  spaceHeld: false,
   showGrid: true,
   showXAxis: true,
   showYAxis: false,
   showLegend: true,
-  globalScaleMode: false,
-  perCurveScaleMode: false,
-  brushMode: false,
   yZoomRange: null,
   colorHistory: [],
   toast: null,
@@ -92,6 +81,9 @@ export const useUiStore = create<UiState>((set) => ({
       set((s) => (s.toast?.id === id ? { toast: null } : {}));
     }, 3000);
   },
+  setInteractionMode: (mode) => set({ interactionMode: mode }),
+  resetInteractionMode: () => set({ interactionMode: 'select' }),
+  setSpaceHeld: (held) => set({ spaceHeld: held }),
   toggleLeftPanel: () =>
     set((s) => ({ leftPanelCollapsed: !s.leftPanelCollapsed })),
   toggleRightPanel: () =>
@@ -101,9 +93,6 @@ export const useUiStore = create<UiState>((set) => ({
   setXRange: (range) => set({ xRange: range }),
   setYRange: (range) => set({ yRange: range }),
   setSelectedCurveId: (id) => set({ selectedCurveId: id }),
-  setBracePlacementMode: (active) => set({ bracePlacementMode: active }),
-  setPointLabelPlacementMode: (active) => set({ pointLabelPlacementMode: active }),
-  setManualMoveMode: (active) => set({ manualMoveMode: active }),
   toggleShowGrid: () => set((s) => ({ showGrid: !s.showGrid })),
   toggleShowXAxis: () => set((s) => ({ showXAxis: !s.showXAxis })),
   toggleShowYAxis: () => set((s) => ({ showYAxis: !s.showYAxis })),
@@ -116,21 +105,11 @@ export const useUiStore = create<UiState>((set) => ({
       yRange: [0, 1],
       yZoomRange: null,
       selectedCurveId: null,
-      bracePlacementMode: false,
-      pointLabelPlacementMode: false,
-      manualMoveMode: false,
-      globalScaleMode: false,
-      perCurveScaleMode: false,
-      brushMode: false,
+      interactionMode: 'select',
       selectionMode: 'none',
       alignmentProgress: null,
       toast: null,
     }),
-  toggleGlobalScaleMode: () =>
-    set((s) => ({ globalScaleMode: !s.globalScaleMode })),
-  togglePerCurveScaleMode: () =>
-    set((s) => ({ perCurveScaleMode: !s.perCurveScaleMode })),
-  setBrushMode: (active) => set({ brushMode: active }),
   setYZoomRange: (range) => set({ yZoomRange: range }),
   resetYZoomRange: () => set({ yZoomRange: null }),
   addColorToHistory: (color) =>

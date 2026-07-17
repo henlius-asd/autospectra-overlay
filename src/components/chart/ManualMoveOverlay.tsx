@@ -20,7 +20,7 @@ export default function ManualMoveOverlay({
   const selectedCurveId = useUiStore((s) => s.selectedCurveId);
   const locked = useCurveStore((s) => s.locked);
   const setCurveOffset = useCurveStore((s) => s.setCurveOffset);
-  const setManualMoveMode = useUiStore((s) => s.setManualMoveMode);
+  const setInteractionMode = useUiStore((s) => s.setInteractionMode);
 
   const dragRef = useRef<{
     startX: number;
@@ -75,9 +75,9 @@ export default function ManualMoveOverlay({
 
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (e.key === 'Escape') {
-      setManualMoveMode(false);
+      setInteractionMode('select');
     }
-  }, [setManualMoveMode]);
+  }, [setInteractionMode]);
 
   if (!selectedCurveId) {
     return (

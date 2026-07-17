@@ -26,8 +26,8 @@ export default function BraceOverlay({
 }: BraceOverlayProps) {
   const braces = useCurveStore((s) => s.braces);
   const updateBrace = useCurveStore((s) => s.updateBrace);
-  const bracePlacementMode = useUiStore((s) => s.bracePlacementMode);
-  const setBracePlacementMode = useUiStore((s) => s.setBracePlacementMode);
+  const bracePlacementMode = useUiStore((s) => s.interactionMode) === 'brace';
+  const setInteractionMode = useUiStore((s) => s.setInteractionMode);
   const labelStyle = useUiStore((s) => s.labelStyle);
 
   const [editingBrace, setEditingBrace] = useState<BraceAnnotation | null>(null);
@@ -133,9 +133,9 @@ export default function BraceOverlay({
       setLabelInput('');
       setDragStart(null);
       setDragEnd(null);
-      setBracePlacementMode(false);
+      setInteractionMode('select');
     },
-    [bracePlacementMode, dragging, dragStart, dragEnd, convertPixelToX, setBracePlacementMode],
+    [bracePlacementMode, dragging, dragStart, dragEnd, convertPixelToX, setInteractionMode],
   );
 
   // Cancel placement on Escape
@@ -144,10 +144,10 @@ export default function BraceOverlay({
       if (e.key === 'Escape' && bracePlacementMode) {
         setDragStart(null);
         setDragEnd(null);
-        setBracePlacementMode(false);
+        setInteractionMode('select');
       }
     },
-    [bracePlacementMode, setBracePlacementMode],
+    [bracePlacementMode, setInteractionMode],
   );
 
   // Attach/detach keyboard listener

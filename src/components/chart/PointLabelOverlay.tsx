@@ -36,8 +36,8 @@ export default function PointLabelOverlay({
   const addPointLabel = useCurveStore((s) => s.addPointLabel);
   const updatePointLabel = useCurveStore((s) => s.updatePointLabel);
   const removePointLabel = useCurveStore((s) => s.removePointLabel);
-  const pointLabelPlacementMode = useUiStore((s) => s.pointLabelPlacementMode);
-  const setPointLabelPlacementMode = useUiStore((s) => s.setPointLabelPlacementMode);
+  const pointLabelPlacementMode = useUiStore((s) => s.interactionMode) === 'pointLabel';
+  const setInteractionMode = useUiStore((s) => s.setInteractionMode);
   const labelStyle = useUiStore((s) => s.labelStyle);
 
   const [editingLabel, setEditingLabel] = useState<PointLabel | null>(null);
@@ -66,10 +66,10 @@ export default function PointLabelOverlay({
       addPointLabel(newLabel);
       setEditingLabel(newLabel);
       setLabelInput('');
-      setPointLabelPlacementMode(false);
+      setInteractionMode('select');
       e.stopPropagation();
     },
-    [pointLabelPlacementMode, convertPixelToX, addPointLabel, setPointLabelPlacementMode],
+    [pointLabelPlacementMode, convertPixelToX, addPointLabel, setInteractionMode],
   );
 
   const handleLabelPointerDown = useCallback(
@@ -125,13 +125,13 @@ export default function PointLabelOverlay({
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        if (pointLabelPlacementMode) setPointLabelPlacementMode(false);
+        if (pointLabelPlacementMode) setInteractionMode('select');
         if (editingLabel) setEditingLabel(null);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [pointLabelPlacementMode, editingLabel, setPointLabelPlacementMode]);
+  }, [pointLabelPlacementMode, editingLabel, setInteractionMode]);
 
   const dialogLeft = editingLabel
     ? convertXToPixel(editingLabel.x) - 100

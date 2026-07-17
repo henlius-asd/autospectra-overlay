@@ -37,6 +37,17 @@ export function RedoIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
+export function SelectIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <Icon {...props}>
+      <path d="m5 5 14 14" />
+      <path d="M5 19 19 5" />
+      <path d="M5 11V5h6" />
+      <path d="M19 13v6h-6" />
+    </Icon>
+  );
+}
+
 export function BraceIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <Icon {...props}>
@@ -111,7 +122,9 @@ export function ZoomCurveIcon(props: SVGProps<SVGSVGElement>) {
 export function BoxSelectIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <Icon {...props}>
-      <rect x="4" y="4" width="16" height="16" rx="1" strokeDasharray="3 3" />
+      <rect x="3" y="3" width="15" height="15" rx="1" strokeDasharray="3 3" />
+      <circle cx="17" cy="17" r="4" />
+      <line x1="20" y1="20" x2="22" y2="22" />
     </Icon>
   );
 }
