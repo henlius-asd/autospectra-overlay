@@ -1,8 +1,5 @@
-# legend-display Specification
+## MODIFIED Requirements
 
-## Purpose
-图例显示配置，控制图例图标样式、导出含图例开关及持久化。
-## Requirements
 ### Requirement: 图例仅以线条颜色表示
 
 图表图例 SHALL 使用 `icon: 'inherit'` 继承系列样式，同时展示线段和圆点符号。圆点颜色 SHALL 与对应曲线的线条颜色（`curve.color`）完全一致。曲线本身 SHALL NOT 渲染数据点圆点（`showSymbol: false`）。图例 SHALL 仅在可见曲线数大于 1 时显示。
@@ -30,13 +27,3 @@
 
 - **WHEN** 用户勾选"导出含图例"并导出
 - **THEN** 导出图含图例，每项为线段+圆点组合图标、颜色与曲线一致
-
-### Requirement: 图例开关持久化
-
-`exportWithLegend` SHALL 存于 uiStore 并通过 localForage 持久化到 IndexedDB，纳入 workspace JSON。
-
-#### Scenario: 刷新后图例开关保留
-
-- **WHEN** 用户开启"导出含图例"后刷新页面
-- **THEN** 该开关仍为开启
-

@@ -74,7 +74,7 @@ export async function exportChartImage(): Promise<void> {
 
   const exportOpt = {
 legend: exportWithLegend
-      ? { show: true, icon: 'line', itemWidth: 20, itemHeight: 14 }
+      ? { show: true, icon: 'inherit', itemWidth: 20, itemHeight: 14 }
       : { show: false },
     dataZoom: insideZoom,
     grid: {
