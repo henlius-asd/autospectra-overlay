@@ -81,7 +81,7 @@ export default function HudShortcuts() {
     <>
       {visible && (
         <div
-          className="absolute z-40 bg-gray-900/85 text-white rounded-lg p-3 text-xs select-none"
+          className="absolute z-40 bg-ink/85 text-white rounded-lg p-3 text-xs select-none"
           style={{ left: pos.x, top: pos.y, minWidth: 220 }}
         >
           <div
@@ -90,10 +90,10 @@ export default function HudShortcuts() {
             onPointerMove={handlePointerMove}
             onPointerUp={handlePointerUp}
           >
-            <span className="font-semibold text-[11px] tracking-wide">快捷键</span>
+            <span className="font-semibold text-xs tracking-wide">快捷键</span>
             <button
               onClick={handleClose}
-              className="text-gray-400 hover:text-white text-sm leading-none px-1"
+              className="text-ink-faint hover:text-white text-sm leading-none px-1"
             >
               ×
             </button>
@@ -102,16 +102,16 @@ export default function HudShortcuts() {
             <div className="flex-1">
               {SHORTCUTS.map((s) => (
                 <div key={s.key} className="flex justify-between py-0.5">
-                  <kbd className="text-gray-400 font-mono">{s.key}</kbd>
-                  <span className="text-gray-300">{s.desc}</span>
+                  <kbd className="text-ink-faint font-mono">{s.key}</kbd>
+                  <span className="text-white/70">{s.desc}</span>
                 </div>
               ))}
             </div>
-            <div className="w-px bg-gray-600" />
+            <div className="w-px bg-white/20" />
             <div className="flex-1">
-              <div className="text-gray-400 mb-1 text-[10px]">当前工具</div>
-              <div className="font-semibold text-[11px]">{toolHint.name}</div>
-              <div className="text-gray-300 mt-0.5">{toolHint.hint}</div>
+              <div className="text-ink-faint mb-1 text-xs">当前工具</div>
+              <div className="font-semibold text-xs">{toolHint.name}</div>
+              <div className="text-white/70 mt-0.5">{toolHint.hint}</div>
             </div>
           </div>
         </div>
@@ -119,7 +119,7 @@ export default function HudShortcuts() {
       {!visible && (
         <button
           onClick={handleOpen}
-          className="absolute top-2 right-2 z-40 w-6 h-6 rounded-full bg-gray-200/80 hover:bg-gray-300 text-gray-600 text-xs flex items-center justify-center"
+          className="absolute top-2 right-2 z-40 w-6 h-6 rounded-full bg-surface-active/80 hover:bg-line-strong text-ink-muted text-xs flex items-center justify-center"
           title="快捷键帮助"
         >
           ?

@@ -22,10 +22,10 @@ export default function LabelStyleControls() {
 
   return (
     <div className="flex flex-col gap-3 p-3">
-      <h3 className="text-sm font-medium text-gray-600">标签样式</h3>
+      <h3 className="text-sm font-medium text-ink-muted">标签样式</h3>
 
       <div>
-        <label className="text-xs text-gray-400">字号: {labelStyle.fontSize}</label>
+        <label className="text-xs text-ink-faint">字号: {labelStyle.fontSize}</label>
         <input
           type="range"
           min={6}
@@ -37,11 +37,11 @@ export default function LabelStyleControls() {
       </div>
 
       <div>
-        <label className="text-xs text-gray-400">字体</label>
+        <label className="text-xs text-ink-faint">字体</label>
         <select
           value={labelStyle.fontFamily}
           onChange={(e) => setLabelStyle({ fontFamily: e.target.value })}
-          className="w-full mt-1 px-2 py-1 text-xs border border-gray-300 rounded"
+          className="w-full mt-1 px-2 py-1 text-xs border border-line-strong rounded-md"
         >
           {FONT_FAMILIES.map((f) => (
             <option key={f} value={f}>{f}</option>
@@ -50,11 +50,11 @@ export default function LabelStyleControls() {
       </div>
 
       <div className="flex items-center gap-2">
-        <label className="text-xs text-gray-400">加粗</label>
+        <label className="text-xs text-ink-faint">加粗</label>
         <button
           onClick={() => setLabelStyle({ fontWeight: labelStyle.fontWeight === 'bold' ? 'normal' : 'bold' })}
-          className={`text-xs px-2 py-0.5 rounded border ${
-            labelStyle.fontWeight === 'bold' ? 'bg-blue-500 text-white border-blue-500' : 'border-gray-300 hover:bg-gray-100'
+          className={`text-xs px-2 py-0.5 rounded-md border ${
+            labelStyle.fontWeight === 'bold' ? 'bg-accent text-white border-accent' : 'border-line-strong hover:bg-surface-hover'
           }`}
         >
           B
@@ -62,20 +62,20 @@ export default function LabelStyleControls() {
       </div>
 
       <div>
-        <label className="text-xs text-gray-400">文字颜色</label>
+        <label className="text-xs text-ink-faint">文字颜色</label>
         <div className="flex items-center gap-2 mt-1">
           <input
             type="color"
             value={toHexColor(labelStyle.color)}
             onChange={(e) => { addColorToHistory(e.target.value); setLabelStyle({ color: e.target.value }); }}
-            className="w-6 h-6 rounded cursor-pointer border border-gray-300"
+            className="w-6 h-6 rounded-md cursor-pointer border border-line-strong"
           />
           <div className="flex gap-1 flex-wrap">
             {colorHistory.slice(0, 8).map((c) => (
               <button
                 key={c}
                 onClick={() => setLabelStyle({ color: c })}
-                className="w-4 h-4 rounded border border-gray-300"
+                className="w-4 h-4 rounded-md border border-line-strong"
                 style={{ backgroundColor: c }}
                 title={c}
               />
@@ -85,15 +85,15 @@ export default function LabelStyleControls() {
       </div>
 
       <div>
-        <label className="text-xs text-gray-400">背景颜色</label>
+        <label className="text-xs text-ink-faint">背景颜色</label>
         <div className="flex items-center gap-2 mt-1">
           <input
             type="color"
             value={toHexColor(labelStyle.backgroundColor)}
             onChange={(e) => { addColorToHistory(e.target.value); setLabelStyle({ backgroundColor: e.target.value }); }}
-            className="w-6 h-6 rounded cursor-pointer border border-gray-300"
+            className="w-6 h-6 rounded-md cursor-pointer border border-line-strong"
           />
-          <span className="text-[10px] text-gray-400">{labelStyle.backgroundColor}</span>
+          <span className="text-xs text-ink-faint">{labelStyle.backgroundColor}</span>
         </div>
       </div>
     </div>

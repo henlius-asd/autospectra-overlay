@@ -13,6 +13,7 @@ import { yToPixel } from './yPixelMath';
 import { getTopCurvePixelYAtX, topCurvePeak } from './labelGeometry';
 import { scaleByWheel, offsetByDrag } from './curveScaleMath';
 import { buildViewportRestoreActions, dispatchRangeToIds, X_ZOOM_IDS, Y_ZOOM_IDS } from './viewportRestore';
+import { themeColors, themeFontFamily } from '@/lib/theme';
 
 // Shared chart instance for PNG export
 let chartInstance: EChartsInstance | null = null;
@@ -339,7 +340,7 @@ export default function WaterfallChart() {
           text: '尚未加载曲线数据',
           left: 'center',
           top: 'center',
-          textStyle: { color: '#ccc', fontSize: 16 },
+          textStyle: { color: themeColors.inkFaint, fontSize: 16, fontFamily: themeFontFamily },
         },
       };
     }
@@ -400,6 +401,7 @@ export default function WaterfallChart() {
     return {
       title: { show: false },
       tooltip: { show: false },
+      textStyle: { fontFamily: themeFontFamily },
 legend: {
         show: showLegend && visibleIds.length > 1,
         top: 8,
@@ -407,6 +409,7 @@ legend: {
         icon: 'inherit',
         itemWidth: 20,
         itemHeight: 14,
+        textStyle: { color: themeColors.inkMuted },
       },
       grid: {
         left: 60,
@@ -422,10 +425,10 @@ legend: {
         nameGap: 35,
         min: xMin,
         max: xMax,
-        axisLine: { show: showXAxis, onZero: false },
-        axisTick: { show: showXAxis },
-        axisLabel: { show: showXAxis },
-        splitLine: { show: showGrid },
+        axisLine: { show: showXAxis, onZero: false, lineStyle: { color: themeColors.lineStrong } },
+        axisTick: { show: showXAxis, lineStyle: { color: themeColors.lineStrong } },
+        axisLabel: { show: showXAxis, color: themeColors.inkMuted },
+        splitLine: { show: showGrid, lineStyle: { color: themeColors.line } },
       },
       yAxis: {
         type: 'value',
@@ -435,10 +438,10 @@ legend: {
         nameGap: 45,
         min: yAxisFullRange.yAxisMin,
         max: yAxisFullRange.yAxisMax,
-        axisLine: { show: showYAxis },
-        axisTick: { show: showYAxis },
-        axisLabel: { show: showYAxis },
-        splitLine: { show: showGrid },
+        axisLine: { show: showYAxis, lineStyle: { color: themeColors.lineStrong } },
+        axisTick: { show: showYAxis, lineStyle: { color: themeColors.lineStrong } },
+        axisLabel: { show: showYAxis, color: themeColors.inkMuted },
+        splitLine: { show: showGrid, lineStyle: { color: themeColors.line } },
       },
       dataZoom: (() => {
         if (interactionMode === 'brace') {
@@ -765,7 +768,7 @@ legend: {
         }}
       />
       {scaleBadge && (
-        <div className="absolute text-[10px] font-mono text-blue-600 bg-white bg-opacity-80 px-1 rounded pointer-events-none"
+        <div className="absolute text-xs font-mono text-accent-strong bg-canvas/80 px-1 rounded pointer-events-none"
           style={{ left: 8, top: gridTop }}>
           {scaleBadge}
           {scaleBadgeOffset !== 0 ? ` Δ${scaleBadgeOffset.toFixed(0)}` : ''}

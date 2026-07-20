@@ -7,8 +7,8 @@ export default function LayerSpacingPanel() {
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between">
-        <span className="text-xs text-gray-500">层间距</span>
-        <span className="text-xs text-gray-400 font-mono tabular-nums">
+        <span className="text-xs text-ink-muted">层间距</span>
+        <span className="text-xs text-ink-faint font-mono tabular-nums">
           {layerSpacing.toFixed(3)}
         </span>
       </div>

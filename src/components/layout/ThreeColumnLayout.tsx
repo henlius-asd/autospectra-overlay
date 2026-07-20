@@ -47,7 +47,7 @@ export default function ThreeColumnLayout() {
     <div className="flex h-screen w-screen overflow-hidden relative">
       {leftOverlay && (
         <div
-          className="absolute inset-0 z-40 bg-black/20"
+          className="absolute inset-0 z-40 bg-ink/20"
           onClick={handleToggleLeft}
         />
       )}
@@ -58,7 +58,7 @@ export default function ThreeColumnLayout() {
       <CenterPanel />
       {rightOverlay && (
         <div
-          className="absolute inset-0 z-40 bg-black/20"
+          className="absolute inset-0 z-40 bg-ink/20"
           onClick={handleToggleRight}
         />
       )}

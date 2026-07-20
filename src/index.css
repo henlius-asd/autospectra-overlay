@@ -1,13 +1,52 @@
+@import '@fontsource-variable/inter';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/*
+ * Design tokens — single source of truth for UI colors.
+ * Values are space-separated RGB channels so Tailwind can apply
+ * <alpha-value> (see tailwind.config.ts). Mirrored in src/lib/theme.ts
+ * for ECharts — keep the two in sync. A future dark theme only needs
+ * to override these variables under a [data-theme="dark"] scope.
+ */
 :root {
-  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  /* Surfaces */
+  --canvas: 255 255 255;          /* chart area background (white) */
+  --surface: 250 250 250;         /* zinc-50: side panel backgrounds */
+  --surface-raised: 255 255 255;  /* dropdowns, toasts, floating layers */
+  --surface-hover: 244 244 245;   /* zinc-100: toolbar chrome, hover bg */
+  --surface-active: 228 228 231;  /* zinc-200: hover on controls within chrome */
+
+  /* Text */
+  --ink: 39 39 42;        /* zinc-800: primary text */
+  --ink-muted: 82 82 91;  /* zinc-600: secondary text */
+  --ink-faint: 161 161 170; /* zinc-400: hints, version, placeholders */
+
+  /* Borders */
+  --line: 228 228 231;        /* zinc-200: panel edges, separators */
+  --line-strong: 212 212 216; /* zinc-300: input borders */
+
+  /* Accent (blue) */
+  --accent: 59 130 246;        /* blue-500: active modes, primary actions */
+  --accent-strong: 37 99 235;  /* blue-600: accent hover */
+  --accent-subtle: 239 246 255;/* blue-50: selected/active tinted bg */
+  --accent-ink: 29 78 216;     /* blue-700: text on accent-subtle */
+
+  /* Danger (red) */
+  --danger: 220 38 38;         /* red-600 */
+  --danger-subtle: 254 226 226;/* red-100 */
+  --danger-ink: 185 28 28;     /* red-700 */
+
+  /* Success (green) */
+  --success: 22 163 74;        /* green-600 */
+
+  font-family: 'Inter Variable', Inter, 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
   line-height: 1.5;
   font-weight: 400;
-  color: #213547;
-  background-color: #ffffff;
+  color: rgb(var(--ink));
+  background-color: rgb(var(--canvas));
 }
 
 body {
@@ -30,7 +69,7 @@ body {
 }
 .layer-slider::-webkit-slider-runnable-track {
   width: 4px;
-  background: #e2e8f0;
+  background: rgb(var(--line));
   border-radius: 2px;
 }
 .layer-slider::-webkit-slider-thumb {
@@ -39,21 +78,21 @@ body {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: #3b82f6;
+  background: rgb(var(--accent));
   border: 2px solid #fff;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
   margin-left: -5px;
 }
 .layer-slider::-moz-range-track {
   width: 4px;
-  background: #e2e8f0;
+  background: rgb(var(--line));
   border-radius: 2px;
 }
 .layer-slider::-moz-range-thumb {
   width: 14px;
   height: 14px;
   border-radius: 50%;
-  background: #3b82f6;
+  background: rgb(var(--accent));
   border: 2px solid #fff;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
 }

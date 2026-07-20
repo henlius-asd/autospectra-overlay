@@ -43,12 +43,12 @@ export default function ContextMenu({
   return (
     <div
       ref={menuRef}
-      className="fixed z-50 bg-white border border-gray-200 rounded shadow-lg py-1 min-w-[140px]"
+      className="fixed z-50 bg-surface-raised border border-line rounded-lg shadow-overlay py-1 min-w-[140px]"
       style={{ left: adjustedX, top: adjustedY }}
     >
       <button
-        className={`w-full text-left px-3 py-1.5 text-xs hover:bg-gray-100 ${
-          isBaseline ? 'text-gray-300 cursor-not-allowed' : 'text-gray-700'
+        className={`w-full text-left px-3 py-1.5 text-xs hover:bg-surface-hover ${
+          isBaseline ? 'text-line-strong cursor-not-allowed' : 'text-ink'
         }`}
         disabled={isBaseline}
         onClick={() => {
@@ -61,7 +61,7 @@ export default function ContextMenu({
         {isBaseline ? '★ 已是基准线' : '设为对齐基准线'}
       </button>
       <button
-        className="w-full text-left px-3 py-1.5 text-xs text-red-500 hover:bg-red-50"
+        className="w-full text-left px-3 py-1.5 text-xs text-danger hover:bg-danger-subtle"
         onClick={() => {
           onDelete();
           onClose();

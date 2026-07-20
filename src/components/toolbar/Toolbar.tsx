@@ -14,19 +14,19 @@ import {
 } from '@/components/ui/icons';
 
 function modeButtonClass(active: boolean): string {
-  return `flex items-center justify-center w-7 h-7 rounded ${
+  return `flex items-center justify-center w-7 h-7 rounded-md ${
     active
-      ? 'bg-blue-500 text-white'
-      : 'text-gray-600 hover:bg-gray-200'
-  } disabled:text-gray-300 disabled:cursor-not-allowed`;
+      ? 'bg-accent text-white'
+      : 'text-ink-muted hover:bg-surface-active'
+  } disabled:text-line-strong disabled:cursor-not-allowed`;
 }
 
 function actionButtonClass(): string {
-  return 'flex items-center justify-center w-7 h-7 rounded text-gray-600 hover:bg-gray-200 disabled:text-gray-300 disabled:cursor-not-allowed';
+  return 'flex items-center justify-center w-7 h-7 rounded-md text-ink-muted hover:bg-surface-active disabled:text-line-strong disabled:cursor-not-allowed';
 }
 
 function separator() {
-  return <div className="w-px h-5 bg-gray-300 mx-1" />;
+  return <div className="w-px h-5 bg-line-strong mx-1" />;
 }
 
 export default function Toolbar() {
@@ -164,7 +164,7 @@ export default function Toolbar() {
   );
 
   return (
-    <div className="flex items-center gap-1 px-2 py-1.5 bg-gray-100 border-b border-gray-200 relative z-50">
+    <div className="flex items-center gap-1 px-2 py-1.5 bg-surface-hover border-b border-line relative z-50">
       <div className="flex items-center gap-1">
         {toolButton('select', SelectIcon, '一般选中：点击选中曲线，拖拽平移画布', false)}
         {toolButton('brush', BoxSelectIcon, '框选放大：拖拽框选矩形区域，松开后缩放至该区域', !hasCurves)}
@@ -176,8 +176,8 @@ export default function Toolbar() {
         {interactionMode === 'move' && selectedCurveId && (
           <button
             onClick={() => toggleCurveLocked(selectedCurveId)}
-            className={`flex items-center justify-center w-7 h-7 rounded ${
-              locked[selectedCurveId] ? 'bg-red-100 text-red-700' : 'text-gray-400 hover:bg-gray-200'
+            className={`flex items-center justify-center w-7 h-7 rounded-md ${
+              locked[selectedCurveId] ? 'bg-danger-subtle text-danger-ink' : 'text-ink-faint hover:bg-surface-active'
             }`}
             title={locked[selectedCurveId] ? '解锁横向移动' : '锁定横向移动'}
           >
@@ -204,7 +204,7 @@ export default function Toolbar() {
         >
           <RedoIcon className="w-[18px] h-[18px]" />
         </button>
-        <div className="w-px h-5 bg-gray-300 mx-1" />
+        <div className="w-px h-5 bg-line-strong mx-1" />
         <Dropdown
           label="导出"
           icon={ExportImageIcon}
@@ -216,7 +216,7 @@ export default function Toolbar() {
           items={workspaceDropdownItems}
         />
         <span
-          className="text-[10px] text-gray-400 font-mono tabular-nums select-none whitespace-nowrap"
+          className="text-xs text-ink-faint font-mono tabular-nums select-none whitespace-nowrap"
           title="当前构建版本（来自 package.json，与发布 tag 对应）"
         >
           v{__APP_VERSION__}

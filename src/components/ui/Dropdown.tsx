@@ -51,14 +51,14 @@ export default function Dropdown({ label, icon: Icon, items, disabled }: Dropdow
       <button
         onClick={() => setOpen((prev) => !prev)}
         disabled={disabled}
-        className="flex items-center gap-1 text-xs px-2 py-1 rounded hover:bg-gray-200 text-gray-600 disabled:text-gray-300 disabled:cursor-not-allowed"
+        className="flex items-center gap-1 text-xs px-2 py-1 rounded-md hover:bg-surface-active text-ink-muted disabled:text-line-strong disabled:cursor-not-allowed"
       >
         {Icon && <Icon className="w-4 h-4" />}
         {label}
         <ChevronDownIcon className={`w-3 h-3 transition-transform ${open ? 'rotate-180' : ''}`} />
       </button>
       {open && (
-        <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded shadow-lg z-50 min-w-[160px]">
+        <div className="absolute top-full left-0 mt-1 bg-surface-raised border border-line rounded-lg shadow-overlay z-50 min-w-[160px]">
           {items.map((item, i) => (
             <button
               key={i}
@@ -71,14 +71,14 @@ export default function Dropdown({ label, icon: Icon, items, disabled }: Dropdow
               disabled={item.disabled}
               className={`flex items-center gap-2 w-full text-left text-xs px-3 py-1.5 ${
                 item.danger
-                  ? 'text-red-600 hover:bg-red-50'
-                  : 'text-gray-700 hover:bg-gray-100'
-              } disabled:text-gray-300 disabled:cursor-not-allowed`}
+                  ? 'text-danger hover:bg-danger-subtle'
+                  : 'text-ink hover:bg-surface-hover'
+              } disabled:text-line-strong disabled:cursor-not-allowed`}
             >
               {item.icon && <item.icon className="w-4 h-4" />}
               <span className="flex-1">{item.label}</span>
               {item.checked !== undefined && (
-                <span className={`${item.checked ? 'text-blue-600' : 'text-transparent'}`}>
+                <span className={`${item.checked ? 'text-accent-strong' : 'text-transparent'}`}>
                   <CheckIcon className="w-4 h-4" />
                 </span>
               )}

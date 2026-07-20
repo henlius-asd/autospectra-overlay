@@ -20,16 +20,16 @@ export default function Toast() {
   if (!animating && !toast) return null;
 
   const typeStyles: Record<string, string> = {
-    error: 'bg-red-600 text-white',
-    success: 'bg-green-600 text-white',
-    info: 'bg-blue-600 text-white',
+    error: 'bg-danger text-white',
+    success: 'bg-success text-white',
+    info: 'bg-accent-strong text-white',
   };
 
   const type = toast?.type ?? 'info';
 
   return (
     <div
-      className={`fixed bottom-6 right-6 z-50 px-4 py-2 rounded shadow-lg text-sm transition-all duration-300 ${
+      className={`fixed bottom-6 right-6 z-50 px-4 py-2 rounded-lg shadow-overlay text-sm transition-all duration-300 ${
         typeStyles[type]
       } ${visible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'}`}
     >

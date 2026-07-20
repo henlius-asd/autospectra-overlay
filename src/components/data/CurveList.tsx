@@ -166,9 +166,9 @@ export default function CurveList({
     return (
       <div
         key={id}
-        className={`flex items-center gap-2 px-2 py-1.5 hover:bg-gray-100 rounded text-sm group cursor-pointer ${
-          isSelected ? 'bg-blue-50 ring-1 ring-blue-200' : ''
-        } ${dragOverId === id ? 'border-t-2 border-blue-400' : ''}`}
+        className={`flex items-center gap-2 px-2 py-1.5 hover:bg-surface-hover rounded-md text-sm group cursor-pointer ${
+          isSelected ? 'bg-accent-subtle ring-1 ring-accent/30' : ''
+        } ${dragOverId === id ? 'border-t-2 border-accent' : ''}`}
         draggable={isStaging}
         onDragStart={(e) => handleDragStart(e, id)}
         onDragOver={(e) => handleDragOver(e, id)}
@@ -178,19 +178,19 @@ export default function CurveList({
         onClick={(e) => handleCurveClick(e, id)}
       >
         {isStaging && (
-          <span className="text-gray-300 text-xs cursor-grab flex-shrink-0">⋮⋮</span>
+          <span className="text-line-strong text-xs cursor-grab flex-shrink-0">⋮⋮</span>
         )}
         <input
           type="checkbox"
           checked={isVisible}
           onChange={() => onToggleVisibility(id)}
-          className="w-3.5 h-3.5 rounded border-gray-300 text-blue-500 focus:ring-blue-400 flex-shrink-0"
+          className="w-3.5 h-3.5 rounded-md border-line-strong text-accent focus:ring-accent flex-shrink-0"
         />
         {(() => {
           const color = curve.color || '#000000';
           return (
             <span
-              className="relative w-3 h-3 rounded-full flex-shrink-0 cursor-pointer border border-gray-300"
+              className="relative w-3 h-3 rounded-full flex-shrink-0 cursor-pointer border border-line-strong"
               style={{ backgroundColor: color }}
               onClick={(e) => {
                 e.stopPropagation();
@@ -211,13 +211,13 @@ export default function CurveList({
               if (e.key === 'Escape') handleAliasCancel();
             }}
             onBlur={() => handleAliasConfirm(id)}
-            className="flex-1 text-xs px-1 py-0 border border-blue-400 rounded outline-none"
+            className="flex-1 text-xs px-1 py-0 border border-accent rounded-md outline-none"
             autoFocus
             onClick={(e) => e.stopPropagation()}
           />
         ) : (
           <span
-            className="text-gray-700 truncate flex-1"
+            className="text-ink truncate flex-1"
             onDoubleClick={() => handleDoubleClick(id)}
             title="双击编辑显示名称"
           >
@@ -229,7 +229,7 @@ export default function CurveList({
             e.stopPropagation();
             onRemoveCurve(id);
           }}
-          className="text-gray-300 hover:text-red-500 text-sm leading-none flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
+          className="text-line-strong hover:text-danger text-sm leading-none flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
           title="删除曲线"
         >
           ×
@@ -245,10 +245,10 @@ export default function CurveList({
       {errors.length > 0 && (
         <div className="p-2">
           <div className="flex items-center justify-between mb-1">
-            <span className="text-xs text-red-400">解析错误</span>
+            <span className="text-xs text-danger">解析错误</span>
             <button
               onClick={onClearErrors}
-              className="text-xs text-gray-400 hover:text-red-500"
+              className="text-xs text-ink-faint hover:text-danger"
             >
               清除
             </button>
@@ -256,7 +256,7 @@ export default function CurveList({
           {errors.map((err, i) => (
             <div
               key={i}
-              className="text-xs text-red-500 bg-red-50 rounded px-2 py-1 mb-1"
+              className="text-xs text-danger bg-danger-subtle rounded-md px-2 py-1 mb-1"
             >
               {err.name}: {err.error}
             </div>
@@ -265,7 +265,7 @@ export default function CurveList({
       )}
 
       {!hasCurves && errors.length === 0 ? (
-        <div className="p-4 text-center text-sm text-gray-400">
+        <div className="p-4 text-center text-sm text-ink-faint">
           尚未加载曲线数据
         </div>
       ) : null}
@@ -279,37 +279,37 @@ export default function CurveList({
               placeholder="搜索曲线..."
               value={filterText}
               onChange={(e) => setFilterText(e.target.value)}
-              className="w-full px-2 py-1 text-xs border border-gray-300 rounded focus:outline-none focus:border-blue-400"
+              className="w-full px-2 py-1 text-xs border border-line-strong rounded-md focus:outline-none focus:border-accent"
             />
           </div>
 
           {/* Staging zone */}
           <div className="px-2 pt-2">
             <div className="flex items-center justify-between mb-1">
-              <span className="text-xs font-medium text-gray-500">
+              <span className="text-xs font-medium text-ink-muted">
                 叠图区 ({stagingIds.length})
               </span>
               <div className="flex items-center gap-1">
                 <button
                   onClick={stagingOrder.length === Object.keys(curves).length ? onDeselectAll : onSelectAll}
-                  className="text-xs text-blue-500 hover:text-blue-700 px-1 py-0.5"
+                  className="text-xs text-accent hover:text-accent-ink px-1 py-0.5"
                 >
                   {stagingOrder.length === Object.keys(curves).length ? '取消全选' : '全选'}
                 </button>
-                <span className="text-xs text-gray-300">|</span>
+                <span className="text-xs text-line-strong">|</span>
                 <button
                   onClick={() => {
                     if (window.confirm('确定要删除所有选中的曲线吗？')) onRemoveSelected();
                   }}
                   disabled={stagingIds.length === 0}
-                  className="text-xs text-red-400 hover:text-red-600 px-1 py-0.5 disabled:text-gray-300 disabled:cursor-not-allowed"
+                  className="text-xs text-danger hover:text-danger-ink px-1 py-0.5 disabled:text-line-strong disabled:cursor-not-allowed"
                 >
                   删除选中
                 </button>
               </div>
             </div>
             {stagingIds.length === 0 ? (
-              <div className="text-xs text-gray-300 py-2 text-center">
+              <div className="text-xs text-line-strong py-2 text-center">
                 勾选下方曲线添加到叠图区
               </div>
             ) : (
@@ -319,14 +319,14 @@ export default function CurveList({
 
           {/* Divider */}
           {stagingIds.length > 0 && unstagedIds.length > 0 && (
-            <div className="border-t border-gray-200 mx-2 my-1" />
+            <div className="border-t border-line mx-2 my-1" />
           )}
 
           {/* Unstaged zone */}
           {unstagedIds.length > 0 && (
             <div className="px-2 pb-2">
               <div className="mb-1">
-                <span className="text-xs font-medium text-gray-400">
+                <span className="text-xs font-medium text-ink-faint">
                   未叠图数据区 ({unstagedIds.length})
                 </span>
               </div>
@@ -336,7 +336,7 @@ export default function CurveList({
 
           {/* No results */}
           {filterText && allCurveIds.length === 0 && (
-            <div className="px-4 py-2 text-center text-xs text-gray-400">
+            <div className="px-4 py-2 text-center text-xs text-ink-faint">
               无匹配结果
             </div>
           )}

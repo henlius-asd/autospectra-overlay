@@ -106,7 +106,7 @@ export default function ManualMoveOverlay({
       tabIndex={0}
     >
       {isLocked && (
-        <div className="absolute top-1 left-1/2 -translate-x-1/2 bg-red-100 text-red-700 text-[10px] px-2 py-0.5 rounded">
+        <div className="absolute top-1 left-1/2 -translate-x-1/2 bg-danger-subtle text-danger-ink text-xs px-2 py-0.5 rounded">
           横向锁定
         </div>
       )}

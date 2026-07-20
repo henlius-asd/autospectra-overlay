@@ -13,14 +13,14 @@ export default function DataProcessingPanel() {
       <button
         disabled={!hasCurves}
         onClick={() => normalizeAllPeak(xRange)}
-        className="w-full py-1.5 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
+        className="w-full py-1.5 text-xs bg-accent text-white rounded-md hover:bg-accent-strong disabled:bg-line-strong disabled:cursor-not-allowed"
       >
         归一化
       </button>
       <button
         disabled={!hasCurves}
         onClick={clearNormalizeFactors}
-        className="w-full py-1.5 text-xs border border-gray-300 text-gray-600 rounded hover:bg-gray-100 disabled:text-gray-300 disabled:cursor-not-allowed"
+        className="w-full py-1.5 text-xs border border-line-strong text-ink-muted rounded-md hover:bg-surface-hover disabled:text-line-strong disabled:cursor-not-allowed"
       >
         还原归一化
       </button>

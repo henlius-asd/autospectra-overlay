@@ -90,25 +90,25 @@ export default function ColorPanel({
   return (
     <div
       ref={panelRef}
-      className="fixed z-50 bg-white rounded-lg shadow-lg border border-gray-200 p-3 w-56"
+      className="fixed z-50 bg-surface-raised rounded-lg shadow-overlay border border-line p-3 w-56"
       style={{ top, left }}
     >
       <button
         onClick={handleCancel}
-        className="absolute top-1.5 right-1.5 w-5 h-5 flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded text-xs leading-none"
+        className="absolute top-1.5 right-1.5 w-5 h-5 flex items-center justify-center text-ink-faint hover:text-ink-muted hover:bg-surface-hover rounded-md text-xs leading-none"
         title="关闭"
       >
         ✕
       </button>
 
-      <div className="text-xs font-medium text-gray-500 mb-2">预设颜色</div>
+      <div className="text-xs font-medium text-ink-muted mb-2">预设颜色</div>
       <div className="flex flex-wrap gap-1.5 mb-3">
         {PRESET_COLORS.map((c) => (
           <button
             key={c}
             onClick={() => handlePreview(c)}
-            className={`w-6 h-6 rounded border-2 transition-transform hover:scale-110 ${
-              c === previewColor ? 'border-blue-500 ring-1 ring-blue-300' : 'border-gray-300'
+            className={`w-6 h-6 rounded-md border-2 transition-transform hover:scale-110 ${
+              c === previewColor ? 'border-accent ring-1 ring-accent/50' : 'border-line-strong'
             }`}
             style={{ backgroundColor: c }}
             title={c}
@@ -118,14 +118,14 @@ export default function ColorPanel({
 
       {colorHistory.length > 0 && (
         <>
-          <div className="text-xs font-medium text-gray-500 mb-2">最近使用</div>
+          <div className="text-xs font-medium text-ink-muted mb-2">最近使用</div>
           <div className="flex flex-wrap gap-1.5 mb-3">
             {colorHistory.map((c) => (
               <button
                 key={c}
                 onClick={() => handlePreview(c)}
-                className={`w-6 h-6 rounded border-2 transition-transform hover:scale-110 ${
-                  c === previewColor ? 'border-blue-500 ring-1 ring-blue-300' : 'border-gray-300'
+                className={`w-6 h-6 rounded-md border-2 transition-transform hover:scale-110 ${
+                  c === previewColor ? 'border-accent ring-1 ring-accent/50' : 'border-line-strong'
                 }`}
                 style={{ backgroundColor: c }}
                 title={c}
@@ -135,10 +135,10 @@ export default function ColorPanel({
         </>
       )}
 
-      <div className="text-xs font-medium text-gray-500 mb-1.5">当前颜色</div>
+      <div className="text-xs font-medium text-ink-muted mb-1.5">当前颜色</div>
       <button
         onClick={() => { colorPickerOpen.current = true; customInputRef.current?.click(); }}
-        className="w-full h-8 rounded border border-gray-300 mb-2 relative overflow-hidden text-xs text-white font-medium hover:opacity-90 transition-opacity"
+        className="w-full h-8 rounded-md border border-line-strong mb-2 relative overflow-hidden text-xs text-white font-medium hover:opacity-90 transition-opacity"
         style={{ backgroundColor: previewColor }}
       >
         自定义
@@ -153,13 +153,13 @@ export default function ColorPanel({
       <div className="flex gap-2 mt-1">
         <button
           onClick={handleCancel}
-          className="flex-1 text-xs text-gray-500 hover:text-gray-700 py-1 border border-gray-200 rounded hover:bg-gray-50"
+          className="flex-1 text-xs text-ink-muted hover:text-ink py-1 border border-line rounded-md hover:bg-surface"
         >
           取消
         </button>
         <button
           onClick={handleConfirm}
-          className="flex-1 text-xs bg-blue-500 text-white py-1 rounded hover:bg-blue-600"
+          className="flex-1 text-xs bg-accent text-white py-1 rounded-md hover:bg-accent-strong"
         >
           确认
         </button>

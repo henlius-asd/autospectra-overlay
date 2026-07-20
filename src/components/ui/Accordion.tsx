@@ -40,10 +40,10 @@ export default function Accordion({ sections }: AccordionProps) {
       {sections.map((section) => {
         const isOpen = expanded.has(section.id);
         return (
-          <div key={section.id} className="border-b border-gray-200">
+          <div key={section.id} className="border-b border-line">
             <button
               onClick={() => toggleSection(section.id)}
-              className="flex items-center justify-between w-full px-3 py-2 text-sm font-medium text-gray-600 hover:bg-gray-100"
+              className="flex items-center justify-between w-full px-3 py-2 text-sm font-medium text-ink-muted hover:bg-surface-hover"
             >
               <span>{section.title}</span>
               <ChevronDownIcon

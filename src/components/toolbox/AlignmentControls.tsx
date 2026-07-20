@@ -111,12 +111,12 @@ export default function AlignmentControls() {
 
   return (
     <div className="flex flex-col gap-3 p-3">
-      <h3 className="text-sm font-medium text-gray-600">自动对齐</h3>
+      <h3 className="text-sm font-medium text-ink-muted">自动对齐</h3>
 
       <div>
-        <label className="text-xs text-gray-400">算法</label>
+        <label className="text-xs text-ink-faint">算法</label>
         <select
-          className="w-full mt-1 px-2 py-1 text-xs border border-gray-300 rounded"
+          className="w-full mt-1 px-2 py-1 text-xs border border-line-strong rounded-md"
           value={algorithm}
           onChange={(e) => setAlgorithm(e.target.value as 'roi-peak' | 'cross-correlation')}
         >
@@ -127,23 +127,23 @@ export default function AlignmentControls() {
 
       <div className="flex gap-2">
         <div className="flex-1">
-          <label className="text-xs text-gray-400">ROI 起始</label>
+          <label className="text-xs text-ink-faint">ROI 起始</label>
           <input
             type="number"
             step={0.1}
             value={roiStart}
             onChange={(e) => setRoiStart(parseFloat(e.target.value) || 0)}
-            className="w-full mt-1 px-1 py-0.5 text-xs border border-gray-300 rounded"
+            className="w-full mt-1 px-1 py-0.5 text-xs border border-line-strong rounded-md"
           />
         </div>
         <div className="flex-1">
-          <label className="text-xs text-gray-400">ROI 结束</label>
+          <label className="text-xs text-ink-faint">ROI 结束</label>
           <input
             type="number"
             step={0.1}
             value={roiEnd}
             onChange={(e) => setRoiEnd(parseFloat(e.target.value) || 10)}
-            className="w-full mt-1 px-1 py-0.5 text-xs border border-gray-300 rounded"
+            className="w-full mt-1 px-1 py-0.5 text-xs border border-line-strong rounded-md"
           />
         </div>
       </div>
@@ -151,13 +151,13 @@ export default function AlignmentControls() {
       <button
         onClick={handleAlign}
         disabled={progress !== null || !baselineCurve || visibleIds.length < 2}
-        className="w-full py-1.5 text-xs bg-blue-500 text-white rounded hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
+        className="w-full py-1.5 text-xs bg-accent text-white rounded-md hover:bg-accent-strong disabled:bg-line-strong disabled:cursor-not-allowed"
       >
         {progress !== null ? `对齐中... ${Math.round(progress)}%` : '一键对齐'}
       </button>
 
       {baselineCurve && (
-        <p className="text-xs text-gray-400">
+        <p className="text-xs text-ink-faint">
           基准线: {baselineCurve.name}
         </p>
       )}

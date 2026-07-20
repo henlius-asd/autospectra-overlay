@@ -188,7 +188,7 @@ export default function PointLabelOverlay({
 
       {editingLabel && (
         <div
-          className="absolute bg-white border border-gray-200 rounded-lg shadow-xl p-3 flex flex-col gap-2 z-50"
+          className="absolute bg-surface-raised border border-line rounded-lg shadow-overlay p-3 flex flex-col gap-2 z-50"
           style={{
             left: Math.max(8, Math.min(dialogLeft, width - 220)),
             top: gridTop + 10,
@@ -201,7 +201,7 @@ export default function PointLabelOverlay({
             value={labelInput}
             onChange={(e) => setLabelInput(e.target.value)}
             placeholder="输入标签文字"
-            className="text-xs px-2 py-1.5 border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-400"
+            className="text-xs px-2 py-1.5 border border-line-strong rounded focus:outline-none focus:ring-2 focus:ring-accent"
             autoFocus
             onKeyDown={(e) => {
               if (e.key === 'Enter') handleSaveLabel();
@@ -211,20 +211,20 @@ export default function PointLabelOverlay({
           <div className="flex gap-2 justify-end items-center">
             {editingLabel.label && (
               <button
-                className="text-xs text-red-500 hover:text-red-700 mr-auto"
+                className="text-xs text-danger hover:text-danger-ink mr-auto"
                 onClick={() => handleDeleteLabel(editingLabel.id)}
               >
                 删除
               </button>
             )}
             <button
-              className="text-xs px-2.5 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
+              className="text-xs px-2.5 py-1 bg-accent text-white rounded hover:bg-accent-strong"
               onClick={handleSaveLabel}
             >
               确认
             </button>
             <button
-              className="text-xs px-2.5 py-1 bg-gray-100 text-gray-600 rounded hover:bg-gray-200"
+              className="text-xs px-2.5 py-1 bg-surface-hover text-ink-muted rounded hover:bg-surface-active"
               onClick={() => setEditingLabel(null)}
             >
               取消
