@@ -54,6 +54,11 @@ opencode.json
 # Test coverage
 coverage/
 
+# Playwright (e2e artifacts)
+test-results/
+playwright-report/
+playwright/.cache/
+
 # Temporary files
 *.tmp
 *.temp

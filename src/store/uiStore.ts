@@ -16,6 +16,14 @@ interface UiState {
   selectionMode: SelectionMode;
   alignmentProgress: number | null;
   xRange: [number, number];
+  /**
+   * True once the X viewport has been meaningfully set — by workspace restore,
+   * an explicit setXRange (user zoom / brush / import), or the initial seed.
+   * The chart's seed effect and onChartReady use this to avoid overwriting a
+   * restored/user viewport when curves (re)appear. Cleared only by a new
+   * workspace reset so the next curve load can re-seed.
+   */
+  xRangeHydrated: boolean;
   yRange: [number, number];
   selectedCurveId: string | null;
   interactionMode: InteractionMode;
@@ -60,6 +68,7 @@ export const useUiStore = create<UiState>((set) => ({
   selectionMode: 'none',
   alignmentProgress: null,
   xRange: [0, 10],
+  xRangeHydrated: false,
   yRange: [0, 1],
   selectedCurveId: null,
   interactionMode: 'select',
@@ -90,7 +99,7 @@ export const useUiStore = create<UiState>((set) => ({
     set((s) => ({ rightPanelCollapsed: !s.rightPanelCollapsed })),
   setSelectionMode: (mode) => set({ selectionMode: mode }),
   setAlignmentProgress: (progress) => set({ alignmentProgress: progress }),
-  setXRange: (range) => set({ xRange: range }),
+  setXRange: (range) => set({ xRange: range, xRangeHydrated: true }),
   setYRange: (range) => set({ yRange: range }),
   setSelectedCurveId: (id) => set({ selectedCurveId: id }),
   toggleShowGrid: () => set((s) => ({ showGrid: !s.showGrid })),
@@ -102,6 +111,7 @@ export const useUiStore = create<UiState>((set) => ({
   resetUiForNewWorkspace: () =>
     set({
       xRange: [0, 10],
+      xRangeHydrated: false,
       yRange: [0, 1],
       yZoomRange: null,
       selectedCurveId: null,

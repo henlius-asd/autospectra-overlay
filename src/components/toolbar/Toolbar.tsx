@@ -122,6 +122,7 @@ export default function Toolbar() {
             showXAxis: data.showXAxis ?? true,
             showYAxis: data.showYAxis ?? false,
             xRange: data.xRange ?? [0, 10],
+            xRangeHydrated: data.xRange != null,
           });
         } catch {
           useUiStore.getState().showToast('工作区文件解析失败', 'error');

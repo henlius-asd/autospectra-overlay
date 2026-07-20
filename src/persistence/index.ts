@@ -94,13 +94,20 @@ export async function restoreWorkspace(): Promise<boolean> {
     const snapshot = await persistenceStore.getItem<Record<string, unknown>>(PERSISTENCE_KEY);
 
     if (snapshot && snapshot.curves && Object.keys(snapshot.curves as Record<string, unknown>).length > 0) {
-      useCurveStore.setState(applyWorkspaceSnapshot(snapshot));
+      // Fetch the UI snapshot BEFORE applying curves so both restore in the
+      // SAME synchronous tick. The chart's seed-xRange effect runs on the
+      // curves-none→some re-render; if the UI snapshot (xRange + xRangeHydrated)
+      // arrives in a later async tick, the seed sees xRangeHydrated=false and
+      // overwrites the restored viewport with the full data extent (the H1
+      // "refresh loses the X zoom" root cause). Fetching both first lets
+      // React batch the two setStates, so the seed observes the hydrated flag.
       const uiSnapshot = await persistenceStore.getItem<{ showGrid?: boolean; showAxes?: boolean; showXAxis?: boolean; showYAxis?: boolean; showLegend?: boolean; exportWithLegend?: boolean; labelStyle?: Record<string, unknown>; xRange?: [number, number]; yZoomRange?: [number, number] | null; colorHistory?: string[] }>(UI_PERSISTENCE_KEY);
+      useCurveStore.setState(applyWorkspaceSnapshot(snapshot));
       if (uiSnapshot) {
         const oldShowAxes = uiSnapshot.showAxes;
         const showXAxis = (oldShowAxes !== undefined) ? oldShowAxes : (uiSnapshot.showXAxis ?? true);
         const showYAxis = (oldShowAxes !== undefined) ? oldShowAxes : (uiSnapshot.showYAxis ?? false);
-        useUiStore.setState({ showGrid: uiSnapshot.showGrid ?? true, showXAxis, showYAxis, showLegend: uiSnapshot.showLegend ?? true, exportWithLegend: uiSnapshot.exportWithLegend ?? false, xRange: uiSnapshot.xRange ?? [0, 10], yZoomRange: uiSnapshot.yZoomRange ?? null, colorHistory: uiSnapshot.colorHistory ?? [] });
+        useUiStore.setState({ showGrid: uiSnapshot.showGrid ?? true, showXAxis, showYAxis, showLegend: uiSnapshot.showLegend ?? true, exportWithLegend: uiSnapshot.exportWithLegend ?? false, xRange: uiSnapshot.xRange ?? [0, 10], xRangeHydrated: uiSnapshot.xRange != null, yZoomRange: uiSnapshot.yZoomRange ?? null, colorHistory: uiSnapshot.colorHistory ?? [] });
         if (uiSnapshot.labelStyle) {
           useUiStore.setState({ labelStyle: uiSnapshot.labelStyle as unknown as LabelStyle });
         }

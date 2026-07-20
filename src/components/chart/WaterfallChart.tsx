@@ -1,4 +1,4 @@
-import { useMemo, useCallback, useEffect, useRef, useState } from 'react';
+import { useMemo, useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { MouseEvent } from 'react';
 import ReactECharts from 'echarts-for-react';
 import { useCurveStore, useUiStore } from '@/store';
@@ -9,15 +9,38 @@ import HudShortcuts from '@/components/ui/HudShortcuts';
 import type { EChartsOption } from 'echarts';
 import type { EChartsInstance } from 'echarts-for-react';
 import { computeYAxisRange } from './computeYAxisRange';
-import { normalizeYZoomRange } from './yZoomRange';
 import { yToPixel } from './yPixelMath';
 import { getTopCurvePixelYAtX, topCurvePeak } from './labelGeometry';
 import { scaleByWheel, offsetByDrag } from './curveScaleMath';
+import { buildViewportRestoreActions, dispatchRangeToIds, X_ZOOM_IDS, Y_ZOOM_IDS } from './viewportRestore';
 
 // Shared chart instance for PNG export
 let chartInstance: EChartsInstance | null = null;
 export function getChartInstance() {
   return chartInstance;
+}
+
+// DEV-only test seam: exposes the ui store + live axis extents to window so
+// e2e (Playwright) can assert viewport-preservation behavior without reaching
+// into internals. The `typeof window` check keeps vitest (node) from crashing
+// when this module is imported transitively; `import.meta.env.DEV` strips it
+// from production builds.
+if (import.meta.env.DEV && typeof window !== 'undefined') {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const w = window as any;
+  w.__autospectra = {
+    getXExtent: () => getXAxisExtent(),
+    getYExtent: () => getYAxisExtent(),
+    getUiState: () => useUiStore.getState(),
+    getChartSize: () => (chartInstance ? { width: chartInstance.getWidth(), height: chartInstance.getHeight() } : null),
+    // DEV-only: drive a chart-originated dataZoom so e2e can reproduce the
+    // xZoomRangeSource residue race (H4) without real pointer interaction.
+    dispatchXZoom: (start: number, end: number) => {
+      if (!chartInstance) return;
+      chartInstance.dispatchAction({ type: 'dataZoom', dataZoomId: 'xZoom', startValue: start, endValue: end });
+      chartInstance.dispatchAction({ type: 'dataZoom', dataZoomId: 'xZoomSlider', startValue: start, endValue: end });
+    },
+  };
 }
 
 /**
@@ -36,6 +59,20 @@ function getXAxisExtent(): [number, number] | null {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const chart = chartInstance as any;
     const extent = chart.getModel()?.getComponent?.('xAxis', 0)?.axis?.scale?.getExtent?.();
+    if (extent && extent.length === 2) {
+      return [extent[0] as number, extent[1] as number];
+    }
+  } catch { /* fall through */ }
+  return null;
+}
+
+/** Read current Y-axis visible range from ECharts model */
+function getYAxisExtent(): [number, number] | null {
+  if (!chartInstance) return null;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const chart = chartInstance as any;
+    const extent = chart.getModel()?.getComponent?.('yAxis', 0)?.axis?.scale?.getExtent?.();
     if (extent && extent.length === 2) {
       return [extent[0] as number, extent[1] as number];
     }
@@ -68,8 +105,29 @@ export default function WaterfallChart() {
   const showYAxis = useUiStore((s) => s.showYAxis);
   const showLegend = useUiStore((s) => s.showLegend);
   const yZoomRange = useUiStore((s) => s.yZoomRange);
-  const yZoomRangeSource = useRef<'event' | 'external' | null>(null);
+  // Last X/Y range the CHART itself reported via onDataZoom. The [xRange]/
+  // [yZoomRange] restore effects skip re-dispatch only when the current store
+  // value EQUALS this (the change originated from the chart, so pushing it
+  // back would jitter). A boolean 'event' flag could go stale and swallow a
+  // legitimate external override landing in the same React batch (H4):
+  // chart dataZoom sets source='event' + writes store=A, then an external
+  // setXRange(B) lands in the same commit; the effect saw source='event' and
+  // skipped dispatching B, leaving the chart at A while the store held B.
+  const lastChartXRange = useRef<[number, number] | null>(null);
+  const lastChartYZoom = useRef<[number, number] | null>(null);
   const brushRafId = useRef<number | null>(null);
+  const hasMountedViewport = useRef(false);
+  // Set to true inside the option useMemo (which runs during render, BEFORE
+  // echarts-for-react's componentDidUpdate calls setOption). onDataZoom checks
+  // this and skips store writes during the option-rebuild cycle so the
+  // pre-rebuild xRange/yZoomRange survive for the viewport useLayoutEffect to
+  // restore. Cleared by a layout effect that runs after all child updates.
+  const isOptionRebuilding = useRef(false);
+
+  function isChartReady(): boolean {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return !!chartInstance && !(chartInstance as any).isDisposed?.();
+  }
 
   // visibleIds follows stagingOrder (only IDs that are in stagingOrder AND visible)
   // visibleIds[0] = top of list = top of chart; visibleIds[last] = bottom (baseline)
@@ -81,15 +139,28 @@ export default function WaterfallChart() {
   // replaceMerge, and overwriting the store value here would desync ROI from the
   // on-screen visible range. onChartReady/onDataZoom remain the sources of truth for
   // the live visible range; this effect only provides the initial seed.
+  //
+  // Hydration guard: if xRange was already restored from a persisted workspace
+  // (or set by the user), do NOT overwrite it — that was the root cause of
+  // "refresh loses the X zoom": restoreWorkspace wrote the persisted xRange, then
+  // this effect ran on the none→some curve transition and clobbered it with the
+  // full data extent. xRangeHydrated is the single signal that the viewport has
+  // been meaningfully set; only a fresh app (or a new-workspace reset) leaves it
+  // false so the seed can run.
   const hasInitializedXRange = useRef(false);
   useEffect(() => {
     if (visibleIds.length === 0) {
-      // No visible curves: allow the next appearance to re-seed xRange.
+      // No visible curves: allow the next appearance to re-seed xRange — but
+      // only if the viewport isn't already hydrated (restore/user-set).
       hasInitializedXRange.current = false;
       return;
     }
     if (hasInitializedXRange.current) return;
     hasInitializedXRange.current = true;
+    if (useUiStore.getState().xRangeHydrated) {
+      // Viewport already restored/set — keep it, do not re-seed.
+      return;
+    }
 
     // Prefer the real ECharts visible extent; fall back to data head/tail when the
     // chart instance is not ready yet (onChartReady will refine it afterwards).
@@ -108,11 +179,25 @@ export default function WaterfallChart() {
 
   const [chartDims, setChartDims] = useState({ width: 800, height: 600 });
 
+  // DEV-only: mirror chartDims to the test seam so e2e can assert it tracks
+  // container resizes (the H5 overlay-drift root cause is this React state
+  // staying stale while the ECharts canvas auto-resizes).
+  useEffect(() => {
+    if (import.meta.env.DEV && typeof window !== 'undefined') {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (window as any).__autospectra.__chartDims = chartDims;
+    }
+  }, [chartDims]);
+
   const onChartReady = useCallback((instance: EChartsInstance) => {
     chartInstance = instance;
     setChartDims({ width: instance.getWidth(), height: instance.getHeight() });
+    // Only seed X from the live extent on a genuinely fresh viewport; never
+    // clobber a restored/user xRange (mirrors the seed-effect hydration guard).
     const xExtent = getXAxisExtent();
-    if (xExtent) useUiStore.getState().setXRange(xExtent);
+    if (xExtent && !useUiStore.getState().xRangeHydrated) {
+      useUiStore.getState().setXRange(xExtent);
+    }
     const yzr = useUiStore.getState().yZoomRange;
     if (yzr) {
       instance.dispatchAction({
@@ -124,28 +209,29 @@ export default function WaterfallChart() {
     }
   }, []);
 
-  const onDataZoom = useCallback((e: unknown) => {
+  const onDataZoom = useCallback((_e: unknown) => {
+    // Skip store writes during option-rebuild setOption cycle — the dataZoom
+    // is rebuilt to full and we don't want that transient full to overwrite
+    // the user's viewport. The viewport useLayoutEffect restores after.
+    if (isOptionRebuilding.current) return;
     const xExtent = getXAxisExtent();
+    const yExtent = getYAxisExtent();
     const currentXRange = useUiStore.getState().xRange;
+    const currentYZoom = useUiStore.getState().yZoomRange;
     const xChanged = xExtent && (xExtent[0] !== currentXRange[0] || xExtent[1] !== currentXRange[1]);
+    const EPS = 1e-10;
+    const yChanged = yExtent && (!currentYZoom
+      || Math.abs(currentYZoom[0] - yExtent[0]) > EPS
+      || Math.abs(currentYZoom[1] - yExtent[1]) > EPS);
 
-    let yRange: [number, number] | null = null;
-    const event = e as { batch?: Array<{ dataZoomId?: string; startValue?: number; endValue?: number }> };
-    if (event?.batch) {
-      for (const item of event.batch) {
-        if ((item.dataZoomId === 'yZoom' || item.dataZoomId === 'yZoomSlider')
-          && item.startValue != null && item.endValue != null) {
-          yRange = normalizeYZoomRange(item.startValue, item.endValue);
-          yZoomRangeSource.current = 'event';
-          break;
-        }
-      }
-    }
-
-    if (xChanged || yRange) {
+    if (xChanged || yChanged) {
+      // Record what the CHART reported so the restore effects can tell a
+      // chart-originated change (skip re-dispatch) from an external one.
+      if (xChanged) lastChartXRange.current = xExtent!;
+      if (yChanged) lastChartYZoom.current = yExtent!;
       useUiStore.setState({
         ...(xChanged ? { xRange: xExtent! } : {}),
-        ...(yRange ? { yZoomRange: yRange } : {}),
+        ...(yChanged ? { yZoomRange: yExtent! } : {}),
       });
     }
   }, []);
@@ -157,23 +243,96 @@ export default function WaterfallChart() {
     [visibleIds, curves, offsets, layerSpacing],
   );
 
-  useEffect(() => {
-    if (yZoomRangeSource.current === 'event') {
-      yZoomRangeSource.current = null;
-      return;
-    }
-    yZoomRangeSource.current = null;
-    if (yZoomRange && chartInstance) {
-      chartInstance.dispatchAction({
-        type: 'dataZoom',
-        dataZoomId: 'yZoom',
-        startValue: yZoomRange[0],
-        endValue: yZoomRange[1],
-      });
+  // Restore persisted yZoomRange to the dataZoom synchronously in the commit
+  // phase (useLayoutEffect), BEFORE paint and BEFORE ECharts' async dataZoom
+  // event from the option rebuild fires. As a useEffect (after paint) the
+  // rebuild's transient full-range event could land first and overwrite a
+  // restored viewport via onDataZoom. Skip re-dispatch only when this change
+  // came FROM the chart (value matches lastChartYZoom) to avoid feedback
+  // jitter during user zoom — a value comparison, not a stale boolean flag,
+  // so an external override in the same batch is never swallowed (H4).
+  useLayoutEffect(() => {
+    const fromChart = lastChartYZoom.current != null
+      && yZoomRange != null
+      && yZoomRange[0] === lastChartYZoom.current[0]
+      && yZoomRange[1] === lastChartYZoom.current[1];
+    lastChartYZoom.current = null;
+    if (fromChart) return;
+    if (yZoomRange && isChartReady()) {
+      dispatchRangeToIds(
+        (a) => chartInstance!.dispatchAction({ type: 'dataZoom', ...a }),
+        Y_ZOOM_IDS,
+        yZoomRange,
+      );
     }
   }, [yZoomRange]);
 
+  // Restore persisted xRange to dataZoom when it changes externally
+  // (e.g., workspace load restore). Runs in the commit phase (useLayoutEffect)
+  // so the chart is at the restored range BEFORE ECharts' async dataZoom event
+  // from the option rebuild can overwrite it via onDataZoom. Mirrors the
+  // [yZoomRange] effect; skip re-dispatch only when this change came FROM the
+  // chart (value matches lastChartXRange) to avoid jitter — value comparison,
+  // not a stale boolean flag, so an external override in the same batch is
+  // never swallowed (H4).
+  useLayoutEffect(() => {
+    const fromChart = lastChartXRange.current != null
+      && xRange[0] === lastChartXRange.current[0]
+      && xRange[1] === lastChartXRange.current[1];
+    lastChartXRange.current = null;
+    if (fromChart) return;
+    if (isChartReady()) {
+      dispatchRangeToIds(
+        (a) => chartInstance!.dispatchAction({ type: 'dataZoom', ...a }),
+        X_ZOOM_IDS,
+        xRange,
+      );
+    }
+  }, [xRange]);
+
+  // Preserve the X/Y dataZoom viewport across interaction-mode and spaceHeld
+  // transitions. These transitions flip the dataZoom `type` (inside <-> hidden
+  // slider), which makes ECharts rebuild the affected dataZoom components and
+  // discard their internal start/end. We re-apply the store's xRange/yZoomRange
+  // via synchronous dispatchAction in a useLayoutEffect — this runs AFTER
+  // echarts-for-react's componentDidUpdate (which calls setOption/rebuild, and
+  // runs synchronously before paint since it's a class lifecycle) but BEFORE
+  // the browser paints, so the user never sees the intermediate full-range.
+  // Deps are intentionally only [interactionMode, spaceHeld] so wheel/slider
+  // zoom (xRange/yZoomRange changes) does NOT re-dispatch and fight ECharts
+  // internal state (jitter); values are read fresh via useUiStore.getState().
+  useLayoutEffect(() => {
+    if (!hasMountedViewport.current) {
+      hasMountedViewport.current = true;
+      return;
+    }
+    if (!isChartReady()) return;
+    const { xRange, yZoomRange } = useUiStore.getState();
+    const actions = buildViewportRestoreActions({ xRange, yZoomRange });
+    for (const action of actions) {
+      try {
+        chartInstance!.dispatchAction({ type: 'dataZoom', ...action });
+      } catch {
+        // Instance may be disposed during HMR / React StrictMode double-invoke
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [interactionMode, spaceHeld]);
+
+  // Clear the option-rebuild guard after all layout effects (runs on every
+  // render, after child componentDidUpdate + viewport restore). Declared
+  // after the viewport useLayoutEffect so it runs last.
+  useLayoutEffect(() => {
+    isOptionRebuilding.current = false;
+  });
+
   const option: EChartsOption = useMemo(() => {
+    // Mark that we're rebuilding the option. echarts-for-react's
+    // componentDidUpdate will call setOption (rebuilding dataZoom to full)
+    // AFTER this render but BEFORE our layout effects. onDataZoom checks
+    // this flag and skips store writes during that rebuild so the
+    // pre-rebuild viewport survives for the viewport useLayoutEffect.
+    isOptionRebuilding.current = true;
     if (visibleIds.length === 0) {
       return {
         title: {
@@ -316,7 +475,7 @@ legend: {
       } : {}),
     };
 
-  }, [curves, offsets, visibleCurves, layerSpacing, stagingOrder, visibleIds, xRange, interactionMode, spaceHeld, showGrid, showXAxis, showYAxis, showLegend, curveScales, curveScaleOffsets, normalizeFactors, globalScale]);
+  }, [curves, offsets, visibleCurves, layerSpacing, stagingOrder, visibleIds, interactionMode, spaceHeld, showGrid, showXAxis, showYAxis, showLegend, curveScales, curveScaleOffsets, normalizeFactors, globalScale]);
 
   // Activate ECharts brush via takeGlobalCursor dispatch.
   // Without toolbox, brushModel.brushOption stays empty and enableBrush never
@@ -405,6 +564,26 @@ legend: {
     );
 
   const chartContainerRef = useRef<HTMLDivElement>(null);
+
+  // Keep chartDims (React state) in sync with the container size. The ECharts
+  // canvas auto-resizes (echarts-for-react), but chartDims is consumed by
+  // convertYToPixel, the grid-top/bottom/left/right math, handleChartClick,
+  // and every overlay — so without this it stays stale after a window or
+  // side-panel resize and overlays/click-targeting drift relative to the
+  // curves. setChartDims triggers a re-render that recomputes the grid math.
+  useEffect(() => {
+    const container = chartContainerRef.current;
+    if (!container || typeof ResizeObserver === 'undefined') return;
+    const ro = new ResizeObserver((entries) => {
+      const cr = entries[0]?.contentRect;
+      if (!cr) return;
+      const width = Math.round(cr.width);
+      const height = Math.round(cr.height);
+      setChartDims((prev) => (prev.width === width && prev.height === height ? prev : { width, height }));
+    });
+    ro.observe(container);
+    return () => ro.disconnect();
+  }, []);
 
   // Native wheel listener for scaling (non-passive so preventDefault works)
   useEffect(() => {
@@ -504,37 +683,17 @@ legend: {
     // Defer dataZoom dispatch to after React re-render + echarts-for-react setOption
     // (which replaces the dataZoom array via replaceMerge, losing any setOption ranges).
     // Using dispatchAction after rAF ensures the zoom persists past the re-render.
+    // Dispatch via the shared helper + canonical IDs (no hand-written literals).
     brushRafId.current = requestAnimationFrame(() => {
       brushRafId.current = null;
       if (!chartInstance) return;
-      try {
-        chartInstance.dispatchAction({
-          type: 'dataZoom',
-          dataZoomId: 'xZoom',
-          startValue: xMin,
-          endValue: xMax,
-        });
-        chartInstance.dispatchAction({
-          type: 'dataZoom',
-          dataZoomId: 'xZoomSlider',
-          startValue: xMin,
-          endValue: xMax,
-        });
-        chartInstance.dispatchAction({
-          type: 'dataZoom',
-          dataZoomId: 'yZoom',
-          startValue: yMin,
-          endValue: yMax,
-        });
-        chartInstance.dispatchAction({
-          type: 'dataZoom',
-          dataZoomId: 'yZoomSlider',
-          startValue: yMin,
-          endValue: yMax,
-        });
-      } catch {
-        // Instance may be disposed during HMR
-      }
+      // Capture the narrowed instance so the dispatch closure stays non-null
+      // (TS does not carry mutable-module narrowing into nested arrows).
+      const chart = chartInstance;
+      const dispatch = (a: { dataZoomId: string; startValue: number; endValue: number }) =>
+        chart.dispatchAction({ type: 'dataZoom', ...a });
+      dispatchRangeToIds(dispatch, X_ZOOM_IDS, [xMin, xMax]);
+      dispatchRangeToIds(dispatch, Y_ZOOM_IDS, [yMin, yMax]);
     });
   }, [setInteractionMode]);
 
