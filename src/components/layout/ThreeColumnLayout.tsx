@@ -11,13 +11,41 @@ const LEFT_MAX = 400;
 const RIGHT_DEFAULT = 320;
 const RIGHT_MIN = 160;
 const RIGHT_MAX = 500;
+const STORAGE_KEY = 'autospectra:panel-widths';
+
+const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
+
+/** Read persisted panel widths, clamped to current ranges; falls back to defaults. */
+function readWidths(): { left: number; right: number } {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return { left: LEFT_DEFAULT, right: RIGHT_DEFAULT };
+    const parsed = JSON.parse(raw) as Partial<{ left: number; right: number }>;
+    return {
+      left: clamp(typeof parsed.left === 'number' ? parsed.left : LEFT_DEFAULT, LEFT_MIN, LEFT_MAX),
+      right: clamp(typeof parsed.right === 'number' ? parsed.right : RIGHT_DEFAULT, RIGHT_MIN, RIGHT_MAX),
+    };
+  } catch {
+    return { left: LEFT_DEFAULT, right: RIGHT_DEFAULT };
+  }
+}
+
+/** Persist panel widths; silently ignores failures (e.g. private mode). */
+function writeWidths(left: number, right: number): void {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({ left, right }));
+  } catch {
+    /* ignore quota / private-mode errors */
+  }
+}
 
 export default function ThreeColumnLayout() {
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
   const [userToggledLeft, setUserToggledLeft] = useState(false);
   const [userToggledRight, setUserToggledRight] = useState(false);
-  const [leftWidth, setLeftWidth] = useState(LEFT_DEFAULT);
-  const [rightWidth, setRightWidth] = useState(RIGHT_DEFAULT);
+  const initial = useRef(readWidths()).current;
+  const [leftWidth, setLeftWidth] = useState(initial.left);
+  const [rightWidth, setRightWidth] = useState(initial.right);
   const [isDragging, setIsDragging] = useState(false);
 
   const leftCollapsed = useUiStore((s) => s.leftPanelCollapsed);
@@ -27,6 +55,11 @@ export default function ThreeColumnLayout() {
   const dragging = useRef<'left' | 'right' | null>(null);
   const dragStartX = useRef(0);
   const dragStartWidth = useRef(0);
+  // Mirrors of current widths for the mouseup handler (which lives in a []-deps effect)
+  const leftWidthRef = useRef(leftWidth);
+  const rightWidthRef = useRef(rightWidth);
+  leftWidthRef.current = leftWidth;
+  rightWidthRef.current = rightWidth;
 
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth);
@@ -45,12 +78,6 @@ export default function ThreeColumnLayout() {
       useUiStore.getState().toggleLeftPanel();
     }
   }, [autoCollapseLeft, autoCollapseRight, leftCollapsed, rightCollapsed]);
-
-  // Reset to default width when auto-collapse kicks in (avoid stale large widths on small screens)
-  useEffect(() => {
-    if (autoCollapseLeft) setLeftWidth(LEFT_DEFAULT);
-    if (autoCollapseRight) setRightWidth(RIGHT_DEFAULT);
-  }, [autoCollapseLeft, autoCollapseRight]);
 
   const handleToggleLeft = useCallback(() => {
     setUserToggledLeft(true);
@@ -88,6 +115,9 @@ export default function ThreeColumnLayout() {
       });
     };
     const handleMouseUp = () => {
+      if (dragging.current) {
+        writeWidths(leftWidthRef.current, rightWidthRef.current);
+      }
       dragging.current = null;
       setIsDragging(false);
     };
