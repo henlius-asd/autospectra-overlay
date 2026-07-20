@@ -1,4 +1,5 @@
-import { useState, type ReactNode } from 'react';
+import * as RadixAccordion from '@radix-ui/react-accordion';
+import type { ReactNode } from 'react';
 import { ChevronDownIcon } from './icons';
 
 interface AccordionSection {
@@ -12,48 +13,30 @@ interface AccordionProps {
   sections: AccordionSection[];
 }
 
+/**
+ * Accordion primitive backed by Radix (type="multiple"): full ARIA
+ * semantics, keyboard operable triggers, multi-panel expansion.
+ * The `sections` API is unchanged from the hand-rolled version.
+ * Height animation uses the --radix-accordion-content-height CSS variable.
+ */
 export default function Accordion({ sections }: AccordionProps) {
-  const [expanded, setExpanded] = useState<Set<string>>(() => {
-    const initial = new Set<string>();
-    for (const section of sections) {
-      if (section.defaultExpanded) {
-        initial.add(section.id);
-      }
-    }
-    return initial;
-  });
-
-  const toggleSection = (id: string) => {
-    setExpanded((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) {
-        next.delete(id);
-      } else {
-        next.add(id);
-      }
-      return next;
-    });
-  };
+  const defaultValue = sections.filter((s) => s.defaultExpanded).map((s) => s.id);
 
   return (
-    <div className="flex flex-col">
-      {sections.map((section) => {
-        const isOpen = expanded.has(section.id);
-        return (
-          <div key={section.id} className="border-b border-line">
-            <button
-              onClick={() => toggleSection(section.id)}
-              className="flex items-center justify-between w-full px-3 py-2 text-sm font-medium text-ink-muted hover:bg-surface-hover"
-            >
+    <RadixAccordion.Root type="multiple" defaultValue={defaultValue} className="flex flex-col">
+      {sections.map((section) => (
+        <RadixAccordion.Item key={section.id} value={section.id} className="border-b border-line">
+          <RadixAccordion.Header className="flex">
+            <RadixAccordion.Trigger className="group flex items-center justify-between w-full px-3 py-2 text-sm font-medium text-ink-muted hover:bg-surface-hover">
               <span>{section.title}</span>
-              <ChevronDownIcon
-                className={`w-4 h-4 transition-transform ${isOpen ? 'rotate-180' : ''}`}
-              />
-            </button>
-            {isOpen && <div className="px-3 pb-3">{section.content}</div>}
-          </div>
-        );
-      })}
-    </div>
+              <ChevronDownIcon className="w-4 h-4 transition-transform group-data-[state=open]:rotate-180" />
+            </RadixAccordion.Trigger>
+          </RadixAccordion.Header>
+          <RadixAccordion.Content className="overflow-hidden data-[state=open]:animate-accordion-down data-[state=closed]:animate-accordion-up">
+            <div className="px-3 pb-3">{section.content}</div>
+          </RadixAccordion.Content>
+        </RadixAccordion.Item>
+      ))}
+    </RadixAccordion.Root>
   );
 }

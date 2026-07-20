@@ -1,4 +1,15 @@
 import type { SVGProps } from 'react';
+import {
+  Undo2, Redo2, Lock, LockOpen, ChevronDown, ChevronLeft, ChevronRight,
+  Check, Ellipsis, ImageDown, Download, Upload, FilePlus2,
+} from 'lucide-react';
+
+/*
+ * Icon system: generic icons are re-exported from lucide-react (tree-shaken,
+ * named exports keep call sites unchanged). Domain-concept icons with no
+ * lucide equivalent keep hand-drawn paths following the lucide visual spec
+ * (24 viewBox, stroke=2, round caps/joins).
+ */
 
 function Icon({ children, ...props }: SVGProps<SVGSVGElement>) {
   return (
@@ -19,23 +30,15 @@ function Icon({ children, ...props }: SVGProps<SVGSVGElement>) {
   );
 }
 
-export function UndoIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <Icon {...props}>
-      <path d="M9 14 4 9l5-5" />
-      <path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5v0a5.5 5.5 0 0 1-5.5 5.5H11" />
-    </Icon>
-  );
-}
+/* ---- lucide re-exports (same names as before) ---- */
 
-export function RedoIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <Icon {...props}>
-      <path d="m15 14 5-5-5-5" />
-      <path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5v0A5.5 5.5 0 0 0 9.5 20H13" />
-    </Icon>
-  );
-}
+export { Undo2 as UndoIcon, Redo2 as RedoIcon };
+export { Lock as LockIcon, LockOpen as UnlockIcon };
+export { ChevronDown as ChevronDownIcon, ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon };
+export { Check as CheckIcon, Ellipsis as MoreIcon };
+export { ImageDown as ExportImageIcon, Download as ExportWorkspaceIcon, Upload as ImportWorkspaceIcon, FilePlus2 as NewWorkspaceIcon };
+
+/* ---- domain-concept icons (hand-drawn, lucide visual spec) ---- */
 
 export function SelectIcon(props: SVGProps<SVGSVGElement>) {
   return (
@@ -77,24 +80,6 @@ export function MoveIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
-export function LockIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <Icon {...props}>
-      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-    </Icon>
-  );
-}
-
-export function UnlockIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <Icon {...props}>
-      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-      <path d="M7 11V7a5 5 0 0 1 9.9-1" />
-    </Icon>
-  );
-}
-
 export function ZoomGlobalIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <Icon {...props}>
@@ -129,80 +114,12 @@ export function BoxSelectIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
-export function ExportImageIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <Icon {...props}>
-      <rect x="3" y="3" width="18" height="18" rx="2" />
-      <path d="M12 8v6" />
-      <path d="m9 11 3 3 3-3" />
-      <circle cx="8" cy="7" r="1.5" fill="currentColor" stroke="none" />
-    </Icon>
-  );
-}
-
 export function ExportPptxIcon(props: SVGProps<SVGSVGElement>) {
   return (
     <Icon {...props}>
       <rect x="3" y="4" width="18" height="12" rx="2" />
       <path d="M8 16v4M16 16v4M8 20h8" />
       <path d="M7 12l3-3 3 2 4-4" />
-    </Icon>
-  );
-}
-
-export function ExportWorkspaceIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <Icon {...props}>
-      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-      <polyline points="7 10 12 15 17 10" />
-      <line x1="12" y1="15" x2="12" y2="3" />
-    </Icon>
-  );
-}
-
-export function ImportWorkspaceIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <Icon {...props}>
-      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-      <polyline points="17 8 12 3 7 8" />
-      <line x1="12" y1="3" x2="12" y2="15" />
-    </Icon>
-  );
-}
-
-export function NewWorkspaceIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <Icon {...props}>
-      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
-      <polyline points="14 2 14 8 20 8" />
-      <line x1="12" y1="18" x2="12" y2="12" />
-      <line x1="9" y1="15" x2="15" y2="15" />
-    </Icon>
-  );
-}
-
-export function MoreIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <Icon {...props}>
-      <circle cx="12" cy="12" r="1" />
-      <circle cx="19" cy="12" r="1" />
-      <circle cx="5" cy="12" r="1" />
-    </Icon>
-  );
-}
-
-export function ChevronDownIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <Icon {...props}>
-      <polyline points="6 9 12 15 18 9" />
-    </Icon>
-  );
-}
-
-export function CheckIcon(props: SVGProps<SVGSVGElement>) {
-  return (
-    <Icon {...props}>
-      <polyline points="20 6 9 17 4 12" />
     </Icon>
   );
 }

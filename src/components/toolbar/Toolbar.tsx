@@ -1,10 +1,12 @@
 import { useStore } from 'zustand';
+import * as ToggleGroup from '@radix-ui/react-toggle-group';
 import { useCurveStore } from '@/store';
 import { useUiStore } from '@/store';
 import { exportChartImage } from '@/components/chart/exportImage';
 import { buildWorkspaceSnapshot, applyWorkspaceSnapshot, clearWorkspace } from '@/persistence';
 import Dropdown from '@/components/ui/Dropdown';
 import type { DropdownItem } from '@/components/ui/Dropdown';
+import Tooltip from '@/components/ui/Tooltip';
 import type { InteractionMode } from '@/types';
 import {
   UndoIcon, RedoIcon, SelectIcon, BraceIcon, PointLabelIcon, MoveIcon, LockIcon,
@@ -61,12 +63,11 @@ export default function Toolbar() {
     }
   };
 
-  const handleToolClick = (mode: InteractionMode) => {
-    if (interactionMode === mode) {
-      setInteractionMode('select');
-    } else {
-      setInteractionMode(mode);
-    }
+  // Radix ToggleGroup (single) emits '' when the pressed item is clicked
+  // again — map that to 'select', preserving the pre-migration semantics
+  // (click active tool → back to select).
+  const handleModeChange = (value: string) => {
+    setInteractionMode(value === '' ? 'select' : (value as InteractionMode));
   };
 
   const handleExportImage = () => {
@@ -152,20 +153,27 @@ export default function Toolbar() {
     { icon: NewWorkspaceIcon, label: '新建工作区', onClick: handleNewWorkspace, danger: true },
   ];
 
-  const toolButton = (mode: InteractionMode, Icon: React.ComponentType<React.SVGProps<SVGSVGElement>>, title: string, disabled: boolean) => (
-    <button
-      onClick={() => handleToolClick(mode)}
-      disabled={disabled}
-      className={modeButtonClass(interactionMode === mode)}
-      title={title}
-    >
-      <Icon className="w-[18px] h-[18px]" />
-    </button>
+  const toolButton = (mode: InteractionMode, Icon: React.ComponentType<React.SVGProps<SVGSVGElement>>, label: string, disabled: boolean) => (
+    <Tooltip label={label}>
+      <ToggleGroup.Item
+        value={mode}
+        disabled={disabled}
+        aria-label={label}
+        className={modeButtonClass(interactionMode === mode)}
+      >
+        <Icon className="w-[18px] h-[18px]" />
+      </ToggleGroup.Item>
+    </Tooltip>
   );
 
   return (
     <div className="flex items-center gap-1 px-2 py-1.5 bg-surface-hover border-b border-line relative z-50">
-      <div className="flex items-center gap-1">
+      <ToggleGroup.Root
+        type="single"
+        value={interactionMode}
+        onValueChange={handleModeChange}
+        className="flex items-center gap-1"
+      >
         {toolButton('select', SelectIcon, '一般选中：点击选中曲线，拖拽平移画布', false)}
         {toolButton('brush', BoxSelectIcon, '框选放大：拖拽框选矩形区域，松开后缩放至该区域', !hasCurves)}
         {separator()}
@@ -174,36 +182,42 @@ export default function Toolbar() {
         {separator()}
         {toolButton('move', MoveIcon, '手动移动：选中曲线后拖拽移动，锁定后横向禁用', !hasCurves)}
         {interactionMode === 'move' && selectedCurveId && (
-          <button
-            onClick={() => toggleCurveLocked(selectedCurveId)}
-            className={`flex items-center justify-center w-7 h-7 rounded-md ${
-              locked[selectedCurveId] ? 'bg-danger-subtle text-danger-ink' : 'text-ink-faint hover:bg-surface-active'
-            }`}
-            title={locked[selectedCurveId] ? '解锁横向移动' : '锁定横向移动'}
-          >
-            <LockIcon className="w-[18px] h-[18px]" />
-          </button>
+          <Tooltip label={locked[selectedCurveId] ? '解锁横向移动' : '锁定横向移动'}>
+            <button
+              onClick={() => toggleCurveLocked(selectedCurveId)}
+              aria-label={locked[selectedCurveId] ? '解锁横向移动' : '锁定横向移动'}
+              className={`flex items-center justify-center w-7 h-7 rounded-md ${
+                locked[selectedCurveId] ? 'bg-danger-subtle text-danger-ink' : 'text-ink-faint hover:bg-surface-active'
+              }`}
+            >
+              <LockIcon className="w-[18px] h-[18px]" />
+            </button>
+          </Tooltip>
         )}
         {toolButton('zoomGlobal', ZoomGlobalIcon, '全局缩放：滚轮缩放所有曲线，双击复位', !hasCurves)}
         {toolButton('zoomCurve', ZoomCurveIcon, '单曲线缩放：点击曲线选中，滚轮缩放，Shift+拖拽平移，双击复位', !hasCurves)}
-      </div>
+      </ToggleGroup.Root>
       <div className="flex items-center gap-1 ml-auto">
-        <button
-          onClick={handleUndo}
-          disabled={!canUndo}
-          className={actionButtonClass()}
-          title="撤销 (Ctrl+Z)"
-        >
-          <UndoIcon className="w-[18px] h-[18px]" />
-        </button>
-        <button
-          onClick={handleRedo}
-          disabled={!canRedo}
-          className={actionButtonClass()}
-          title="重做 (Ctrl+Y / Ctrl+Shift+Z)"
-        >
-          <RedoIcon className="w-[18px] h-[18px]" />
-        </button>
+        <Tooltip label="撤销" kbd="Ctrl+Z">
+          <button
+            onClick={handleUndo}
+            disabled={!canUndo}
+            aria-label="撤销"
+            className={actionButtonClass()}
+          >
+            <UndoIcon className="w-[18px] h-[18px]" />
+          </button>
+        </Tooltip>
+        <Tooltip label="重做" kbd="Ctrl+Y">
+          <button
+            onClick={handleRedo}
+            disabled={!canRedo}
+            aria-label="重做"
+            className={actionButtonClass()}
+          >
+            <RedoIcon className="w-[18px] h-[18px]" />
+          </button>
+        </Tooltip>
         <div className="w-px h-5 bg-line-strong mx-1" />
         <Dropdown
           label="导出"

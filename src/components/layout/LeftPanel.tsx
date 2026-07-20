@@ -4,6 +4,8 @@ import { useCurveStore } from '@/store';
 import { parseFileContent } from '@/parser';
 import FileUpload from '@/components/data/FileUpload';
 import CurveList from '@/components/data/CurveList';
+import Tooltip from '@/components/ui/Tooltip';
+import { ChevronLeftIcon, ChevronRightIcon } from '@/components/ui/icons';
 import type { CurveData } from '@/types';
 
 interface LeftPanelProps {
@@ -53,13 +55,15 @@ export default function LeftPanel({ overlay, onToggle }: LeftPanelProps) {
     return (
       <div className="bg-surface border-r border-line flex flex-col shrink-0 w-12">
         <div className="flex items-center justify-end px-3 py-2 border-b border-line h-10">
-          <button
-            onClick={handleToggle}
-            className="text-ink-faint hover:text-ink-muted transition-colors text-sm flex-shrink-0"
-            title="展开数据区"
-          >
-            ▶
-          </button>
+          <Tooltip label="展开数据区" side="right">
+            <button
+              onClick={handleToggle}
+              className="flex items-center justify-center w-6 h-6 rounded-md text-ink-faint hover:text-ink-muted hover:bg-surface-hover transition-colors flex-shrink-0"
+              aria-label="展开数据区"
+            >
+              <ChevronRightIcon className="w-3.5 h-3.5" />
+            </button>
+          </Tooltip>
         </div>
       </div>
     );
@@ -76,13 +80,15 @@ export default function LeftPanel({ overlay, onToggle }: LeftPanelProps) {
     >
       <div className="flex items-center justify-between px-3 py-2 border-b border-line h-10">
         <span className="text-sm font-medium text-ink-muted truncate">数据区</span>
-        <button
-          onClick={handleToggle}
-          className="text-ink-faint hover:text-ink-muted transition-colors text-sm flex-shrink-0"
-          title="折叠数据区"
-        >
-          ◀
-        </button>
+        <Tooltip label="折叠数据区" side="right">
+          <button
+            onClick={handleToggle}
+            className="flex items-center justify-center w-6 h-6 rounded-md text-ink-faint hover:text-ink-muted hover:bg-surface-hover transition-colors flex-shrink-0"
+            aria-label="折叠数据区"
+          >
+            <ChevronLeftIcon className="w-3.5 h-3.5" />
+          </button>
+        </Tooltip>
       </div>
       <div className="flex-1 flex flex-col overflow-hidden">
         <div className="p-2">

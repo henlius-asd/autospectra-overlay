@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { Provider as TooltipProvider } from '@radix-ui/react-tooltip';
 import { ThreeColumnLayout } from '@/components/layout';
 import { initPersistence, restoreWorkspace } from '@/persistence';
 import { useCurveStore } from '@/store';
@@ -44,9 +45,9 @@ export default function App() {
   }, []);
 
   return (
-    <>
+    <TooltipProvider>
       <ThreeColumnLayout />
       <Toast />
-    </>
+    </TooltipProvider>
   );
 }
