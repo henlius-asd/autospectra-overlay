@@ -12,7 +12,7 @@ const SHORTCUTS = [
   { key: 'Esc', desc: '回到默认工具' },
 ] as const;
 
-const TOOL_HINTS: Record<InteractionMode, { name: string; hint: string }> = {
+export const TOOL_HINTS: Record<InteractionMode, { name: string; hint: string }> = {
   select:      { name: '一般选中', hint: '点击选中曲线，拖拽平移画布' },
   brush:       { name: '框选放大', hint: '拖拽框选矩形区域' },
   brace:       { name: '区间标签', hint: '拖拽选择区间范围' },

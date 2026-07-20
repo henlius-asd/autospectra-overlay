@@ -7,6 +7,8 @@ import { buildWorkspaceSnapshot, applyWorkspaceSnapshot, clearWorkspace } from '
 import Dropdown from '@/components/ui/Dropdown';
 import type { DropdownItem } from '@/components/ui/Dropdown';
 import Tooltip from '@/components/ui/Tooltip';
+import { TOOL_HINTS } from '@/components/ui/HudShortcuts';
+import { MODE_SHORTCUTS } from '@/lib/shortcuts';
 import type { InteractionMode } from '@/types';
 import {
   UndoIcon, RedoIcon, SelectIcon, BraceIcon, PointLabelIcon, MoveIcon, LockIcon,
@@ -154,7 +156,7 @@ export default function Toolbar() {
   ];
 
   const toolButton = (mode: InteractionMode, Icon: React.ComponentType<React.SVGProps<SVGSVGElement>>, label: string, disabled: boolean) => (
-    <Tooltip label={label}>
+    <Tooltip label={label} kbd={MODE_SHORTCUTS[mode]?.display}>
       <ToggleGroup.Item
         value={mode}
         disabled={disabled}
@@ -218,6 +220,17 @@ export default function Toolbar() {
             <RedoIcon className="w-[18px] h-[18px]" />
           </button>
         </Tooltip>
+        {/* Mode status indicator */}
+        <div className="flex items-center gap-1.5 ml-2 mr-1 select-none">
+          <span
+            className={`w-1.5 h-1.5 rounded-full ${
+              interactionMode === 'select' ? 'bg-ink-faint' : 'bg-accent'
+            }`}
+          />
+          <span className="text-[11px] text-ink-muted whitespace-nowrap">
+            {TOOL_HINTS[interactionMode].name}
+          </span>
+        </div>
         <div className="w-px h-5 bg-line-strong mx-1" />
         <Dropdown
           label="导出"

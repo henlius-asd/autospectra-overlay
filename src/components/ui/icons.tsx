@@ -2,6 +2,7 @@ import type { SVGProps } from 'react';
 import {
   Undo2, Redo2, Lock, LockOpen, ChevronDown, ChevronLeft, ChevronRight,
   Check, Ellipsis, ImageDown, Download, Upload, FilePlus2,
+  FileUp, Search, AlignCenter, Palette,
 } from 'lucide-react';
 
 /*
@@ -37,6 +38,7 @@ export { Lock as LockIcon, LockOpen as UnlockIcon };
 export { ChevronDown as ChevronDownIcon, ChevronLeft as ChevronLeftIcon, ChevronRight as ChevronRightIcon };
 export { Check as CheckIcon, Ellipsis as MoreIcon };
 export { ImageDown as ExportImageIcon, Download as ExportWorkspaceIcon, Upload as ImportWorkspaceIcon, FilePlus2 as NewWorkspaceIcon };
+export { FileUp as FileUploadIcon, Search as SearchIcon, AlignCenter as AlignmentIcon, Palette as LabelStyleIcon };
 
 /* ---- domain-concept icons (hand-drawn, lucide visual spec) ---- */
 
