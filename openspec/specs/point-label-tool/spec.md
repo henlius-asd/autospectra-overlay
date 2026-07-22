@@ -2,44 +2,29 @@
 
 ## Purpose
 点标签标注工具。通过工具栏按钮触发放置模式，在图表上点击 X 位置创建点标签，支持拖拽编辑和样式控制。放置模式下禁用画布平移，按住空格可临时平移。
-
 ## Requirements
 ### Requirement: 点标签贴近曲线放置
 
-点标签 SHALL 以最高曲线（staging 顺序最顶曲线）在标签 X 位置处的实际像素 y 为纵向基线，标签默认落在该点曲线上方约 10px（`yOffset = -10`）。点标签 SHALL NOT 压在曲线上，也 SHALL NOT 悬在预留区顶部远离曲线。
+点标签 SHALL 使用绝对数据 Y 坐标（`PointLabel.y`），SHALL NOT 依赖任何曲线的像素位置。放置时 SHALL 通过 `convertPixelToY` 将点击像素 Y 转换为数据 Y 坐标。渲染时 SHALL 通过 `convertYToPixel` 将数据 Y 转换为像素 Y。
 
-#### Scenario: 新建点标签默认贴近曲线上方
+#### Scenario: 新建点标签落在点击位置
 
-- **WHEN** 用户在放置模式下于某 X 位置创建一个点标签并确认标签文字
-- **THEN** 该标签渲染在最高曲线在该 X 处的像素点上方约 10px，文字不覆盖曲线
+- **WHEN** 用户在放置模式下点击图表某像素位置创建一个点标签
+- **THEN** 该标签的 `y` 数据坐标对应点击的像素 Y，标签渲染在该位置
 
-#### Scenario: 多曲线分层时基线跟随最高曲线
+#### Scenario: 多曲线时标签不绑定曲线
 
 - **WHEN** 图表中有多条可见曲线且 layerSpacing > 0
-- **THEN** 点标签的纵向基线为最顶曲线（`visibleIds[0]`）在该 X 处的渲染像素 y（含该层 layerYOffset 与 offset.yOffset），而非全局 maxY 线
+- **THEN** 点标签的纵向位置 SHALL NOT 受任何曲线位置影响，仅由 `y` 数据坐标和 y 轴范围决定
 
 ### Requirement: 点标签可拖动
 
-已创建的点标签 SHALL 支持拖拽改变位置。横向拖拽改变标签的 X 数据坐标，纵向拖拽改变 `yOffset`。
+已创建的点标签 SHALL 支持拖拽改变位置。横向拖拽改变标签的 X 数据坐标，纵向拖拽通过 `convertPixelToY(origPixelY + dy)` 将鼠标像素 Y 转换为数据 Y 坐标。拖动 SHALL NOT 受曲线位置影响。
 
 #### Scenario: 拖拽点标签改变位置
 
 - **WHEN** 用户按住一个已有点标签并拖动
-- **THEN** 标签的 X 坐标与 yOffset 随拖拽实时更新，释放后保留新位置
-
-### Requirement: 点标签完整显示在绘图区内
-
-点标签文字 SHALL 完整显示在 grid 绘图区域内，不被上/下/左/右边界裁切。竖直方向 SHALL 夹取到 `[gridTop + labelHalfH, plotBottom - labelHalfH]`，水平方向 SHALL 夹取到 `[gridLeft + textW/2, chartWidth - gridRight - textW/2]`。
-
-#### Scenario: 标签靠近上边界时竖直夹取
-
-- **WHEN** 一个点标签的曲线基线接近绘图区顶部，使标签默认位置会越过 gridTop
-- **THEN** 标签竖直位置被夹取，文字完整显示在 gridTop 下方，不被裁切
-
-#### Scenario: 长标签靠近侧边时水平夹取
-
-- **WHEN** 一个点标签的 X 位置接近 grid 左/右边界且文字较长
-- **THEN** 标签水平位置被夹取，文字完整显示在绘图区内，不溢出 canvas 边
+- **THEN** 标签的 X 与 Y 数据坐标随拖拽实时更新，横向拖动经过峰顶时标签 Y 不跳跃，释放后保留新位置
 
 ### Requirement: 点标签放置与编辑交互
 
@@ -124,3 +109,18 @@
 
 - **WHEN** 导入不含 `labelStyle` 字段的旧工作区 JSON
 - **THEN** 使用内置默认样式，无报错
+
+### Requirement: 点标签双击编辑
+
+已有点标签 SHALL 通过双击触发编辑浮层。单击 SHALL NOT 触发编辑。编辑浮层内的按钮（确认、取消、删除）SHALL 保留单击行为。
+
+#### Scenario: 双击标签弹出编辑
+
+- **WHEN** 用户双击已有点标签的文字或命中区域
+- **THEN** 弹出标签编辑浮层，可修改文字或删除
+
+#### Scenario: 单击不弹出编辑
+
+- **WHEN** 用户单击已有点标签
+- **THEN** SHALL NOT 弹出编辑浮层
+
