@@ -461,17 +461,23 @@ legend: {
         // actual chart rendering — causing point labels / braces to jump when
         // the mode switches back and the zoom is restored. `disabled: true`
         // prevents user wheel/drag zoom while preserving the zoom range.
-        const xInside = disableInside
-          ? { id: 'xZoom', type: 'inside' as const, xAxisIndex: 0, disabled: true }
-          : { id: 'xZoom', type: 'inside' as const, xAxisIndex: 0 };
+        //
+        // IMPORTANT: `disabled` MUST be emitted explicitly on every setOption,
+        // even when false. ECharts merges per-field; an OMITTED `disabled` is
+        // NOT cleared — it retains the previous value. So after brush/brace
+        // sets `disabled: true`, returning to `select` by omitting the field
+        // left the inside dataZoom disabled, which silently swallowed all
+        // wheel/drag input and broke drag-pan (no dataZoom event fired). Emit
+        // `disabled: disableInside` so the merge always overwrites it.
+        const xInside = { id: 'xZoom', type: 'inside' as const, xAxisIndex: 0, disabled: disableInside };
         const xZoom: EChartsOption['dataZoom'] = [
           xInside,
           { id: 'xZoomSlider', type: 'slider', xAxisIndex: 0, bottom: 10 },
         ];
         const yMinSpan = 0.05 * (yAxisFullRange.dataSpan || 1);
-        const yInside: Record<string, unknown> = disableInside
-          ? { id: 'yZoom', type: 'inside', yAxisIndex: 0, filterMode: 'none', minValueSpan: yMinSpan, disabled: true }
-          : { id: 'yZoom', type: 'inside', yAxisIndex: 0, filterMode: 'none', minValueSpan: yMinSpan };
+        const yInside: Record<string, unknown> = {
+          id: 'yZoom', type: 'inside', yAxisIndex: 0, filterMode: 'none', minValueSpan: yMinSpan, disabled: disableInside,
+        };
         const ySlider: Record<string, unknown> = {
           id: 'yZoomSlider', type: 'slider', yAxisIndex: 0, orient: 'vertical',
           left: 60 - 14 - 4, width: 14, filterMode: 'none', minValueSpan: yMinSpan,
