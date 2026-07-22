@@ -1,5 +1,6 @@
 import localforage from 'localforage';
-import type { LabelStyle } from '@/types';
+import type { CurveData, LabelStyle, LineStyle } from '@/types';
+import { DEFAULT_LINE_STYLE } from '@/types';
 import { useCurveStore } from '@/store';
 import { useUiStore } from '@/store';
 
@@ -24,7 +25,7 @@ type CurveStoreState = ReturnType<typeof useCurveStore.getState>;
  */
 export function buildWorkspaceSnapshot(state: CurveStoreState) {
   return {
-    version: 2,
+    version: 3,
     curves: state.curves,
     offsets: state.offsets,
     baselineId: state.baselineId,
@@ -43,19 +44,49 @@ export function buildWorkspaceSnapshot(state: CurveStoreState) {
 }
 
 /**
+ * Migrate curves from pre-v3 format: a top-level `color` on each curve moved
+ * under `lineStyle.color`. An existing `lineStyle.color` override is preserved
+ * (not clobbered). v3+ snapshots pass through unchanged.
+ */
+function migrateCurvesV2ToV3(curves: unknown): CurveStoreState['curves'] {
+  const result: Record<string, CurveData> = {};
+  for (const [id, curve] of Object.entries((curves ?? {}) as Record<string, Record<string, unknown>>)) {
+    if (curve && curve['color'] !== undefined) {
+      const ls = (curve['lineStyle'] ?? {}) as Record<string, unknown>;
+      // Migrate the top-level color into lineStyle.color only when no
+      // lineStyle.color override exists; either way, strip the top-level
+      // color (it is not a CurveData field from v3 onward).
+      const migratedLineStyle = ls['color'] === undefined
+        ? { ...ls, color: curve['color'] }
+        : ls;
+      const next: Record<string, unknown> = { ...curve, lineStyle: migratedLineStyle };
+      delete next['color'];
+      result[id] = next as unknown as CurveData;
+      continue;
+    }
+    result[id] = curve as unknown as CurveData;
+  }
+  return result;
+}
+
+/**
  * Apply a workspace snapshot (from IndexedDB or JSON import) to derive the
  * partial state to set on curveStore. Missing fields fall back to defaults
  * so old-format snapshots restore without error.
  */
 export function applyWorkspaceSnapshot(data: Record<string, unknown>) {
+  const version = (data.version as number) ?? 2;
+  const curves = version < 3
+    ? migrateCurvesV2ToV3(data.curves)
+    : (data.curves ?? {}) as CurveStoreState['curves'];
   return {
-    curves: (data.curves ?? {}) as CurveStoreState['curves'],
+    curves,
     offsets: (data.offsets ?? {}) as CurveStoreState['offsets'],
     baselineId: (data.baselineId ?? null) as string | null,
     braces: (data.braces ?? []) as CurveStoreState['braces'],
     stagingOrder: (data.stagingOrder ?? []) as string[],
     visibleCurves: (data.visibleCurves ?? {}) as Record<string, boolean>,
-    layerSpacing: (data.version as number) === 2 ? ((data.layerSpacing as number) ?? 0) : 0,
+    layerSpacing: version >= 2 ? ((data.layerSpacing as number) ?? 0) : 0,
     // Migrate old point labels: pre-decouple format stored `yOffset` (relative
     // to top curve) instead of absolute `y`. Old labels get y=0; user re-drags.
     pointLabels: ((data.pointLabels ?? []) as Array<{ id: string; x: number; y?: number; label: string; labelStyle?: unknown }>).map(pl => ({
@@ -83,7 +114,7 @@ function saveWorkspace() {
       console.warn('Failed to persist workspace:', err);
     });
     const uiState = useUiStore.getState();
-    const uiSnapshot = { showGrid: uiState.showGrid, showXAxis: uiState.showXAxis, showYAxis: uiState.showYAxis, showLegend: uiState.showLegend, exportWithLegend: uiState.exportWithLegend, labelStyle: uiState.labelStyle, xRange: uiState.xRange, yZoomRange: uiState.yZoomRange, colorHistory: uiState.colorHistory };
+    const uiSnapshot = { showGrid: uiState.showGrid, showXAxis: uiState.showXAxis, showYAxis: uiState.showYAxis, showLegend: uiState.showLegend, exportWithLegend: uiState.exportWithLegend, labelStyle: uiState.labelStyle, lineStyle: uiState.lineStyle, xRange: uiState.xRange, yZoomRange: uiState.yZoomRange, colorHistory: uiState.colorHistory };
     persistenceStore.setItem(UI_PERSISTENCE_KEY, uiSnapshot).catch((err) => {
       console.warn('Failed to persist UI state:', err);
     });
@@ -106,13 +137,13 @@ export async function restoreWorkspace(): Promise<boolean> {
       // overwrites the restored viewport with the full data extent (the H1
       // "refresh loses the X zoom" root cause). Fetching both first lets
       // React batch the two setStates, so the seed observes the hydrated flag.
-      const uiSnapshot = await persistenceStore.getItem<{ showGrid?: boolean; showAxes?: boolean; showXAxis?: boolean; showYAxis?: boolean; showLegend?: boolean; exportWithLegend?: boolean; labelStyle?: Record<string, unknown>; xRange?: [number, number]; yZoomRange?: [number, number] | null; colorHistory?: string[] }>(UI_PERSISTENCE_KEY);
+      const uiSnapshot = await persistenceStore.getItem<{ showGrid?: boolean; showAxes?: boolean; showXAxis?: boolean; showYAxis?: boolean; showLegend?: boolean; exportWithLegend?: boolean; labelStyle?: Record<string, unknown>; lineStyle?: Record<string, unknown>; xRange?: [number, number]; yZoomRange?: [number, number] | null; colorHistory?: string[] }>(UI_PERSISTENCE_KEY);
       useCurveStore.setState(applyWorkspaceSnapshot(snapshot));
       if (uiSnapshot) {
         const oldShowAxes = uiSnapshot.showAxes;
         const showXAxis = (oldShowAxes !== undefined) ? oldShowAxes : (uiSnapshot.showXAxis ?? true);
         const showYAxis = (oldShowAxes !== undefined) ? oldShowAxes : (uiSnapshot.showYAxis ?? false);
-        useUiStore.setState({ showGrid: uiSnapshot.showGrid ?? true, showXAxis, showYAxis, showLegend: uiSnapshot.showLegend ?? true, exportWithLegend: uiSnapshot.exportWithLegend ?? false, xRange: uiSnapshot.xRange ?? [0, 10], xRangeHydrated: uiSnapshot.xRange != null, yZoomRange: uiSnapshot.yZoomRange ?? null, colorHistory: uiSnapshot.colorHistory ?? [] });
+        useUiStore.setState({ showGrid: uiSnapshot.showGrid ?? true, showXAxis, showYAxis, showLegend: uiSnapshot.showLegend ?? true, exportWithLegend: uiSnapshot.exportWithLegend ?? false, xRange: uiSnapshot.xRange ?? [0, 10], xRangeHydrated: uiSnapshot.xRange != null, yZoomRange: uiSnapshot.yZoomRange ?? null, colorHistory: uiSnapshot.colorHistory ?? [], lineStyle: (uiSnapshot.lineStyle ?? { ...DEFAULT_LINE_STYLE }) as unknown as LineStyle });
         if (uiSnapshot.labelStyle) {
           useUiStore.setState({ labelStyle: uiSnapshot.labelStyle as unknown as LabelStyle });
         }
@@ -131,7 +162,7 @@ export async function restoreWorkspace(): Promise<boolean> {
 export function initPersistence() {
   useCurveStore.subscribe(() => { saveWorkspace(); });
   useUiStore.subscribe((state, prev) => {
-    if (state.showGrid !== prev.showGrid || state.showXAxis !== prev.showXAxis || state.showYAxis !== prev.showYAxis || state.showLegend !== prev.showLegend || state.exportWithLegend !== prev.exportWithLegend || state.labelStyle !== prev.labelStyle || state.xRange[0] !== prev.xRange[0] || state.xRange[1] !== prev.xRange[1] || state.yZoomRange?.[0] !== prev.yZoomRange?.[0] || state.yZoomRange?.[1] !== prev.yZoomRange?.[1] || state.colorHistory.length !== prev.colorHistory.length) { saveWorkspace(); }
+    if (state.showGrid !== prev.showGrid || state.showXAxis !== prev.showXAxis || state.showYAxis !== prev.showYAxis || state.showLegend !== prev.showLegend || state.exportWithLegend !== prev.exportWithLegend || state.labelStyle !== prev.labelStyle || state.lineStyle !== prev.lineStyle || state.xRange[0] !== prev.xRange[0] || state.xRange[1] !== prev.xRange[1] || state.yZoomRange?.[0] !== prev.yZoomRange?.[0] || state.yZoomRange?.[1] !== prev.yZoomRange?.[1] || state.colorHistory.length !== prev.colorHistory.length) { saveWorkspace(); }
   });
 }
 

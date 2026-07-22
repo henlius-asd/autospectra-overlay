@@ -94,3 +94,48 @@ describe('applyWorkspaceSnapshot', () => {
     expect(result.layerSpacing).toBe(0);
   });
 });
+
+describe('curve color migration (v2 -> v3)', () => {
+  it('migrates a v2 top-level color into lineStyle.color', () => {
+    const result = applyWorkspaceSnapshot({
+      version: 2,
+      curves: { c1: { name: 'test', data: [[0, 1]], color: '#1f77b4' } },
+      savedAt: Date.now(),
+    });
+
+    expect(result.curves.c1.lineStyle).toEqual({ color: '#1f77b4' });
+    expect((result.curves.c1 as unknown as Record<string, unknown>).color).toBeUndefined();
+  });
+
+  it('does not clobber an existing lineStyle.color override when migrating v2', () => {
+    const result = applyWorkspaceSnapshot({
+      version: 2,
+      curves: { c1: { name: 'test', data: [[0, 1]], color: '#aaaaaa', lineStyle: { color: '#ff0000', width: 3 } } },
+      savedAt: Date.now(),
+    });
+
+    // Existing lineStyle.color wins; stray top-level color is dropped.
+    expect(result.curves.c1.lineStyle).toEqual({ color: '#ff0000', width: 3 });
+    expect((result.curves.c1 as unknown as Record<string, unknown>).color).toBeUndefined();
+  });
+
+  it('passes v3 snapshots through unchanged (no migration)', () => {
+    const result = applyWorkspaceSnapshot({
+      version: 3,
+      curves: { c1: { name: 'test', data: [[0, 1]], lineStyle: { color: '#ff0000' } } },
+      savedAt: Date.now(),
+    });
+
+    expect(result.curves.c1.lineStyle).toEqual({ color: '#ff0000' });
+  });
+
+  it('treats a missing version as v2 (runs color migration)', () => {
+    const result = applyWorkspaceSnapshot({
+      curves: { c1: { name: 'test', data: [[0, 1]], color: '#000000' } },
+      savedAt: Date.now(),
+    });
+
+    expect(result.curves.c1.lineStyle).toEqual({ color: '#000000' });
+    expect((result.curves.c1 as unknown as Record<string, unknown>).color).toBeUndefined();
+  });
+});

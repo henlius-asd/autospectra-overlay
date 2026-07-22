@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { temporal, TemporalState } from 'zundo';
-import type { CurveData, BraceAnnotation, PointLabel } from '@/types';
+import type { CurveData, LineStyle, BraceAnnotation, PointLabel } from '@/types';
 import { clampScale } from '@/components/chart/curveScaleMath';
 
 export const UNDO_COOL_OFF_MS = 400; // zundo handleSet cool-off window
@@ -43,7 +43,8 @@ interface CurveState {
   setNormalizeFactor: (id: string, f: number) => void;
   normalizeAllPeak: (xRange: [number, number]) => void;
   clearNormalizeFactors: () => void;
-  setCurveColor: (id: string, color: string) => void;
+  setCurveLineStyle: (id: string, patch: Partial<LineStyle>) => void;
+  clearCurveLineStyle: (id: string) => void;
   setStagingOrder: (order: string[]) => void;
   setDisplayName: (id: string, displayName: string) => void;
   addPointLabel: (label: PointLabel) => void;
@@ -99,7 +100,7 @@ export const useCurveStore = create<CurveState>()(
 
           for (let i = 0; i < newCurves.length; i++) {
             const id = `${newCurves[i].name}_${Date.now()}_${i}`;
-            curves[id] = { ...newCurves[i], color: '#000000' };
+            curves[id] = { ...newCurves[i] };
             offsets[id] = { xOffset: 0, yOffset: 0 };
           }
 
@@ -280,12 +281,26 @@ export const useCurveStore = create<CurveState>()(
 
       clearNormalizeFactors: () => set({ normalizeFactors: {} }),
 
-      setCurveColor: (id, color) =>
+      setCurveLineStyle: (id, patch) =>
         set((state) => {
           const curve = state.curves[id];
           if (!curve) return state;
+          const nextOverride = { ...(curve.lineStyle ?? {}), ...patch };
           return {
-            curves: { ...state.curves, [id]: { ...curve, color } },
+            curves: {
+              ...state.curves,
+              [id]: { ...curve, lineStyle: nextOverride },
+            },
+          };
+        }),
+
+      clearCurveLineStyle: (id) =>
+        set((state) => {
+          const curve = state.curves[id];
+          if (!curve) return state;
+          const { lineStyle: _omit, ...rest } = curve;
+          return {
+            curves: { ...state.curves, [id]: rest },
           };
         }),
 

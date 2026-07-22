@@ -60,12 +60,20 @@ TBD - created by archiving change phase-1-project-scaffold. Update Purpose after
 系统 SHALL 在右侧工具箱区域显示以下控制组件（按从上到下顺序）：
 - 元数据展示面板（MetadataPanel）：显示选中曲线的文件元数据，默认显示占位提示
 - 标签样式控制（LabelStyleControls）：控制区间标签的字体、颜色等样式
+- 曲线样式控制（CurveStylePanel）：控制曲线线条的全局默认粗细/线型/颜色及单条覆盖
 - 自动对齐控制（AlignmentControls）：包含算法选择、ROI 范围、一键对齐按钮
+
+右栏折叠时 SHALL 提供「曲线样式」快捷图标入口，点击后展开右栏并滚动到「曲线样式」面板。
 
 #### Scenario: 工具箱内容
 
 - **WHEN** 页面加载完成，右侧工具箱展开
-- **THEN** 从上到下依次显示"元数据"面板、"标签样式"控制区域和"自动对齐"控制区域
+- **THEN** 从上到下依次显示「元数据」面板、「标签样式」控制区域、「曲线样式」控制区域和「自动对齐」控制区域
+
+#### Scenario: 折叠态曲线样式快捷入口
+
+- **WHEN** 右栏处于折叠态，用户点击折叠条上的「曲线样式」图标
+- **THEN** 右栏展开并自动滚动到「曲线样式」面板
 
 ### Requirement: 工具栏大括号按钮
 

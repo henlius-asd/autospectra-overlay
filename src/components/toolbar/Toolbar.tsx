@@ -9,7 +9,8 @@ import type { DropdownItem } from '@/components/ui/Dropdown';
 import Tooltip from '@/components/ui/Tooltip';
 import { TOOL_HINTS } from '@/components/ui/HudShortcuts';
 import { MODE_SHORTCUTS } from '@/lib/shortcuts';
-import type { InteractionMode } from '@/types';
+import type { InteractionMode, LineStyle } from '@/types';
+import { DEFAULT_LINE_STYLE } from '@/types';
 import {
   UndoIcon, RedoIcon, SelectIcon, BraceIcon, PointLabelIcon, MoveIcon, LockIcon,
   BoxSelectIcon, ZoomGlobalIcon, ZoomCurveIcon,
@@ -92,7 +93,7 @@ export default function Toolbar() {
     const uiState = useUiStore.getState();
     const snapshot = buildWorkspaceSnapshot(state);
     const blob = new Blob(
-      [JSON.stringify({ ...snapshot, yZoomRange: uiState.yZoomRange, colorHistory: uiState.colorHistory, showLegend: uiState.showLegend, exportWithLegend: uiState.exportWithLegend, labelStyle: uiState.labelStyle, showGrid: uiState.showGrid, showXAxis: uiState.showXAxis, showYAxis: uiState.showYAxis, xRange: uiState.xRange }, null, 2)],
+      [JSON.stringify({ ...snapshot, yZoomRange: uiState.yZoomRange, colorHistory: uiState.colorHistory, showLegend: uiState.showLegend, exportWithLegend: uiState.exportWithLegend, labelStyle: uiState.labelStyle, lineStyle: uiState.lineStyle, showGrid: uiState.showGrid, showXAxis: uiState.showXAxis, showYAxis: uiState.showYAxis, xRange: uiState.xRange }, null, 2)],
       { type: 'application/json' },
     );
     const url = URL.createObjectURL(blob);
@@ -121,6 +122,7 @@ export default function Toolbar() {
             showLegend: data.showLegend ?? true,
             exportWithLegend: data.exportWithLegend ?? false,
             labelStyle: data.labelStyle ?? undefined,
+            lineStyle: (data.lineStyle ?? { ...DEFAULT_LINE_STYLE }) as LineStyle,
             showGrid: data.showGrid ?? true,
             showXAxis: data.showXAxis ?? true,
             showYAxis: data.showYAxis ?? false,

@@ -1,4 +1,5 @@
 import { useUiStore } from '@/store';
+import { useColorCommit } from '@/components/ui/useColorCommit';
 
 const FONT_FAMILIES = ['sans-serif', 'serif', 'monospace', 'Arial', 'SimSun', 'KaiTi'];
 
@@ -19,6 +20,17 @@ export default function LabelStyleControls() {
   const setLabelStyle = useUiStore((s) => s.setLabelStyle);
   const colorHistory = useUiStore((s) => s.colorHistory);
   const addColorToHistory = useUiStore((s) => s.addColorToHistory);
+
+  // Commit on native `change` (picker release), not on the continuous React
+  // `input` event. See useColorCommit for rationale.
+  const textColorRef = useColorCommit((c) => {
+    addColorToHistory(c);
+    setLabelStyle({ color: c });
+  });
+  const bgColorRef = useColorCommit((c) => {
+    addColorToHistory(c);
+    setLabelStyle({ backgroundColor: c });
+  });
 
   return (
     <div className="flex flex-col gap-3 p-3">
@@ -66,8 +78,9 @@ export default function LabelStyleControls() {
         <div className="flex items-center gap-2 mt-1">
           <input
             type="color"
+            ref={textColorRef}
             value={toHexColor(labelStyle.color)}
-            onChange={(e) => { addColorToHistory(e.target.value); setLabelStyle({ color: e.target.value }); }}
+            onChange={() => {}}
             className="w-6 h-6 rounded-md cursor-pointer border border-line-strong"
           />
           <div className="flex gap-1 flex-wrap">
@@ -89,8 +102,9 @@ export default function LabelStyleControls() {
         <div className="flex items-center gap-2 mt-1">
           <input
             type="color"
+            ref={bgColorRef}
             value={toHexColor(labelStyle.backgroundColor)}
-            onChange={(e) => { addColorToHistory(e.target.value); setLabelStyle({ backgroundColor: e.target.value }); }}
+            onChange={() => {}}
             className="w-6 h-6 rounded-md cursor-pointer border border-line-strong"
           />
           <span className="text-xs text-ink-faint">{labelStyle.backgroundColor}</span>

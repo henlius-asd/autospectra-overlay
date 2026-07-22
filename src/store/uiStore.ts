@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import type { LabelStyle, InteractionMode } from '@/types';
-import { DEFAULT_LABEL_STYLE } from '@/types';
+import type { LabelStyle, LineStyle, InteractionMode } from '@/types';
+import { DEFAULT_LABEL_STYLE, DEFAULT_LINE_STYLE } from '@/types';
 
 export type SelectionMode = 'none' | 'roi';
 
@@ -34,6 +34,7 @@ interface UiState {
   showLegend: boolean;
   exportWithLegend: boolean;
   labelStyle: LabelStyle;
+  lineStyle: LineStyle;
   yZoomRange: [number, number] | null;
   colorHistory: string[];
   toast: ToastState | null;
@@ -57,6 +58,7 @@ interface UiState {
   toggleShowLegend: () => void;
   toggleExportWithLegend: () => void;
   setLabelStyle: (patch: Partial<LabelStyle>) => void;
+  setLineStyle: (patch: Partial<LineStyle>) => void;
   resetUiForNewWorkspace: () => void;
 }
 
@@ -82,6 +84,7 @@ export const useUiStore = create<UiState>((set) => ({
   toast: null,
   exportWithLegend: false,
   labelStyle: { ...DEFAULT_LABEL_STYLE },
+  lineStyle: { ...DEFAULT_LINE_STYLE },
   showToast: (message, type) => {
     if (toastTimer) clearTimeout(toastTimer);
     const id = Date.now();
@@ -108,6 +111,7 @@ export const useUiStore = create<UiState>((set) => ({
   toggleShowLegend: () => set((s) => ({ showLegend: !s.showLegend })),
   toggleExportWithLegend: () => set((s) => ({ exportWithLegend: !s.exportWithLegend })),
   setLabelStyle: (patch) => set((s) => ({ labelStyle: { ...s.labelStyle, ...patch } })),
+  setLineStyle: (patch) => set((s) => ({ lineStyle: { ...s.lineStyle, ...patch } })),
   resetUiForNewWorkspace: () =>
     set({
       xRange: [0, 10],

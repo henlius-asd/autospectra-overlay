@@ -169,3 +169,13 @@ export function YAxisIcon(props: SVGProps<SVGSVGElement>) {
     </Icon>
   );
 }
+
+export function CurveStyleIcon(props: SVGProps<SVGSVGElement>) {
+  // A wavy curve rendered as a solid segment + dashed segment, conveying
+  // "line style" (width / dash / type). Mirrors the lucide visual spec.
+  return (
+    <Icon {...props}>
+      <path d="M3 16c3-6 6 4 9-2s3 4 9-6" />
+    </Icon>
+  );
+}

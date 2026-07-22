@@ -9,6 +9,7 @@ import HudShortcuts from '@/components/ui/HudShortcuts';
 import type { EChartsOption } from 'echarts';
 import type { EChartsInstance } from 'echarts-for-react';
 import { computeYAxisRange } from './computeYAxisRange';
+import { resolveLineStyle } from './resolveLineStyle';
 import { yToPixel, pixelToY } from './yPixelMath';
 import { topCurvePeak } from './labelGeometry';
 import { BRACE_HEIGHT, BRACE_LABEL_GAP } from './bracePath';
@@ -106,6 +107,7 @@ export default function WaterfallChart() {
   const showXAxis = useUiStore((s) => s.showXAxis);
   const showYAxis = useUiStore((s) => s.showYAxis);
   const showLegend = useUiStore((s) => s.showLegend);
+  const lineStyle = useUiStore((s) => s.lineStyle);
   const yZoomRange = useUiStore((s) => s.yZoomRange);
   // Last X/Y range the CHART itself reported via onDataZoom. The [xRange]/
   // [yZoomRange] restore effects skip re-dispatch only when the current store
@@ -366,6 +368,8 @@ export default function WaterfallChart() {
         y * composite + scaleOffset + layerYOffset + offset.yOffset,
       ]);
 
+      const resolvedLineStyle = resolveLineStyle(curve.lineStyle, lineStyle);
+
       return {
         id,
         name: curve.displayName || curve.name,
@@ -374,10 +378,11 @@ export default function WaterfallChart() {
         smooth: false,
         symbol: 'circle',
         showSymbol: false,
-        itemStyle: { color: curve.color || '#000000' },
+        itemStyle: { color: resolvedLineStyle.color },
         lineStyle: {
-          color: curve.color || '#000000',
-          width: 1.5,
+          color: resolvedLineStyle.color,
+          width: resolvedLineStyle.width,
+          type: resolvedLineStyle.type,
         },
         large: true,
         sampling: 'lttb' as const,
@@ -486,7 +491,7 @@ legend: {
       } : {}),
     };
 
-  }, [curves, offsets, visibleCurves, layerSpacing, stagingOrder, visibleIds, interactionMode, spaceHeld, showGrid, showXAxis, showYAxis, showLegend, curveScales, curveScaleOffsets, normalizeFactors, globalScale]);
+  }, [curves, offsets, visibleCurves, layerSpacing, stagingOrder, visibleIds, interactionMode, spaceHeld, showGrid, showXAxis, showYAxis, showLegend, lineStyle, curveScales, curveScaleOffsets, normalizeFactors, globalScale]);
 
   // Activate ECharts brush via takeGlobalCursor dispatch.
   // Without toolbox, brushModel.brushOption stays empty and enableBrush never

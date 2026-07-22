@@ -40,7 +40,7 @@ describe('offsetByDrag', () => {
 });
 
 describe('computePeakNormalizeFactor', () => {
-  const curve: CurveData = { name: 'test', color: '#000', data: [[0, 10], [1, 50], [2, 30], [3, 100], [5, 20]] };
+  const curve: CurveData = { name: 'test', lineStyle: { color: '#000' }, data: [[0, 10], [1, 50], [2, 30], [3, 100], [5, 20]] };
   const offset: CurveOffsets = { xOffset: 0, yOffset: 0 };
 
   it('returns targetPeak / peakY when peak > 0', () => {
@@ -48,7 +48,7 @@ describe('computePeakNormalizeFactor', () => {
   });
 
   it('returns 1 when peak <= 0', () => {
-    const flatCurve: CurveData = { name: 'flat', color: '#000', data: [[0, 0], [1, 0]] };
+    const flatCurve: CurveData = { name: 'flat', lineStyle: { color: '#000' }, data: [[0, 0], [1, 0]] };
     expect(computePeakNormalizeFactor(flatCurve, offset, [0, 1], 100)).toBe(1);
   });
 
@@ -61,7 +61,7 @@ describe('computePeakNormalizeFactor', () => {
   });
 
   it('accounts for xOffset', () => {
-    const shiftedCurve: CurveData = { name: 'shifted', color: '#000', data: [[100, 50]] };
+    const shiftedCurve: CurveData = { name: 'shifted', lineStyle: { color: '#000' }, data: [[100, 50]] };
     const shiftedOffset: CurveOffsets = { xOffset: -100, yOffset: 0 };
     expect(computePeakNormalizeFactor(shiftedCurve, shiftedOffset, [0, 10], 100)).toBeCloseTo(2.0);
   });

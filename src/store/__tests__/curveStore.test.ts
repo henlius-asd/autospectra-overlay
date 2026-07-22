@@ -56,8 +56,8 @@ describe('normalizeFactors', () => {
   });
 
   it('normalizeAllPeak sets factors relative to baseline peak', () => {
-    const curveA: CurveData = { name: 'A', color: '#000', data: [[0, 50], [1, 100], [2, 80]] as DataPoint[] };
-    const curveB: CurveData = { name: 'B', color: '#111', data: [[0, 200], [1, 150], [2, 180]] as DataPoint[] };
+    const curveA: CurveData = { name: 'A', lineStyle: { color: '#000' }, data: [[0, 50], [1, 100], [2, 80]] as DataPoint[] };
+    const curveB: CurveData = { name: 'B', lineStyle: { color: '#111' }, data: [[0, 200], [1, 150], [2, 180]] as DataPoint[] };
     useCurveStore.getState().addCurves([curveA, curveB]);
     const state = useCurveStore.getState();
     const ids = Object.keys(state.curves);
@@ -75,7 +75,7 @@ describe('normalizeFactors', () => {
   });
 
   it('removeCurve cleans up normalizeFactors', () => {
-    const curve: CurveData = { name: 'C', color: '#000', data: [[0, 10]] as DataPoint[] };
+    const curve: CurveData = { name: 'C', lineStyle: { color: '#000' }, data: [[0, 10]] as DataPoint[] };
     useCurveStore.getState().addCurves([curve]);
     const id = Object.keys(useCurveStore.getState().curves)[0];
     useCurveStore.getState().setNormalizeFactor(id, 3.0);
@@ -131,13 +131,56 @@ describe('setCurveScale', () => {
   });
 });
 
-describe('setCurveColor', () => {
-  it('sets color for a curve', () => {
+describe('setCurveLineStyle', () => {
+  it('merges a patch into the per-curve lineStyle override', () => {
     useCurveStore.setState({
-      curves: { c1: { name: 'c1', data: [], color: '#000000' } },
+      curves: { c1: { name: 'c1', data: [] } },
     });
-    useCurveStore.getState().setCurveColor('c1', '#FF0000');
-    expect(useCurveStore.getState().curves.c1.color).toBe('#FF0000');
+    useCurveStore.getState().setCurveLineStyle('c1', { color: '#FF0000' });
+    expect(useCurveStore.getState().curves.c1.lineStyle).toEqual({ color: '#FF0000' });
+
+    // Second patch merges, preserving the previous field.
+    useCurveStore.getState().setCurveLineStyle('c1', { width: 3 });
+    expect(useCurveStore.getState().curves.c1.lineStyle).toEqual({ color: '#FF0000', width: 3 });
+  });
+
+  it('is a no-op when the curve id is not found', () => {
+    useCurveStore.setState({ curves: {} });
+    useCurveStore.getState().setCurveLineStyle('missing', { width: 2 });
+    expect(useCurveStore.getState().curves).toEqual({});
+  });
+});
+
+describe('clearCurveLineStyle', () => {
+  it('removes the per-curve lineStyle override entirely', () => {
+    useCurveStore.setState({
+      curves: { c1: { name: 'c1', data: [], lineStyle: { color: '#FF0000', width: 3 } } },
+    });
+    useCurveStore.getState().clearCurveLineStyle('c1');
+    expect(useCurveStore.getState().curves.c1.lineStyle).toBeUndefined();
+    // Other curve fields preserved.
+    expect(useCurveStore.getState().curves.c1.name).toBe('c1');
+  });
+
+  it('is a no-op when the curve id is not found', () => {
+    useCurveStore.setState({ curves: {} });
+    useCurveStore.getState().clearCurveLineStyle('missing');
+    expect(useCurveStore.getState().curves).toEqual({});
+  });
+});
+
+describe('addCurves', () => {
+  beforeEach(() => {
+    useCurveStore.setState(CURVE_STORE_INITIAL);
+  });
+
+  it('does not force a lineStyle override (new curves follow the global default)', () => {
+    const curve: CurveData = { name: 'A', data: [[0, 1]] as DataPoint[] };
+    useCurveStore.getState().addCurves([curve]);
+    const id = Object.keys(useCurveStore.getState().curves)[0];
+    expect(useCurveStore.getState().curves[id].lineStyle).toBeUndefined();
+    // No top-level color field is forced onto the curve.
+    expect((useCurveStore.getState().curves[id] as unknown as Record<string, unknown>).color).toBeUndefined();
   });
 });
 
@@ -177,7 +220,7 @@ describe('undo cool-off', () => {
   });
 
   it('slider high-frequency calls do not evict early history', () => {
-    const curve: CurveData = { name: 'C1', color: '#000', data: [[0, 10]] as DataPoint[] };
+    const curve: CurveData = { name: 'C1', lineStyle: { color: '#000' }, data: [[0, 10]] as DataPoint[] };
     useCurveStore.getState().addCurves([curve]);
     vi.advanceTimersByTime(UNDO_COOL_OFF_MS + 1);
 

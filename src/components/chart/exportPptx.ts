@@ -1,8 +1,10 @@
 import pptxgen from 'pptxgenjs';
 import { useCurveStore, useUiStore } from '@/store';
+import type { LineStyle } from '@/types';
 import { computeYAxisRange } from './computeYAxisRange';
 import { normalizeYZoomRange } from './yZoomRange';
 import { resolveLabelStyle } from './resolveLabelStyle';
+import { resolveLineStyle, mapLineTypeToPptxDash } from './resolveLineStyle';
 import { getSlideDimensions } from './pixelToPpt';
 import { getChartInstance } from './WaterfallChart';
 import { BRACE_COLOR, BRACE_HEIGHT, BRACE_LABEL_GAP, bracePathPoints } from './bracePath';
@@ -41,13 +43,11 @@ function addCustGeom(
   slide: ReturnType<typeof pptxgen.prototype.addSlide>,
   x: number, y: number, w: number, h: number,
   points: Array<{ x: number; y: number; moveTo?: boolean }>,
-  lineColor: string, lineWidth: number,
+  lineColor: string, lineWidth: number, dashType?: string,
 ) {
-  (slide as any).addShape('custGeom', {
-    x, y, w, h,
-    points,
-    line: { color: lineColor, width: lineWidth },
-  });
+  const opts: any = { x, y, w, h, points, line: { color: lineColor, width: lineWidth } };
+  if (dashType) opts.line.dashType = dashType;
+  (slide as any).addShape('custGeom', opts);
 }
 
 function addLine(slide: ReturnType<typeof pptxgen.prototype.addSlide>, x: number, y: number, w: number, h: number, color: string, width: number, dashType?: string) {
@@ -136,7 +136,9 @@ export async function exportChartPptx(): Promise<void> {
   const globalScale = state.globalScale;
   const { yRangeForLayer } = rangeResult;
 
-  const visibleCurveColors: string[] = [];
+  const visibleCurveStyles: LineStyle[] = [];
+
+  const globalLineStyle = useUiStore.getState().lineStyle;
 
   for (let vi = 0; vi < visibleCount; vi++) {
     const id = visibleIds[vi];
@@ -155,8 +157,8 @@ export async function exportChartPptx(): Promise<void> {
       y * composite + scaleOffset + layerYOffset + offset.yOffset,
     ] as [number, number]);
 
-    const color = curve.color || '#000000';
-    visibleCurveColors.push(color);
+    const resolved = resolveLineStyle(curve.lineStyle, globalLineStyle);
+    visibleCurveStyles.push(resolved);
 
     const filtered = rendered.filter(([x, y]) => x >= xRange[0] && x <= xRange[1] && y >= yMin && y <= yMax);
 
@@ -172,7 +174,7 @@ export async function exportChartPptx(): Promise<void> {
       moveTo: i === 0,
     }));
 
-    addCustGeom(slide, offsetX, offsetY, contentW, contentH, points, color.replace('#', ''), 1.5);
+    addCustGeom(slide, offsetX, offsetY, contentW, contentH, points, resolved.color.replace('#', ''), resolved.width, mapLineTypeToPptxDash(resolved.type));
   }
 
   if (showXAxis) {
@@ -278,14 +280,14 @@ export async function exportChartPptx(): Promise<void> {
   if (exportWithLegend && visibleCount > 1) {
     let legendY = useGridTop + 5;
     for (let vi = 0; vi < visibleCount; vi++) {
-      const color = visibleCurveColors[vi] || '#000000';
+      const style = visibleCurveStyles[vi] ?? globalLineStyle;
       const name = curves[visibleIds[vi]]?.displayName || curves[visibleIds[vi]]?.name || '';
       const lx = chartWidth - gridRight - 80;
-      addLine(slide, toPptX(lx), toPptY(legendY + 4), toPptW(20), 0, color.replace('#', ''), 2);
+      addLine(slide, toPptX(lx), toPptY(legendY + 4), toPptW(20), 0, style.color.replace('#', ''), style.width, mapLineTypeToPptxDash(style.type));
       slide.addText(name, {
         x: toPptX(lx) + toPptW(24), y: toPptY(legendY),
         w: pptTextWidthInch(name, 8), h: pptTextHeightInch(10),
-        fontSize: 8, color: color.replace('#', ''), wrap: false,
+        fontSize: 8, color: style.color.replace('#', ''), wrap: false,
       });
       legendY += 12;
     }

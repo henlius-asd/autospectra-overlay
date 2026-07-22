@@ -29,10 +29,11 @@ export default function CurveList({
   const setDisplayName = useCurveStore((s) => s.setDisplayName);
   const setBaseline = useCurveStore((s) => s.setBaseline);
   const baselineId = useCurveStore((s) => s.baselineId);
-  const setCurveColor = useCurveStore((s) => s.setCurveColor);
+  const setCurveLineStyle = useCurveStore((s) => s.setCurveLineStyle);
   const curves = useCurveStore((s) => s.curves);
   const selectedCurveId = useUiStore((s) => s.selectedCurveId);
   const setSelectedCurveId = useUiStore((s) => s.setSelectedCurveId);
+  const lineStyle = useUiStore((s) => s.lineStyle);
   const colorHistory = useUiStore((s) => s.colorHistory);
   const addColorToHistory = useUiStore((s) => s.addColorToHistory);
 
@@ -187,7 +188,7 @@ export default function CurveList({
           className="w-3.5 h-3.5 rounded-md border-line-strong text-accent focus:ring-accent flex-shrink-0"
         />
         {(() => {
-          const color = curve.color || '#000000';
+          const color = curve.lineStyle?.color ?? lineStyle.color;
           return (
             <span
               className="relative w-3 h-3 rounded-full flex-shrink-0 cursor-pointer border border-line-strong"
@@ -197,7 +198,7 @@ export default function CurveList({
                 setPanelTriggerRect((e.target as HTMLElement).getBoundingClientRect());
                 setPanelCurveId(id);
               }}
-              title="点击修改颜色"
+              title="点击修改颜色（覆盖全局）"
             />
           );
         })()}
@@ -356,12 +357,12 @@ export default function CurveList({
       )}
       {panelCurveId && panelTriggerRect && (
         <ColorPanel
-          color={curves[panelCurveId]?.color || '#000000'}
+          color={curves[panelCurveId]?.lineStyle?.color ?? lineStyle.color}
           colorHistory={colorHistory}
           triggerRect={panelTriggerRect}
-          onChange={(c) => setCurveColor(panelCurveId, c)}
+          onChange={(c) => setCurveLineStyle(panelCurveId, { color: c })}
           onConfirm={(c) => {
-            setCurveColor(panelCurveId, c);
+            setCurveLineStyle(panelCurveId, { color: c });
             addColorToHistory(c);
           }}
           onClose={() => setPanelCurveId(null)}

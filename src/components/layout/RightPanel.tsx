@@ -2,10 +2,11 @@ import { useRef, useCallback } from 'react';
 import { useUiStore } from '@/store';
 import Accordion from '@/components/ui/Accordion';
 import Tooltip from '@/components/ui/Tooltip';
-import { ChevronLeftIcon, ChevronRightIcon, AlignmentIcon, LabelStyleIcon } from '@/components/ui/icons';
+import { ChevronLeftIcon, ChevronRightIcon, AlignmentIcon, LabelStyleIcon, CurveStyleIcon } from '@/components/ui/icons';
 import MetadataPanel from '@/components/toolbox/MetadataPanel';
 import AlignmentControls from '@/components/toolbox/AlignmentControls';
 import LabelStyleControls from '@/components/toolbox/LabelStyleControls';
+import CurveStylePanel from '@/components/toolbox/CurveStylePanel';
 import DisplaySettingsPanel from '@/components/toolbox/DisplaySettingsPanel';
 import DataProcessingPanel from '@/components/toolbox/DataProcessingPanel';
 import LayerSpacingPanel from '@/components/toolbox/LayerSpacingPanel';
@@ -80,6 +81,15 @@ export default function RightPanel({ overlay, onToggle, width, isDragging }: Rig
               <LabelStyleIcon className="w-4 h-4" />
             </button>
           </Tooltip>
+          <Tooltip label="曲线样式" side="left">
+            <button
+              onClick={() => expandAndScrollTo('曲线样式')}
+              className="flex items-center justify-center w-7 h-7 rounded-md text-ink-faint hover:text-ink-muted hover:bg-surface-hover transition-colors"
+              aria-label="曲线样式"
+            >
+              <CurveStyleIcon className="w-4 h-4" />
+            </button>
+          </Tooltip>
         </div>
         {/* Bottom: vertical label */}
         <div className="py-2 border-t border-line w-full flex items-center justify-center">
@@ -136,6 +146,12 @@ export default function RightPanel({ overlay, onToggle, width, isDragging }: Rig
               id: 'labelStyle',
               title: '标签样式',
               content: <LabelStyleControls />,
+              defaultExpanded: true,
+            },
+            {
+              id: 'curveStyle',
+              title: '曲线样式',
+              content: <CurveStylePanel />,
               defaultExpanded: true,
             },
             {
