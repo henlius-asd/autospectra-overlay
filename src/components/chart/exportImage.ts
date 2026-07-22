@@ -1,11 +1,10 @@
 import { getChartInstance } from './WaterfallChart';
 import { useCurveStore, useUiStore } from '@/store';
-import { bracePath, BRACE_COLOR } from './bracePath';
+import { bracePath, BRACE_COLOR, BRACE_HEIGHT, BRACE_LABEL_GAP } from './bracePath';
 import { computeYAxisRange } from './computeYAxisRange';
 import { normalizeYZoomRange } from './yZoomRange';
 import { yToPixel } from './yPixelMath';
-import { getTopCurvePixelYAtX, topCurvePeak } from './labelGeometry';
-import { clampLabelX, clampLabelY, estimateTextWidth } from './labelClamp';
+import { topCurvePeak } from './labelGeometry';
 import { resolveLabelStyle } from './resolveLabelStyle';
 
 /**
@@ -151,15 +150,15 @@ legend: exportWithLegend
     svgEl.setAttribute('height', String(canvas.height));
     svgEl.setAttribute('viewBox', `0 0 ${canvas.width} ${canvas.height}`);
 
-    // Braces — baseline hugs the top curve peak, clamped to gridTop+8.
+    // Braces — baseline hugs the top curve peak; per-brace yOffset (free vertical drag) applied.
     const visibleBraces = braces.filter(
       (b) => b.startX <= xRange[1] && b.endX >= xRange[0],
     );
-    const braceYUnscaled = Math.max(gridTop + 8, yToPixelExport(peak) - 14);
-    const braceYScaled = braceYUnscaled * pixelRatio;
+    const braceYBase = Math.max(gridTop + BRACE_HEIGHT / 2 + BRACE_LABEL_GAP + 2, yToPixelExport(peak) - BRACE_HEIGHT / 2);
     for (const brace of visibleBraces) {
       const px1 = convertXToPixel(brace.startX, xRange, chartWidth, gridLeft, gridRight) * pixelRatio;
       const px2 = convertXToPixel(brace.endX, xRange, chartWidth, gridLeft, gridRight) * pixelRatio;
+      const braceYScaled = (braceYBase + (brace.yOffset ?? 0)) * pixelRatio;
 
       const pathEl = document.createElementNS(ns, 'path');
       pathEl.setAttribute('d', bracePath(px1, px2, braceYScaled));
@@ -170,17 +169,11 @@ legend: exportWithLegend
 
       const labelText = brace.label || '未命名';
       const style = resolveLabelStyle(brace.labelStyle, labelStyle);
-      const textWScaled = estimateTextWidth(labelText, style.fontSize) * pixelRatio;
-      const textXScaled = clampLabelX(
-        (px1 + px2) / 2,
-        textWScaled,
-        gridLeft * pixelRatio,
-        gridRight * pixelRatio,
-        canvas.width,
-      );
+      // No horizontal clamping — labels are freely positionable; text-anchor middle centers it.
+      const textXScaled = ((px1 + px2) / 2);
       const textEl = document.createElementNS(ns, 'text');
       textEl.setAttribute('x', String(textXScaled));
-      textEl.setAttribute('y', String(braceYScaled - 10 * pixelRatio));
+      textEl.setAttribute('y', String(braceYScaled - (BRACE_HEIGHT / 2 + BRACE_LABEL_GAP) * pixelRatio));
       textEl.setAttribute('font-size', String(style.fontSize * pixelRatio));
       textEl.setAttribute('font-family', style.fontFamily);
       textEl.setAttribute('font-weight', style.fontWeight);
@@ -190,30 +183,20 @@ legend: exportWithLegend
       svgEl.appendChild(textEl);
     }
 
-    // Point labels — text only, baseline = top curve at pl.x, clamped.
+    // Point labels — text only, baseline = top curve at pl.x. No clamping (free position).
     const { pointLabels } = state;
     const visiblePointLabels = pointLabels.filter(
       (pl) => pl.x >= xRange[0] && pl.x <= xRange[1],
     );
-    const geometryCtx = {
-      visibleIds,
-      curves: state.curves,
-      offsets: state.offsets,
-      layerSpacing: state.layerSpacing,
-      yRangeForLayer: rangeResult.yRangeForLayer,
-    };
     for (const pl of visiblePointLabels) {
       const style = resolveLabelStyle(pl.labelStyle, labelStyle);
       const labelText = pl.label || '未命名';
-      const textW = estimateTextWidth(labelText, style.fontSize);
-      const rawPx = convertXToPixel(pl.x, xRange, chartWidth, gridLeft, gridRight);
-      const px = clampLabelX(rawPx, textW, gridLeft, gridRight, chartWidth);
-      const rawPy = getTopCurvePixelYAtX(pl.x, geometryCtx, yToPixelExport) + pl.yOffset;
-      const py = clampLabelY(rawPy, 6, gridTop, chartHeight - gridBottom);
+      const px = convertXToPixel(pl.x, xRange, chartWidth, gridLeft, gridRight) * pixelRatio;
+      const py = yToPixelExport(pl.y) * pixelRatio;
 
       const textEl = document.createElementNS(ns, 'text');
-      textEl.setAttribute('x', String(px * pixelRatio));
-      textEl.setAttribute('y', String((py + 3) * pixelRatio));
+      textEl.setAttribute('x', String(px));
+      textEl.setAttribute('y', String(py + 3 * pixelRatio));
       textEl.setAttribute('font-size', String(style.fontSize * pixelRatio));
       textEl.setAttribute('font-family', style.fontFamily);
       textEl.setAttribute('font-weight', style.fontWeight);

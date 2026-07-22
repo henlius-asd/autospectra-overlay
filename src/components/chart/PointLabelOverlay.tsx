@@ -2,21 +2,18 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { useCurveStore, useUiStore } from '@/store';
 import type { PointLabel } from '@/types';
-import { clampLabelX, clampLabelY, estimateTextWidth } from './labelClamp';
 import { resolveLabelStyle } from './resolveLabelStyle';
+import { estimateTextWidth } from './labelClamp';
 
 interface PointLabelOverlayProps {
   width: number;
   height: number;
   convertXToPixel: (xVal: number) => number;
   convertPixelToX: (px: number) => number;
+  convertYToPixel: (yVal: number) => number;
+  convertPixelToY: (py: number) => number;
   xRange: [number, number];
-  getLabelBaseYAtX: (xVal: number) => number;
   gridTop: number;
-  gridBottom: number;
-  chartWidth: number;
-  gridLeft: number;
-  gridRight: number;
 }
 
 export default function PointLabelOverlay({
@@ -24,13 +21,10 @@ export default function PointLabelOverlay({
   height,
   convertXToPixel,
   convertPixelToX,
+  convertYToPixel,
+  convertPixelToY,
   xRange,
-  getLabelBaseYAtX,
   gridTop,
-  gridBottom,
-  chartWidth,
-  gridLeft,
-  gridRight,
 }: PointLabelOverlayProps) {
   const pointLabels = useCurveStore((s) => s.pointLabels);
   const addPointLabel = useCurveStore((s) => s.addPointLabel);
@@ -42,7 +36,7 @@ export default function PointLabelOverlay({
 
   const [editingLabel, setEditingLabel] = useState<PointLabel | null>(null);
   const [labelInput, setLabelInput] = useState('');
-  const [dragging, setDragging] = useState<{ id: string; startX: number; startY: number; origX: number; origYOffset: number } | null>(null);
+  const [dragging, setDragging] = useState<{ id: string; startX: number; startY: number; origX: number; origY: number } | null>(null);
   const svgRef = useRef<SVGSVGElement>(null);
 
   const visibleLabels = pointLabels.filter(
@@ -55,12 +49,14 @@ export default function PointLabelOverlay({
       const rect = svgRef.current?.getBoundingClientRect();
       if (!rect) return;
       const px = e.clientX - rect.left;
+      const py = e.clientY - rect.top;
       const dataX = convertPixelToX(px);
+      const dataY = convertPixelToY(py);
 
       const newLabel: PointLabel = {
         id: `pl_${Date.now()}`,
         x: dataX,
-        yOffset: -10,
+        y: dataY,
         label: '',
       };
       addPointLabel(newLabel);
@@ -69,7 +65,7 @@ export default function PointLabelOverlay({
       setInteractionMode('select');
       e.stopPropagation();
     },
-    [pointLabelPlacementMode, convertPixelToX, addPointLabel, setInteractionMode],
+    [pointLabelPlacementMode, convertPixelToX, convertPixelToY, addPointLabel, setInteractionMode],
   );
 
   const handleLabelPointerDown = useCallback(
@@ -81,7 +77,7 @@ export default function PointLabelOverlay({
         startX: e.clientX,
         startY: e.clientY,
         origX: pl.x,
-        origYOffset: pl.yOffset,
+        origY: pl.y,
       });
       (e.target as HTMLElement).setPointerCapture(e.pointerId);
     },
@@ -94,10 +90,13 @@ export default function PointLabelOverlay({
       const dx = e.clientX - dragging.startX;
       const dy = e.clientY - dragging.startY;
       const newDataX = convertPixelToX(convertXToPixel(dragging.origX) + dx);
-      const newYOffset = dragging.origYOffset + dy;
-      updatePointLabel(dragging.id, { x: newDataX, yOffset: newYOffset });
+      // Absolute data Y: convert mouse pixel Y directly to data Y.
+      // No dependency on any curve — the label is anchored to the y-axis only.
+      const origPixelY = convertYToPixel(dragging.origY);
+      const newDataY = convertPixelToY(origPixelY + dy);
+      updatePointLabel(dragging.id, { x: newDataX, y: newDataY });
     },
-    [dragging, convertXToPixel, convertPixelToX, updatePointLabel],
+    [dragging, convertXToPixel, convertPixelToX, convertYToPixel, convertPixelToY, updatePointLabel],
   );
 
   const handlePointerUp = useCallback(() => {
@@ -155,17 +154,28 @@ export default function PointLabelOverlay({
         {visibleLabels.map((pl) => {
           const style = resolveLabelStyle(pl.labelStyle, labelStyle);
           const labelText = pl.label || '未命名';
+          // Absolute data Y → pixel Y. No dependency on any curve.
+          const px = convertXToPixel(pl.x);
+          const py = convertYToPixel(pl.y);
           const textW = estimateTextWidth(labelText, style.fontSize);
-          const rawPx = convertXToPixel(pl.x);
-          const px = clampLabelX(rawPx, textW, gridLeft, gridRight, chartWidth);
-          const rawPy = getLabelBaseYAtX(pl.x) + pl.yOffset;
-          const py = clampLabelY(rawPy, 6, gridTop, height - gridBottom);
           return (
             <g
               key={pl.id}
               style={{ pointerEvents: 'auto', cursor: 'move' }}
               onPointerDown={(e) => handleLabelPointerDown(e, pl)}
             >
+              {/* Invisible hit area around the text for easy grabbing */}
+              <rect
+                x={px - textW / 2 - 4}
+                y={py - style.fontSize}
+                width={textW + 8}
+                height={style.fontSize * 1.4}
+                fill="transparent"
+                onDoubleClick={(e) => {
+                  e.stopPropagation();
+                  handleLabelClick(pl);
+                }}
+              />
               <text
                 x={px}
                 y={py + 3}
@@ -174,7 +184,7 @@ export default function PointLabelOverlay({
                 fontFamily={style.fontFamily}
                 fontWeight={style.fontWeight}
                 fill={style.color}
-                onClick={(e) => {
+                onDoubleClick={(e) => {
                   e.stopPropagation();
                   handleLabelClick(pl);
                 }}

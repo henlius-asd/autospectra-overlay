@@ -9,8 +9,9 @@ import HudShortcuts from '@/components/ui/HudShortcuts';
 import type { EChartsOption } from 'echarts';
 import type { EChartsInstance } from 'echarts-for-react';
 import { computeYAxisRange } from './computeYAxisRange';
-import { yToPixel } from './yPixelMath';
-import { getTopCurvePixelYAtX, topCurvePeak } from './labelGeometry';
+import { yToPixel, pixelToY } from './yPixelMath';
+import { topCurvePeak } from './labelGeometry';
+import { BRACE_HEIGHT, BRACE_LABEL_GAP } from './bracePath';
 import { scaleByWheel, offsetByDrag } from './curveScaleMath';
 import { buildViewportRestoreActions, dispatchRangeToIds, X_ZOOM_IDS, Y_ZOOM_IDS } from './viewportRestore';
 import { themeColors, themeFontFamily } from '@/lib/theme';
@@ -448,8 +449,15 @@ legend: {
           return [{ id: 'xZoomSlider', type: 'slider', xAxisIndex: 0, bottom: 10 }];
         }
         const disableInside = interactionMode !== 'select' && !spaceHeld;
+        // Keep `type: 'inside'` and use `disabled: true` instead of switching to
+        // `type: 'slider' (show: false)`. Changing the dataZoom type recreates
+        // the component in ECharts and RESETS the zoom range (start/end), which
+        // desynchronises `convertYToPixel` (uses stored yZoomRange) from the
+        // actual chart rendering — causing point labels / braces to jump when
+        // the mode switches back and the zoom is restored. `disabled: true`
+        // prevents user wheel/drag zoom while preserving the zoom range.
         const xInside = disableInside
-          ? { id: 'xZoom', type: 'slider', xAxisIndex: 0, bottom: 10, show: false }
+          ? { id: 'xZoom', type: 'inside' as const, xAxisIndex: 0, disabled: true }
           : { id: 'xZoom', type: 'inside' as const, xAxisIndex: 0 };
         const xZoom: EChartsOption['dataZoom'] = [
           xInside,
@@ -457,7 +465,7 @@ legend: {
         ];
         const yMinSpan = 0.05 * (yAxisFullRange.dataSpan || 1);
         const yInside: Record<string, unknown> = disableInside
-          ? { id: 'yZoom', type: 'slider', yAxisIndex: 0, show: false, filterMode: 'none', minValueSpan: yMinSpan }
+          ? { id: 'yZoom', type: 'inside', yAxisIndex: 0, filterMode: 'none', minValueSpan: yMinSpan, disabled: true }
           : { id: 'yZoom', type: 'inside', yAxisIndex: 0, filterMode: 'none', minValueSpan: yMinSpan };
         const ySlider: Record<string, unknown> = {
           id: 'yZoomSlider', type: 'slider', yAxisIndex: 0, orient: 'vertical',
@@ -541,6 +549,14 @@ legend: {
       gridBottom,
       chartHeight: chartDims.height,
     });
+  const convertPixelToY = (py: number): number =>
+    pixelToY(py, {
+      yMin: visibleYRange[0],
+      yMax: visibleYRange[1],
+      gridTop,
+      gridBottom,
+      chartHeight: chartDims.height,
+    });
   const peak = topCurvePeak(yAxisFullRange.rawDataMin, yAxisFullRange.yRangeForLayer);
 
   const widthRatio = Math.min(1, Math.max(0, (chartDims.width - 900) / 700));
@@ -551,20 +567,11 @@ legend: {
     ? Math.round(40 + widthRatio * 10)
     : Math.round(15 + widthRatio * 5);
 
-  const braceY = Math.max(gridTop + 8, convertYToPixel(peak) - 14);
-
-  const getLabelBaseYAtX = (xVal: number) =>
-    getTopCurvePixelYAtX(
-      xVal,
-      {
-        visibleIds,
-        curves,
-        offsets,
-        layerSpacing,
-        yRangeForLayer: yAxisFullRange.yRangeForLayer,
-      },
-      convertYToPixel,
-    );
+  // Default brace baseline: horizontal line sits ~HOOK_H above the top curve peak
+  // (so hooks reach down toward the curve), while the spike (y - SPIKE_H) and
+  // the label above it stay below gridTop. Braces are freely draggable via
+  // brace.yOffset, so this only fixes the initial position of a newly placed brace.
+  const braceY = Math.max(gridTop + BRACE_HEIGHT / 2 + BRACE_LABEL_GAP + 2, convertYToPixel(peak) - BRACE_HEIGHT / 2);
 
   const chartContainerRef = useRef<HTMLDivElement>(null);
 
@@ -789,13 +796,10 @@ legend: {
         height={chartDims.height}
         convertXToPixel={convertXToPixel}
         convertPixelToX={convertPixelToX}
+        convertYToPixel={convertYToPixel}
+        convertPixelToY={convertPixelToY}
         xRange={xRange}
-        getLabelBaseYAtX={getLabelBaseYAtX}
         gridTop={gridTop}
-        gridBottom={gridBottom}
-        chartWidth={chartDims.width}
-        gridLeft={gridLeft}
-        gridRight={gridRight}
       />
       {interactionMode === 'move' && (
         <ManualMoveOverlay

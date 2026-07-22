@@ -5,9 +5,8 @@ import { normalizeYZoomRange } from './yZoomRange';
 import { resolveLabelStyle } from './resolveLabelStyle';
 import { getSlideDimensions } from './pixelToPpt';
 import { getChartInstance } from './WaterfallChart';
-import { BRACE_COLOR } from './bracePath';
-import { getTopCurvePixelYAtX } from './labelGeometry';
-import { clampLabelX, clampLabelY, estimateTextWidth } from './labelClamp';
+import { BRACE_COLOR, BRACE_HEIGHT, BRACE_LABEL_GAP, bracePathPoints } from './bracePath';
+import { estimateTextWidth } from './labelClamp';
 
 function computeTicks(min: number, max: number, count: number): number[] {
   const range = max - min;
@@ -223,19 +222,27 @@ export async function exportChartPptx(): Promise<void> {
     const style = resolveLabelStyle(brace.labelStyle, labelStyle);
     const px1 = convertXToPixel(brace.startX);
     const px2 = convertXToPixel(brace.endX);
-    const braceY = yToPixelExport(yMax) + 30;
+    // Base baseline near the top of the plot; apply the user's free vertical drag (yOffset).
+    const braceY = yToPixelExport(yMax) + 30 + (brace.yOffset ?? 0);
     const labelText = brace.label || '未命名';
     const textW = estimateTextWidth(labelText, style.fontSize);
-    const textX = clampLabelX((px1 + px2) / 2, textW, gridLeft, gridRight, chartWidth);
+    const textX = (px1 + px2) / 2;
 
-    addLine(slide, toPptX(px1), toPptY(braceY), toPptX(px2) - toPptX(px1), 0, BRACE_COLOR.replace('#', ''), 2);
+    // Curly brace (overbrace ⏜) drawn as a sampled polyline via custGeom,
+    // matching the on-screen bracePath shape. Points are in chart pixels, scaled
+    // to inches and placed relative to the content box at (offsetX, offsetY).
+    const bracePts = bracePathPoints(px1, px2, braceY).map((p) => ({
+      x: p.x * scale,
+      y: p.y * scale,
+      moveTo: p.moveTo,
+    }));
+    addCustGeom(slide, offsetX, offsetY, contentW, contentH, bracePts, BRACE_COLOR.replace('#', ''), 2);
 
-    const tickH = 8;
-    addLine(slide, toPptX(px1), toPptY(braceY), 0, toPptH(tickH), BRACE_COLOR.replace('#', ''), 2);
-    addLine(slide, toPptX(px2), toPptY(braceY), 0, toPptH(tickH), BRACE_COLOR.replace('#', ''), 2);
-
+    // Label sits above the spike (spike top = braceY - BRACE_HEIGHT/2).
+    const labelBaselineY = braceY - BRACE_HEIGHT / 2 - BRACE_LABEL_GAP;
+    const labelTopY = labelBaselineY - style.fontSize * 0.85;
     slide.addText(labelText, {
-      x: toPptX(textX - textW / 2), y: toPptY(braceY - 20),
+      x: toPptX(textX - textW / 2), y: toPptY(labelTopY),
       w: pptTextWidthInch(labelText, style.fontSize), h: pptTextHeightInch(style.fontSize),
       fontSize: style.fontSize, fontFace: style.fontFamily,
       bold: style.fontWeight === 'bold', color: style.color.replace('#', ''),
@@ -244,22 +251,14 @@ export async function exportChartPptx(): Promise<void> {
   }
 
   const { pointLabels } = state;
-  const geometryCtx = {
-    visibleIds,
-    curves: state.curves,
-    offsets: state.offsets,
-    layerSpacing: state.layerSpacing,
-    yRangeForLayer,
-  };
   for (const pl of pointLabels) {
     if (pl.x < xRange[0] || pl.x > xRange[1]) continue;
     const style = resolveLabelStyle(pl.labelStyle, labelStyle);
     const labelText = pl.label || '未命名';
     const textW = estimateTextWidth(labelText, style.fontSize);
-    const rawPx = convertXToPixel(pl.x);
-    const px = clampLabelX(rawPx, textW, gridLeft, gridRight, chartWidth);
-    const rawPy = getTopCurvePixelYAtX(pl.x, geometryCtx, yToPixelExport) + pl.yOffset;
-    const py = clampLabelY(rawPy, 6, useGridTop, chartHeight - gridBottom);
+    // Absolute data Y → pixel Y. No dependency on any curve.
+    const px = convertXToPixel(pl.x);
+    const py = yToPixelExport(pl.y);
 
     const dotRadius = 3;
     addEllipse(slide, toPptX(px - dotRadius), toPptY(py - dotRadius), toPptW(dotRadius * 2), toPptH(dotRadius * 2), style.color.replace('#', ''));

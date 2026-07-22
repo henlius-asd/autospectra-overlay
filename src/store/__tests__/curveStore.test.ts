@@ -14,7 +14,7 @@ const CURVE_STORE_INITIAL = {
   globalScale: 1,
   baselineId: null as string | null,
   braces: [] as BraceAnnotation[],
-  pointLabels: [] as { id: string; x: number; yOffset: number; label: string }[],
+  pointLabels: [] as { id: string; x: number; y: number; label: string }[],
 };
 
 describe('globalScale', () => {

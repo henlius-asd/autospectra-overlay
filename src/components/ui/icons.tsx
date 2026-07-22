@@ -54,10 +54,10 @@ export function SelectIcon(props: SVGProps<SVGSVGElement>) {
 }
 
 export function BraceIcon(props: SVGProps<SVGSVGElement>) {
+  // Overbrace ⏜: spike points UP, arms open DOWN — matches the brace drawn on the chart.
   return (
     <Icon {...props}>
-      <path d="M9 4c-2 0-3 1-3 3v2c0 2-1 3-3 3 2 0 3 1 3 3v2c0 2 1 3 3 3" />
-      <path d="M15 4c2 0 3 1 3 3v2c0 2 1 3 3 3-2 0-3 1-3 3v2c0 2-1 3-3 3" />
+      <path d="M4 18 Q4 13 8 13 Q12 13 12 6 Q12 13 16 13 Q20 13 20 18" />
     </Icon>
   );
 }

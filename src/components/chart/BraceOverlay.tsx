@@ -2,8 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import type { PointerEvent as ReactPointerEvent } from 'react';
 import { useCurveStore, useUiStore } from '@/store';
 import type { BraceAnnotation } from '@/types';
-import { bracePath, BRACE_COLOR } from './bracePath';
-import { clampLabelX, estimateTextWidth } from './labelClamp';
+import { bracePath, BRACE_COLOR, BRACE_HEIGHT, BRACE_LABEL_GAP } from './bracePath';
 import { resolveLabelStyle } from './resolveLabelStyle';
 
 interface BraceOverlayProps {
@@ -33,13 +32,16 @@ export default function BraceOverlay({
   const [editingBrace, setEditingBrace] = useState<BraceAnnotation | null>(null);
   const [dragStart, setDragStart] = useState<number | null>(null);
   const [dragEnd, setDragEnd] = useState<number | null>(null);
+  const [placementY, setPlacementY] = useState<number | null>(null);
   const [labelInput, setLabelInput] = useState('');
   const svgRef = useRef<SVGSVGElement>(null);
   const [dragging, setDragging] = useState<{
     id: string;
     startClientX: number;
+    startClientY: number;
     origStartX: number;
     origEndX: number;
+    origYOffset: number;
   } | null>(null);
   const dragMovedRef = useRef(false);
 
@@ -49,8 +51,10 @@ export default function BraceOverlay({
       const rect = svgRef.current?.getBoundingClientRect();
       if (!rect) return;
       const px = e.clientX - rect.left;
+      const py = e.clientY - rect.top;
       setDragStart(px);
       setDragEnd(px);
+      setPlacementY(py);
       svgRef.current?.setPointerCapture(e.pointerId);
       e.stopPropagation();
     },
@@ -65,8 +69,10 @@ export default function BraceOverlay({
       setDragging({
         id: brace.id,
         startClientX: e.clientX,
+        startClientY: e.clientY,
         origStartX: brace.startX,
         origEndX: brace.endX,
+        origYOffset: brace.yOffset ?? 0,
       });
       (e.target as HTMLElement).setPointerCapture(e.pointerId);
     },
@@ -77,7 +83,8 @@ export default function BraceOverlay({
     (e: ReactPointerEvent<SVGSVGElement>) => {
       if (!bracePlacementMode && dragging) {
         const dx = e.clientX - dragging.startClientX;
-        if (Math.abs(dx) < 5) return; // below threshold: treat as click, don't move
+        const dy = e.clientY - dragging.startClientY;
+        if (Math.abs(dx) < 5 && Math.abs(dy) < 5) return; // below threshold: treat as click, don't move
         dragMovedRef.current = true;
         const origStartPx = convertXToPixel(dragging.origStartX);
         const newStartDataX = convertPixelToX(origStartPx + dx);
@@ -85,6 +92,7 @@ export default function BraceOverlay({
         updateBrace(dragging.id, {
           startX: dragging.origStartX + delta,
           endX: dragging.origEndX + delta,
+          yOffset: dragging.origYOffset + dy,
         });
         e.stopPropagation();
         return;
@@ -110,6 +118,7 @@ export default function BraceOverlay({
       if (!bracePlacementMode || dragStart === null || dragEnd === null) {
         setDragStart(null);
         setDragEnd(null);
+        setPlacementY(null);
         return;
       }
       const startX = Math.min(dragStart, dragEnd);
@@ -117,6 +126,7 @@ export default function BraceOverlay({
       if (endX - startX < 5) {
         setDragStart(null);
         setDragEnd(null);
+        setPlacementY(null);
         return;
       }
       const dataStartX = convertPixelToX(startX);
@@ -128,14 +138,16 @@ export default function BraceOverlay({
         startX: dataStartX,
         endX: dataEndX,
         label: '',
+        yOffset: placementY != null ? placementY - braceY : 0,
       };
       setEditingBrace(newBrace);
       setLabelInput('');
       setDragStart(null);
       setDragEnd(null);
+      setPlacementY(null);
       setInteractionMode('select');
     },
-    [bracePlacementMode, dragging, dragStart, dragEnd, convertPixelToX, setInteractionMode],
+    [bracePlacementMode, dragging, dragStart, dragEnd, placementY, convertPixelToX, braceY, setInteractionMode],
   );
 
   // Cancel placement on Escape
@@ -144,6 +156,7 @@ export default function BraceOverlay({
       if (e.key === 'Escape' && bracePlacementMode) {
         setDragStart(null);
         setDragEnd(null);
+        setPlacementY(null);
         setInteractionMode('select');
       }
     },
@@ -184,8 +197,6 @@ export default function BraceOverlay({
     (b) => b.startX <= xRange[1] && b.endX >= xRange[0],
   );
 
-  const y = braceY;
-
   // Drag preview bounds
   const previewLeft =
     dragStart !== null && dragEnd !== null ? Math.min(dragStart, dragEnd) : null;
@@ -196,6 +207,10 @@ export default function BraceOverlay({
   const dialogLeft = editingBrace
     ? (convertXToPixel(editingBrace.startX) + convertXToPixel(editingBrace.endX)) / 2 - 100
     : width / 2 - 100;
+  // Dialog vertical position: follow the editing brace's own baseline (with yOffset).
+  const dialogTop = editingBrace
+    ? braceY + (editingBrace.yOffset ?? 0) - 60
+    : braceY - 60;
 
   return (
     <>
@@ -220,26 +235,47 @@ export default function BraceOverlay({
             const px1 = convertXToPixel(brace.startX);
             const px2 = convertXToPixel(brace.endX);
             const labelText = brace.label || '未命名';
-            const textW = estimateTextWidth(labelText, style.fontSize);
-            const textX = clampLabelX(
-              (px1 + px2) / 2,
-              textW,
-              60,
-              48,
-              width,
-            );
+            // Per-brace baseline: default braceY + free vertical offset. No
+            // horizontal clamping — labels are freely positionable.
+            const y = braceY + (brace.yOffset ?? 0);
+            const textX = (px1 + px2) / 2;
             return (
               <g
                 key={brace.id}
                 style={{ pointerEvents: 'auto', cursor: dragging?.id === brace.id ? 'grabbing' : 'grab' }}
                 onPointerDown={(e) => handleBracePointerDown(e, brace)}
               >
+                {/* Invisible hit area — wider stroke for easy grabbing */}
+                <path
+                  d={bracePath(px1, px2, y)}
+                  fill="none"
+                  stroke="transparent"
+                  strokeWidth={16}
+                  onDoubleClick={(e) => {
+                    if (dragMovedRef.current) return;
+                    e.stopPropagation();
+                    handleBraceClick(brace);
+                  }}
+                />
+                {/* Invisible hit area around the label text */}
+                <rect
+                  x={textX - labelText.length * style.fontSize * 0.3}
+                  y={y - BRACE_HEIGHT / 2 - BRACE_LABEL_GAP - style.fontSize}
+                  width={labelText.length * style.fontSize * 0.6}
+                  height={style.fontSize * 1.3}
+                  fill="transparent"
+                  onDoubleClick={(e) => {
+                    if (dragMovedRef.current) return;
+                    e.stopPropagation();
+                    handleBraceClick(brace);
+                  }}
+                />
                 <path
                   d={bracePath(px1, px2, y)}
                   fill="none"
                   stroke={BRACE_COLOR}
                   strokeWidth={2}
-                  onClick={(e) => {
+                  onDoubleClick={(e) => {
                     if (dragMovedRef.current) return;
                     e.stopPropagation();
                     handleBraceClick(brace);
@@ -247,13 +283,13 @@ export default function BraceOverlay({
                 />
                 <text
                   x={textX}
-                  y={y - 10}
+                  y={y - BRACE_HEIGHT / 2 - BRACE_LABEL_GAP}
                   textAnchor="middle"
                   fontSize={style.fontSize}
                   fontFamily={style.fontFamily}
                   fontWeight={style.fontWeight}
                   fill={style.color}
-                  onClick={(e) => {
+                  onDoubleClick={(e) => {
                     if (dragMovedRef.current) return;
                     e.stopPropagation();
                     handleBraceClick(brace);
@@ -280,7 +316,7 @@ export default function BraceOverlay({
                 strokeDasharray="4 2"
               />
               <path
-                d={bracePath(previewLeft, previewRight, y)}
+                d={bracePath(previewLeft, previewRight, placementY ?? braceY)}
                 fill="none"
                 stroke={BRACE_COLOR}
                 strokeWidth={2}
@@ -297,7 +333,7 @@ export default function BraceOverlay({
           className="absolute bg-surface-raised border border-line rounded-lg shadow-overlay p-3 flex flex-col gap-2 z-50"
           style={{
             left: Math.max(8, Math.min(dialogLeft, width - 220)),
-            top: y - 60,
+            top: dialogTop,
             width: 200,
           }}
         >

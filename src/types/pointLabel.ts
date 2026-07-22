@@ -1,12 +1,12 @@
 import type { LabelStyle } from './curve';
 
-/** Point label annotation — a single X position with a label above the top curve */
+/** Point label annotation — a single X,Y position with a label */
 export interface PointLabel {
   id: string;
   /** Data coordinate X */
   x: number;
-  /** Pixel offset from the top curve's pixel Y at this label's X position (negative = above) */
-  yOffset: number;
+  /** Data coordinate Y (absolute, independent of any curve) */
+  y: number;
   /** Display label text */
   label: string;
   /** Per-label style override (merges with default labelStyle) */

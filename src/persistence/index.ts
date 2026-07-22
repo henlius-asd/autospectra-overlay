@@ -56,7 +56,12 @@ export function applyWorkspaceSnapshot(data: Record<string, unknown>) {
     stagingOrder: (data.stagingOrder ?? []) as string[],
     visibleCurves: (data.visibleCurves ?? {}) as Record<string, boolean>,
     layerSpacing: (data.version as number) === 2 ? ((data.layerSpacing as number) ?? 0) : 0,
-    pointLabels: (data.pointLabels ?? []) as CurveStoreState['pointLabels'],
+    // Migrate old point labels: pre-decouple format stored `yOffset` (relative
+    // to top curve) instead of absolute `y`. Old labels get y=0; user re-drags.
+    pointLabels: ((data.pointLabels ?? []) as Array<{ id: string; x: number; y?: number; label: string; labelStyle?: unknown }>).map(pl => ({
+      ...pl,
+      y: pl.y ?? 0,
+    })) as CurveStoreState['pointLabels'],
     curveScales: (data.curveScales ?? {}) as Record<string, number>,
     curveScaleOffsets: (data.curveScaleOffsets ?? {}) as Record<string, number>,
     globalScale: (data.globalScale ?? 1) as number,
