@@ -4,7 +4,6 @@ export interface LabelStyle {
   fontFamily: string;
   fontWeight: 'normal' | 'bold';
   color: string;
-  backgroundColor: string;
 }
 
 export const DEFAULT_LABEL_STYLE: LabelStyle = {
@@ -12,7 +11,6 @@ export const DEFAULT_LABEL_STYLE: LabelStyle = {
   fontFamily: 'sans-serif',
   fontWeight: 'normal',
   color: '#333333',
-  backgroundColor: '#ffffff',
 };
 
 /** Line type enumeration for curve stroke style. */

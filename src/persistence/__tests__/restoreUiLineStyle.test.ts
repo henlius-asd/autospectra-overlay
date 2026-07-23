@@ -67,7 +67,7 @@ describe('restoreWorkspace — UI lineStyle hydration (regression for controlled
       savedAt: Date.now(),
     };
     stores.memory['current_ui'] = {
-      labelStyle: { color: '#9a9a9a' }, // missing fontSize, fontFamily, fontWeight, backgroundColor
+      labelStyle: { color: '#9a9a9a' }, // missing fontSize, fontFamily, fontWeight
     };
 
     await restoreWorkspace();
@@ -78,7 +78,6 @@ describe('restoreWorkspace — UI lineStyle hydration (regression for controlled
     expect(ls.fontSize).toBeTypeOf('number');
     expect(ls.fontFamily).toBe('sans-serif');
     expect(ls.fontWeight).toBe('normal');
-    expect(ls.backgroundColor).toBe('#ffffff');
     expect(ls.color).toBe('#9a9a9a');
   });
 

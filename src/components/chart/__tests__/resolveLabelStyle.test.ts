@@ -32,7 +32,7 @@ describe('resolveLabelStyle', () => {
     expect(resolved.fontFamily).toBe(defaultStyle.fontFamily);
 
     const resolvedAll = resolveLabelStyle(
-      { fontSize: null, fontFamily: null, fontWeight: null, color: null, backgroundColor: null },
+      { fontSize: null, fontFamily: null, fontWeight: null, color: null },
       defaultStyle,
     );
     expect(resolvedAll).toEqual(defaultStyle);

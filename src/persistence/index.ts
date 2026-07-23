@@ -143,11 +143,7 @@ function hydrateLabelStyle(partial: unknown): LabelStyle {
       : DEFAULT_LABEL_STYLE.fontWeight;
   const color =
     typeof src.color === 'string' ? src.color : DEFAULT_LABEL_STYLE.color;
-  const backgroundColor =
-    typeof src.backgroundColor === 'string'
-      ? src.backgroundColor
-      : DEFAULT_LABEL_STYLE.backgroundColor;
-  return { fontSize, fontFamily, fontWeight, color, backgroundColor };
+  return { fontSize, fontFamily, fontWeight, color };
 }
 
 /**

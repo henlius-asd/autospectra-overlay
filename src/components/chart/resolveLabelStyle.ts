@@ -27,6 +27,5 @@ export function resolveLabelStyle(
   if (override.fontFamily != null) picked.fontFamily = override.fontFamily;
   if (override.fontWeight != null) picked.fontWeight = override.fontWeight;
   if (override.color != null) picked.color = override.color;
-  if (override.backgroundColor != null) picked.backgroundColor = override.backgroundColor;
   return { ...defaultStyle, ...picked };
 }

@@ -152,7 +152,7 @@ function buildWorkspaceJson(curveLineStyle: Record<string, unknown> | null): str
     colorHistory: [],
     showLegend: true,
     exportWithLegend: false,
-    labelStyle: { fontSize: 10, fontFamily: 'sans-serif', fontWeight: 'normal', color: '#333333', backgroundColor: '#ffffff' },
+    labelStyle: { fontSize: 10, fontFamily: 'sans-serif', fontWeight: 'normal', color: '#333333' },
     lineStyle: { width: 1.5, type: 'solid', color: '#000000' },
     showGrid: true,
     showXAxis: true,
