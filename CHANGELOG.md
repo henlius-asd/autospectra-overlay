@@ -8,6 +8,34 @@ Release workflow: see [docs/VERSIONING.md](docs/VERSIONING.md).
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-07-24
+
+### Added
+- UI 重设计 Phase 1-3：工具栏、工具箱、响应式布局重构。
+- 设计令牌体系：语义化 CSS 变量 + Tailwind 映射 + 全组件色值替换。
+- Radix 原语化：DropdownMenu / Accordion / ToggleGroup / Tooltip + lucide-react 图标。
+- 交互模式重构为统一工具系统（toolbar tool system）。
+- 图例图标继承系列样式，统一圆点和线段颜色。
+- 视口保持：刷新 / 切工具 / 缩放 / 框选后不再丢失 X/Y 缩放。
+- 面板宽度可拖拽调整并持久化到 localStorage。
+- 交互增强：模式快捷键、面板拖拽调宽、icon rail、模式指示器。
+- Brace 区间标签 PPT 风格 shape + 自由位置放置。
+- 曲线线条样式自定义（颜色 / 宽度 / 虚线）+ 取色器。
+
+### Changed
+- **BREAKING** 缩放模型简化：归一化合并入 `curveScales`，三层模型（normalize × global × manual）简化为两层（global × curveScale）；快照升至 v4，v3→v4 自动迁移。
+- 工具箱面板重排：元数据 → 自动叠图 → 层间距 → 标签样式 → 曲线样式 → 显示设置；默认仅展开元数据+自动叠图；归一化/重置前加确认提示。
+- Brace 区间标签纵向参考系对齐点标签绝对数据 Y（持久化 v4→v5 迁移 + 首渲染保位置迁移）。
+- 点标签 legacy yOffset 迁移从有损 `y=0` 升级为保位置。
+- 移除 `LabelStyle.backgroundColor` 死代码。
+
+### Fixed
+- brace 模式放置区间标签时 Y 轴缩放坍塌（brace 分支保留四组件 + disabled 冻结 Y）。
+- 受控 color picker `el.value` 还原导致取色器无法确认选择——改为非受控 `defaultValue`。
+- 全局样式水合缺字段触发受控/非受控警告——`restoreWorkspace` 改用 `hydrate*` 合并默认+类型校验。
+- null 样式颜色导致 PPTX/PNG 导出 crash——`resolveLineStyle` / `LabelStyle` 兜底。
+- 框选放大后 select 模式拖拽平移失效——`dataZoom.disabled` 未清除。
+
 ## [0.5.0] - 2026-07-14
 
 ### Added
@@ -79,7 +107,8 @@ Release workflow: see [docs/VERSIONING.md](docs/VERSIONING.md).
 ### Added
 - 首个 GitHub Pages 自动部署工作流（push to master 触发构建并发布）。
 
-[Unreleased]: https://github.com/henlius-asd/autospectra-overlay/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/henlius-asd/autospectra-overlay/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/henlius-asd/autospectra-overlay/releases/tag/v0.6.0
 [0.5.0]: https://github.com/henlius-asd/autospectra-overlay/releases/tag/v0.5.0
 [0.4.0]: https://github.com/henlius-asd/autospectra-overlay/releases/tag/v0.4.0
 [0.3.1]: https://github.com/henlius-asd/autospectra-overlay/releases/tag/v0.3.1
