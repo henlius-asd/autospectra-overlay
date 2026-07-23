@@ -44,6 +44,15 @@ if (import.meta.env.DEV && typeof window !== 'undefined') {
       chartInstance.dispatchAction({ type: 'dataZoom', dataZoomId: 'xZoom', startValue: start, endValue: end });
       chartInstance.dispatchAction({ type: 'dataZoom', dataZoomId: 'xZoomSlider', startValue: start, endValue: end });
     },
+    // DEV-only: drive a chart-originated Y dataZoom so e2e can inject a
+    // trustworthy Y zoom (real wheel events can't be synthesised by Playwright
+    // for ECharts dataZoom, same limitation as color inputs). onDataZoom
+    // writes store.yZoomRange so this doubles as test-state setup.
+    dispatchYZoom: (start: number, end: number) => {
+      if (!chartInstance) return;
+      chartInstance.dispatchAction({ type: 'dataZoom', dataZoomId: 'yZoom', startValue: start, endValue: end });
+      chartInstance.dispatchAction({ type: 'dataZoom', dataZoomId: 'yZoomSlider', startValue: start, endValue: end });
+    },
   };
 }
 
@@ -466,9 +475,6 @@ legend: {
         splitLine: { show: showGrid, lineStyle: { color: themeColors.line } },
       },
       dataZoom: (() => {
-        if (interactionMode === 'brace') {
-          return [{ id: 'xZoomSlider', type: 'slider', xAxisIndex: 0, bottom: 10 }];
-        }
         const disableInside = interactionMode !== 'select' && !spaceHeld;
         // Keep `type: 'inside'` and use `disabled: true` instead of switching to
         // `type: 'slider' (show: false)`. Changing the dataZoom type recreates
@@ -485,6 +491,16 @@ legend: {
         // left the inside dataZoom disabled, which silently swallowed all
         // wheel/drag input and broke drag-pan (no dataZoom event fired). Emit
         // `disabled: disableInside` so the merge always overwrites it.
+        //
+        // brace mode: previously this branch returned ONLY xZoomSlider, which
+        // REMOVED yZoom/yZoomSlider via replaceMerge and collapsed the Y
+        // viewport to full range during placement (the store value survived
+        // but the chart could not hold it, and the viewport-restore dispatch
+        // to the now-absent IDs was a no-op). brace now falls through to the
+        // same four-component path as every other non-select mode; in brace
+        // disableInside is true, so xZoom/yZoom/yZoomSlider are frozen
+        // (disabled) while xZoomSlider stays available for X positioning, and
+        // the Y viewport is preserved across the brace round-trip.
         const xInside = { id: 'xZoom', type: 'inside' as const, xAxisIndex: 0, disabled: disableInside };
         const xZoom: EChartsOption['dataZoom'] = [
           xInside,
@@ -496,7 +512,7 @@ legend: {
         };
         const ySlider: Record<string, unknown> = {
           id: 'yZoomSlider', type: 'slider', yAxisIndex: 0, orient: 'vertical',
-          left: 60 - 14 - 4, width: 14, filterMode: 'none', minValueSpan: yMinSpan,
+          left: 60 - 14 - 4, width: 14, filterMode: 'none', minValueSpan: yMinSpan, disabled: disableInside,
         };
         return [...xZoom, yInside, ySlider] as EChartsOption['dataZoom'];
       })(),

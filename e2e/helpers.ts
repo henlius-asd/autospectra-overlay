@@ -35,6 +35,30 @@ export async function setStoreXRange(page: import('@playwright/test').Page, rang
   }, range);
 }
 
+/** Read the live Y visible extent straight from the ECharts model via the seam. */
+export async function getYExtent(page: import('@playwright/test').Page): Promise<[number, number] | null> {
+  return page.evaluate(() => (window as any).__autospectra?.getYExtent?.() ?? null);
+}
+
+export async function getStoreYZoomRange(page: import('@playwright/test').Page): Promise<[number, number] | null> {
+  return page.evaluate(() => {
+    const s = (window as any).__autospectra?.getUiState?.();
+    return s?.yZoomRange ? ([s.yZoomRange[0], s.yZoomRange[1]] as [number, number]) : null;
+  });
+}
+
+export async function setStoreYZoomRange(page: import('@playwright/test').Page, range: [number, number] | null): Promise<void> {
+  await page.evaluate((r) => {
+    const s = (window as any).__autospectra?.getUiState?.();
+    s?.setYZoomRange(r);
+  }, range);
+}
+
+/** Drive a chart-originated Y dataZoom via the DEV seam (wheel events can't be synthesised by Playwright for ECharts dataZoom). */
+export async function dispatchYZoom(page: import('@playwright/test').Page, start: number, end: number): Promise<void> {
+  await page.evaluate(([s, e]) => (window as any).__autospectra?.dispatchYZoom?.(s, e), [start, end]);
+}
+
 export async function setInteractionMode(page: import('@playwright/test').Page, mode: string): Promise<void> {
   await page.evaluate((m) => {
     const s = (window as any).__autospectra?.getUiState?.();

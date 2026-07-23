@@ -11,6 +11,9 @@ import {
   toggleRightPanel,
   waitForViewportSettled,
   prepareChartWithFullExtent,
+  getYExtent,
+  getStoreYZoomRange,
+  dispatchYZoom,
 } from './helpers';
 
 /**
@@ -92,25 +95,44 @@ test('H2: X zoom survives select -> zoomGlobal -> select (inside <-> hidden slid
   expect(await getXExtent(page), 'chart X extent preserved after returning to select').toEqual(subRange);
 });
 
-test('H3: X zoom survives select -> brace -> select (component removal)', async ({ page }) => {
+test('H3: X and Y zoom survive select -> brace -> select (component removal)', async ({ page }) => {
   const [xMin, xMax] = await prepareChartWithFullExtent(page);
   const span = xMax - xMin;
   const subRange: [number, number] = [xMin + Math.round(span * 0.25), xMin + Math.round(span * 0.5)];
   await setStoreXRange(page, subRange);
   await waitForViewportSettled(page);
-  expect(await getXExtent(page), 'chart at sub-range before brace').toEqual(subRange);
+  expect(await getXExtent(page), 'chart at X sub-range before brace').toEqual(subRange);
 
-  // brace mode REMOVES the xZoom/yZoom/yZoomSlider dataZoom components
-  // (option returns only xZoomSlider), the most destructive mode transition.
+  // Inject a Y sub-range via a chart-originated dataZoom (real wheel events
+  // can't be synthesised by Playwright for ECharts dataZoom). onDataZoom
+  // writes store.yZoomRange so this doubles as test-state setup.
+  const fullY = await getYExtent(page);
+  expect(fullY, 'chart reports a Y extent before zoom').not.toBeNull();
+  const ySpan = fullY![1] - fullY![0];
+  const ySubRange: [number, number] = [fullY![0] + ySpan * 0.25, fullY![0] + ySpan * 0.5];
+  await dispatchYZoom(page, ySubRange[0], ySubRange[1]);
+  await waitForViewportSettled(page);
+  expect(await getStoreYZoomRange(page), 'store yZoomRange set by chart zoom').toEqual(ySubRange);
+  expect(await getYExtent(page), 'chart at Y sub-range before brace').toEqual(ySubRange);
+
+  // brace mode previously REMOVED the yZoom/yZoomSlider dataZoom components
+  // (option returned only xZoomSlider), collapsing Y back to full range while
+  // the store value survived. After the fix all four components are retained
+  // (disabled), so both X and Y viewport survive the brace round-trip.
   await setInteractionMode(page, 'brace');
   await waitForViewportSettled(page);
   expect(await getStoreXRange(page), 'store xRange preserved in brace').toEqual(subRange);
+  expect(await getStoreYZoomRange(page), 'store yZoomRange preserved in brace').toEqual(ySubRange);
+  expect(await getXExtent(page), 'chart X extent preserved in brace').toEqual(subRange);
+  expect(await getYExtent(page), 'chart Y extent preserved in brace (no collapse)').toEqual(ySubRange);
 
-  // Returning to select recreates all four dataZoom components fresh.
+  // Returning to select: disabled flips back; X and Y viewport stay.
   await setInteractionMode(page, 'select');
   await waitForViewportSettled(page);
   expect(await getStoreXRange(page), 'store xRange preserved after brace round-trip').toEqual(subRange);
+  expect(await getStoreYZoomRange(page), 'store yZoomRange preserved after brace round-trip').toEqual(ySubRange);
   expect(await getXExtent(page), 'chart X extent preserved after brace round-trip').toEqual(subRange);
+  expect(await getYExtent(page), 'chart Y extent preserved after brace round-trip').toEqual(ySubRange);
 });
 
 test('H4: workspace import X range wins over a prior brush zoom', async ({ page }) => {
