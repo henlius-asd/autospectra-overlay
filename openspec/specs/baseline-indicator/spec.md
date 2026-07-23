@@ -3,7 +3,7 @@
 ## Purpose
 基准线可视化标识。在左栏曲线列表中用 ★ 星标标识当前基准线，支持基准线切换时实时更新。
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: 基准线 ★ 标识
 

@@ -1,6 +1,6 @@
 # Spec: ui-primitives
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: 菜单原语基于 Radix DropdownMenu
 

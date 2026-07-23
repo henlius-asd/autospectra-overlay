@@ -2,9 +2,7 @@
 
 ## Purpose
 Y 轴缩放滑条，在选中曲线左侧显示垂直滑条，拖拽滑块实时缩放曲线。替代因 ECharts click 事件限制而不可用的峰值拖拽手柄。
-
-## ADDED Requirements
-
+## Requirements
 ### Requirement: 曲线选中机制
 
 系统 SHALL 使用单一 `selectedCurveId` 作为曲线选中态，同时驱动元数据面板、列表高亮、缩放目标。删除 `activeScaledCurveId`。用户 SHALL 可通过曲线列表点击或图表渲染区点击选中曲线。点击已选中曲线 SHALL 取消选中。
@@ -31,11 +29,11 @@ Y 轴缩放滑条，在选中曲线左侧显示垂直滑条，拖拽滑块实时
 
 ### Requirement: 缩放倍率显示
 
-系统 SHALL 在图表渲染区域以 `pointerEvents: 'none'` 纯展示元素显示数值 badge。单曲线缩放激活时 SHALL 显示选中曲线的复合有效倍率 `×(normalize × global × manual)` 和偏移量 `Δ{scaleOffset}`。全局缩放激活时 SHALL 显示全局倍率 `×{globalScale}`。不存在垂直滑条 UI；倍率通过数值 badge 展示，缩放操作通过鼠标滚轮、Shift+拖拽和双击复位完成。
+系统 SHALL 在图表渲染区域以 `pointerEvents: 'none'` 纯展示元素显示数值 badge。单曲线缩放激活时 SHALL 显示选中曲线的复合有效倍率 `×(global × curveScale)` 和偏移量 `Δ{scaleOffset}`。全局缩放激活时 SHALL 显示全局倍率 `×{globalScale}`。不存在垂直滑条 UI；倍率通过数值 badge 展示，缩放操作通过鼠标滚轮、Shift+拖拽和双击复位完成。
 
 #### Scenario: 单曲线缩放显示复合倍率
 
-- **WHEN** 单曲线缩放激活，曲线 A 被选中，normalizeFactor=2、globalScale=1.5、curveScale=1
+- **WHEN** 单曲线缩放激活，曲线 A 被选中，curveScale=2、globalScale=1.5
 - **THEN** badge 显示 `×3.0`
 
 #### Scenario: 全局缩放显示全局倍率
@@ -132,3 +130,23 @@ Y 轴缩放滑条，在选中曲线左侧显示垂直滑条，拖拽滑块实时
 
 - **WHEN** 用户在任一缩放模式下按下 Esc 键
 - **THEN** `selectedCurveId` 设为 null，但缩放模式保持激活
+
+### Requirement: 面板内全局缩放值显示
+
+系统 SHALL 在工具箱「自动叠图」面板的「缩放」分区标题旁显示当前 `globalScale` 值，格式为 `缩放 ×{globalScale.toFixed(1)}`。显示 SHALL 通过 `useCurveStore` 订阅实时更新。当 `globalScale` 为 1 时 SHALL 显示 `×1.0`，不隐藏。
+
+#### Scenario: 默认值显示
+
+- **WHEN** 页面加载，`globalScale` 为默认值 1
+- **THEN** 「缩放」标题旁显示 `×1.0`
+
+#### Scenario: 全局缩放后实时更新
+
+- **WHEN** 用户在全局缩放模式下滚轮将 `globalScale` 调至 2.5
+- **THEN** 「缩放」标题旁显示 `×2.5`
+
+#### Scenario: 双击复位后更新
+
+- **WHEN** 用户在全局缩放模式下双击复位，`globalScale` 回到 1
+- **THEN** 「缩放」标题旁显示 `×1.0`
+

@@ -1,6 +1,6 @@
 # Spec: interaction-ux
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: 交互模式键盘快捷键
 

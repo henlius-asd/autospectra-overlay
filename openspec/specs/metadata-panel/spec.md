@@ -3,7 +3,7 @@
 ## Purpose
 右侧栏元数据展示面板。选中曲线后显示对应文件的 metadata 键值对，支持切换曲线。
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: 元数据展示面板
 

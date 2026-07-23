@@ -10,7 +10,6 @@ const CURVE_STORE_INITIAL = {
   layerSpacing: 0,
   curveScales: {},
   curveScaleOffsets: {},
-  normalizeFactors: {},
   globalScale: 1,
   baselineId: null as string | null,
   braces: [] as BraceAnnotation[],
@@ -38,24 +37,12 @@ describe('globalScale', () => {
   });
 });
 
-describe('normalizeFactors', () => {
-  it('defaults to empty object', () => {
-    expect(useCurveStore.getState().normalizeFactors).toEqual({});
+describe('normalizeAllPeak (writes to curveScales)', () => {
+  beforeEach(() => {
+    useCurveStore.setState(CURVE_STORE_INITIAL);
   });
 
-  it('setNormalizeFactor sets a factor for a curve', () => {
-    useCurveStore.getState().setNormalizeFactor('curveA', 2.0);
-    expect(useCurveStore.getState().normalizeFactors['curveA']).toBe(2.0);
-  });
-
-  it('clearNormalizeFactors resets all to empty', () => {
-    useCurveStore.getState().setNormalizeFactor('curveA', 2.0);
-    useCurveStore.getState().setNormalizeFactor('curveB', 0.5);
-    useCurveStore.getState().clearNormalizeFactors();
-    expect(useCurveStore.getState().normalizeFactors).toEqual({});
-  });
-
-  it('normalizeAllPeak sets factors relative to baseline peak', () => {
+  it('sets curveScales relative to baseline peak', () => {
     const curveA: CurveData = { name: 'A', lineStyle: { color: '#000' }, data: [[0, 50], [1, 100], [2, 80]] as DataPoint[] };
     const curveB: CurveData = { name: 'B', lineStyle: { color: '#111' }, data: [[0, 200], [1, 150], [2, 180]] as DataPoint[] };
     useCurveStore.getState().addCurves([curveA, curveB]);
@@ -67,20 +54,50 @@ describe('normalizeFactors', () => {
     useCurveStore.getState().toggleCurveVisibility(idB);
     // idB is last in stagingOrder → baseline
     useCurveStore.getState().normalizeAllPeak([0, 2]);
-    const factors = useCurveStore.getState().normalizeFactors;
-    // baselinePeak = 200, curveA peak = 100, factor = 200/100 = 2
-    expect(factors[idA]).toBeCloseTo(2.0, 5);
-    // curveB peak = 200, factor = 200/200 = 1
-    expect(factors[idB]).toBeCloseTo(1.0, 5);
+    const scales = useCurveStore.getState().curveScales;
+    // baselinePeak = 200, curveA peak = 100, scale = 200/100 = 2
+    expect(scales[idA]).toBeCloseTo(2.0, 5);
+    // curveB peak = 200, scale = 200/200 = 1
+    expect(scales[idB]).toBeCloseTo(1.0, 5);
   });
 
-  it('removeCurve cleans up normalizeFactors', () => {
-    const curve: CurveData = { name: 'C', lineStyle: { color: '#000' }, data: [[0, 10]] as DataPoint[] };
-    useCurveStore.getState().addCurves([curve]);
-    const id = Object.keys(useCurveStore.getState().curves)[0];
-    useCurveStore.getState().setNormalizeFactor(id, 3.0);
-    useCurveStore.getState().removeCurve(id);
-    expect(useCurveStore.getState().normalizeFactors[id]).toBeUndefined();
+  it('overwrites existing manual curveScales', () => {
+    const curveA: CurveData = { name: 'A', lineStyle: { color: '#000' }, data: [[0, 50], [1, 100]] as DataPoint[] };
+    const curveB: CurveData = { name: 'B', lineStyle: { color: '#111' }, data: [[0, 200], [1, 150]] as DataPoint[] };
+    useCurveStore.getState().addCurves([curveA, curveB]);
+    const ids = Object.keys(useCurveStore.getState().curves);
+    useCurveStore.getState().toggleCurveVisibility(ids[0]);
+    useCurveStore.getState().toggleCurveVisibility(ids[1]);
+    // Set a manual scale first
+    useCurveStore.getState().setCurveScale(ids[0], 1.8);
+    expect(useCurveStore.getState().curveScales[ids[0]]).toBe(1.8);
+    // Normalize overwrites it
+    useCurveStore.getState().normalizeAllPeak([0, 1]);
+    // baselinePeak = 200, curveA peak = 100, scale = 2.0 (not 1.8)
+    expect(useCurveStore.getState().curveScales[ids[0]]).toBeCloseTo(2.0, 5);
+  });
+});
+
+describe('resetCurveScales', () => {
+  beforeEach(() => {
+    useCurveStore.setState(CURVE_STORE_INITIAL);
+  });
+
+  it('clears all curveScales and curveScaleOffsets', () => {
+    useCurveStore.setState({
+      curveScales: { c1: 2.0, c2: 0.5 },
+      curveScaleOffsets: { c1: 10, c2: -5 },
+    });
+    useCurveStore.getState().resetCurveScales();
+    expect(useCurveStore.getState().curveScales).toEqual({});
+    expect(useCurveStore.getState().curveScaleOffsets).toEqual({});
+  });
+
+  it('does not affect globalScale', () => {
+    useCurveStore.setState({ curveScales: { c1: 2.0 }, globalScale: 1.5 });
+    useCurveStore.getState().resetCurveScales();
+    expect(useCurveStore.getState().curveScales).toEqual({});
+    expect(useCurveStore.getState().globalScale).toBe(1.5);
   });
 });
 

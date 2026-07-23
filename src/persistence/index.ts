@@ -25,7 +25,7 @@ type CurveStoreState = ReturnType<typeof useCurveStore.getState>;
  */
 export function buildWorkspaceSnapshot(state: CurveStoreState) {
   return {
-    version: 3,
+    version: 4,
     curves: state.curves,
     offsets: state.offsets,
     baselineId: state.baselineId,
@@ -37,7 +37,6 @@ export function buildWorkspaceSnapshot(state: CurveStoreState) {
     curveScales: state.curveScales,
     curveScaleOffsets: state.curveScaleOffsets,
     globalScale: state.globalScale,
-    normalizeFactors: state.normalizeFactors,
     locked: state.locked,
     savedAt: Date.now(),
   };
@@ -79,6 +78,21 @@ export function applyWorkspaceSnapshot(data: Record<string, unknown>) {
   const curves = version < 3
     ? migrateCurvesV2ToV3(data.curves)
     : (data.curves ?? {}) as CurveStoreState['curves'];
+
+  // v3→v4 migration: normalizeFactors removed; merge into curveScales.
+  // curveScales[id] = (existing curveScale ?? 1) * (normalizeFactor ?? 1).
+  let curveScales = (data.curveScales ?? {}) as Record<string, number>;
+  if (version < 4) {
+    const normalizeFactors = (data.normalizeFactors ?? {}) as Record<string, number>;
+    if (Object.keys(normalizeFactors).length > 0) {
+      curveScales = { ...curveScales };
+      for (const [id, factor] of Object.entries(normalizeFactors)) {
+        const existingScale = curveScales[id] ?? 1;
+        curveScales[id] = existingScale * (factor ?? 1);
+      }
+    }
+  }
+
   return {
     curves,
     offsets: (data.offsets ?? {}) as CurveStoreState['offsets'],
@@ -93,10 +107,9 @@ export function applyWorkspaceSnapshot(data: Record<string, unknown>) {
       ...pl,
       y: pl.y ?? 0,
     })) as CurveStoreState['pointLabels'],
-    curveScales: (data.curveScales ?? {}) as Record<string, number>,
+    curveScales,
     curveScaleOffsets: (data.curveScaleOffsets ?? {}) as Record<string, number>,
     globalScale: (data.globalScale ?? 1) as number,
-    normalizeFactors: (data.normalizeFactors ?? {}) as Record<string, number>,
     locked: (data.locked ?? {}) as Record<string, boolean>,
   };
 }

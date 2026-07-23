@@ -22,7 +22,6 @@ interface CurveState {
   layerSpacing: number;
   curveScales: Record<string, number>;
   curveScaleOffsets: Record<string, number>;
-  normalizeFactors: Record<string, number>;
   globalScale: number;
   baselineId: string | null;
   locked: Record<string, boolean>;
@@ -40,9 +39,8 @@ interface CurveState {
   setCurveScaleOffset: (id: string, offset: number) => void;
   setGlobalScale: (s: number) => void;
   resetGlobalScale: () => void;
-  setNormalizeFactor: (id: string, f: number) => void;
   normalizeAllPeak: (xRange: [number, number]) => void;
-  clearNormalizeFactors: () => void;
+  resetCurveScales: () => void;
   setCurveLineStyle: (id: string, patch: Partial<LineStyle>) => void;
   clearCurveLineStyle: (id: string) => void;
   setStagingOrder: (order: string[]) => void;
@@ -86,7 +84,6 @@ export const useCurveStore = create<CurveState>()(
       layerSpacing: 0,
       curveScales: {},
       curveScaleOffsets: {},
-      normalizeFactors: {},
       globalScale: 1,
       baselineId: null,
       locked: {},
@@ -115,21 +112,18 @@ export const useCurveStore = create<CurveState>()(
           const offsets = { ...state.offsets };
           const curveScales = { ...state.curveScales };
           const curveScaleOffsets = { ...state.curveScaleOffsets };
-          const normalizeFactors = { ...state.normalizeFactors };
           const visibleCurves = { ...state.visibleCurves };
           const stagingOrder = state.stagingOrder.filter((oid) => oid !== id);
           delete curves[id];
           delete offsets[id];
           delete curveScales[id];
           delete curveScaleOffsets[id];
-          delete normalizeFactors[id];
           delete visibleCurves[id];
           return {
             curves,
             offsets,
             curveScales,
             curveScaleOffsets,
-            normalizeFactors,
             visibleCurves,
             stagingOrder,
             baselineId: deriveBaseline(stagingOrder, visibleCurves),
@@ -142,7 +136,6 @@ export const useCurveStore = create<CurveState>()(
           const offsets = { ...state.offsets };
           const curveScales = { ...state.curveScales };
           const curveScaleOffsets = { ...state.curveScaleOffsets };
-          const normalizeFactors = { ...state.normalizeFactors };
           const visibleCurves = { ...state.visibleCurves };
           const removedIds = new Set<string>();
 
@@ -152,7 +145,6 @@ export const useCurveStore = create<CurveState>()(
               delete offsets[id];
               delete curveScales[id];
               delete curveScaleOffsets[id];
-              delete normalizeFactors[id];
               delete visibleCurves[id];
               removedIds.add(id);
             }
@@ -165,7 +157,6 @@ export const useCurveStore = create<CurveState>()(
             offsets,
             curveScales,
             curveScaleOffsets,
-            normalizeFactors,
             visibleCurves,
             stagingOrder,
             baselineId: deriveBaseline(stagingOrder, visibleCurves),
@@ -239,11 +230,6 @@ export const useCurveStore = create<CurveState>()(
 
       resetGlobalScale: () => set({ globalScale: 1 }),
 
-      setNormalizeFactor: (id, f) =>
-        set((state) => ({
-          normalizeFactors: { ...state.normalizeFactors, [id]: f },
-        })),
-
       normalizeAllPeak: (xRange) =>
         set((state) => {
           const baselineId = deriveBaseline(state.stagingOrder, state.visibleCurves);
@@ -258,7 +244,7 @@ export const useCurveStore = create<CurveState>()(
             }
           }
           if (!isFinite(baselinePeak) || baselinePeak <= 0) return state;
-          const normalizeFactors = { ...state.normalizeFactors };
+          const curveScales = { ...state.curveScales };
           for (const id of state.stagingOrder) {
             if (!state.visibleCurves[id]) continue;
             const curve = state.curves[id];
@@ -271,15 +257,15 @@ export const useCurveStore = create<CurveState>()(
               }
             }
             if (isFinite(peak) && peak > 0) {
-              normalizeFactors[id] = baselinePeak / peak;
+              curveScales[id] = baselinePeak / peak;
             } else {
-              normalizeFactors[id] = 1;
+              curveScales[id] = 1;
             }
           }
-          return { normalizeFactors };
+          return { curveScales };
         }),
 
-      clearNormalizeFactors: () => set({ normalizeFactors: {} }),
+      resetCurveScales: () => set({ curveScales: {}, curveScaleOffsets: {} }),
 
       setCurveLineStyle: (id, patch) =>
         set((state) => {
@@ -356,7 +342,6 @@ export const useCurveStore = create<CurveState>()(
           layerSpacing: 0,
           curveScales: {},
           curveScaleOffsets: {},
-          normalizeFactors: {},
           globalScale: 1,
           baselineId: null,
           locked: {},

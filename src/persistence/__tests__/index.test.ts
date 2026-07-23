@@ -3,12 +3,11 @@ import { buildWorkspaceSnapshot, applyWorkspaceSnapshot } from '../index';
 import { useCurveStore } from '@/store';
 
 describe('buildWorkspaceSnapshot', () => {
-  it('includes all 12 required fields', () => {
+  it('includes all required fields', () => {
     useCurveStore.setState({
       curveScales: { c1: 2.0 },
       curveScaleOffsets: { c1: 30 },
       globalScale: 1.5,
-      normalizeFactors: { c1: 0.5 },
     });
     const state = useCurveStore.getState();
     const snapshot = buildWorkspaceSnapshot(state);
@@ -25,12 +24,11 @@ describe('buildWorkspaceSnapshot', () => {
     expect(snapshot).toHaveProperty('curveScales');
     expect(snapshot).toHaveProperty('curveScaleOffsets');
     expect(snapshot).toHaveProperty('globalScale');
-    expect(snapshot).toHaveProperty('normalizeFactors');
     expect(snapshot).toHaveProperty('savedAt');
+    expect(snapshot).not.toHaveProperty('normalizeFactors');
     expect(snapshot.curveScales).toEqual({ c1: 2.0 });
     expect(snapshot.curveScaleOffsets).toEqual({ c1: 30 });
     expect(snapshot.globalScale).toBe(1.5);
-    expect(snapshot.normalizeFactors).toEqual({ c1: 0.5 });
   });
 });
 
@@ -46,7 +44,6 @@ describe('applyWorkspaceSnapshot', () => {
     expect(result.curveScales).toEqual({});
     expect(result.curveScaleOffsets).toEqual({});
     expect(result.globalScale).toBe(1);
-    expect(result.normalizeFactors).toEqual({});
     expect(result.braces).toEqual([]);
     expect(result.pointLabels).toEqual([]);
     expect(result.stagingOrder).toEqual([]);
@@ -57,7 +54,7 @@ describe('applyWorkspaceSnapshot', () => {
 
   it('restores all fields from a complete snapshot', () => {
     const snapshot = {
-      version: 2,
+      version: 4,
       curves: { c1: { name: 'test', data: [[0, 1]] } },
       offsets: { c1: { xOffset: 5, yOffset: 0 } },
       baselineId: 'c1',
@@ -69,7 +66,6 @@ describe('applyWorkspaceSnapshot', () => {
       curveScales: { c1: 2.0 },
       curveScaleOffsets: { c1: 30 },
       globalScale: 1.5,
-      normalizeFactors: { c1: 0.5 },
       savedAt: Date.now(),
     };
 
@@ -78,7 +74,6 @@ describe('applyWorkspaceSnapshot', () => {
     expect(result.curveScales).toEqual({ c1: 2.0 });
     expect(result.curveScaleOffsets).toEqual({ c1: 30 });
     expect(result.globalScale).toBe(1.5);
-    expect(result.normalizeFactors).toEqual({ c1: 0.5 });
     expect(result.layerSpacing).toBe(0.3);
     expect(result.baselineId).toBe('c1');
   });
@@ -92,6 +87,62 @@ describe('applyWorkspaceSnapshot', () => {
     });
 
     expect(result.layerSpacing).toBe(0);
+  });
+});
+
+describe('v3 -> v4 scale migration (normalizeFactors merged into curveScales)', () => {
+  it('merges normalizeFactors into curveScales on v3 snapshot', () => {
+    const result = applyWorkspaceSnapshot({
+      version: 3,
+      curves: {},
+      curveScales: { c1: 0.8, c2: 1.0 },
+      normalizeFactors: { c1: 2.0, c2: 0.5 },
+      savedAt: Date.now(),
+    });
+
+    // c1: 0.8 * 2.0 = 1.6
+    expect(result.curveScales.c1).toBeCloseTo(1.6, 5);
+    // c2: 1.0 * 0.5 = 0.5
+    expect(result.curveScales.c2).toBeCloseTo(0.5, 5);
+  });
+
+  it('handles curve with normalizeFactor but no existing curveScale', () => {
+    const result = applyWorkspaceSnapshot({
+      version: 3,
+      curves: {},
+      curveScales: {},
+      normalizeFactors: { c1: 3.0 },
+      savedAt: Date.now(),
+    });
+
+    // (1 ?? 1) * 3.0 = 3.0
+    expect(result.curveScales.c1).toBeCloseTo(3.0, 5);
+  });
+
+  it('passes v4 snapshots through unchanged (no migration)', () => {
+    const result = applyWorkspaceSnapshot({
+      version: 4,
+      curves: {},
+      curveScales: { c1: 2.0 },
+      normalizeFactors: { c1: 5.0 }, // should be ignored, not merged
+      savedAt: Date.now(),
+    });
+
+    expect(result.curveScales).toEqual({ c1: 2.0 });
+  });
+
+  it('runs color migration (v2->v3) then scale migration (v3->v4) for missing version', () => {
+    const result = applyWorkspaceSnapshot({
+      curves: { c1: { name: 'test', data: [[0, 1]], color: '#000000' } },
+      curveScales: { c1: 1.0 },
+      normalizeFactors: { c1: 2.0 },
+      savedAt: Date.now(),
+    });
+
+    // Color migrated
+    expect(result.curves.c1.lineStyle).toEqual({ color: '#000000' });
+    // Scale migrated: 1.0 * 2.0 = 2.0
+    expect(result.curveScales.c1).toBeCloseTo(2.0, 5);
   });
 });
 

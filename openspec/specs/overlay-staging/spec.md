@@ -3,7 +3,7 @@
 ## Purpose
 叠图区与未叠图数据区分区管理。支持拖拽排序，叠图区顺序决定图表渲染层级，基准线始终位于图表最下侧。
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: 叠图区与未叠图区分区
 

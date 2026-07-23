@@ -3,7 +3,7 @@
 ## Purpose
 左栏曲线搜索/筛选功能。按名称实时过滤曲线列表，不区分大小写，支持清空恢复。
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: 搜索/筛选输入框
 

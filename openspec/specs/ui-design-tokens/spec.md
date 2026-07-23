@@ -1,6 +1,6 @@
 # Spec: ui-design-tokens
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: 语义化设计令牌层
 

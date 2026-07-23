@@ -44,12 +44,17 @@ export default function AlignmentControls() {
   const visibleCurves = useCurveStore((s) => s.visibleCurves);
   const stagingOrder = useCurveStore((s) => s.stagingOrder);
   const baselineId = useCurveStore((s) => s.baselineId);
+  const normalizeAllPeak = useCurveStore((s) => s.normalizeAllPeak);
+  const resetCurveScales = useCurveStore((s) => s.resetCurveScales);
+  const globalScale = useCurveStore((s) => s.globalScale);
   const xRange = useUiStore((s) => s.xRange);
 
   const [algorithm, setAlgorithm] = useState<'roi-peak' | 'cross-correlation'>('roi-peak');
   const [roiStart, setRoiStart] = useState(0);
   const [roiEnd, setRoiEnd] = useState(10);
   const [progress, setProgress] = useState<number | null>(null);
+  const [showNormalizeConfirm, setShowNormalizeConfirm] = useState(false);
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
 
   const visibleIds = stagingOrder.filter((id) => visibleCurves[id]);
   const baselineCurve = baselineId ? curves[baselineId] : null;
@@ -111,7 +116,7 @@ export default function AlignmentControls() {
 
   return (
     <div className="flex flex-col gap-3 p-3">
-      <h3 className="text-sm font-medium text-ink-muted">自动对齐</h3>
+      <h3 className="text-sm font-medium text-ink-muted">自动叠图</h3>
 
       <div>
         <label className="text-xs text-ink-faint">算法</label>
@@ -161,6 +166,74 @@ export default function AlignmentControls() {
           基准线: {baselineCurve.name}
         </p>
       )}
+
+      <div className="border-t border-line pt-2 flex flex-col gap-2">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-medium text-ink-faint">全局缩放</span>
+          <span className="text-xs text-ink-faint font-mono tabular-nums">×{globalScale.toFixed(1)}</span>
+        </div>
+
+        <button
+          onClick={() => setShowNormalizeConfirm(true)}
+          disabled={!baselineCurve || visibleIds.length === 0}
+          className="w-full py-1.5 text-xs bg-accent text-white rounded-md hover:bg-accent-strong disabled:bg-line-strong disabled:cursor-not-allowed"
+        >
+          归一化
+        </button>
+
+        {showNormalizeConfirm && (
+          <div className="flex flex-col gap-2 p-2 bg-surface-hover rounded-md border border-line-strong">
+            <p className="text-xs text-ink-muted">归一化将覆盖所有单曲线缩放调整</p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  normalizeAllPeak(xRange);
+                  setShowNormalizeConfirm(false);
+                }}
+                className="flex-1 py-1 text-xs bg-accent text-white rounded-md hover:bg-accent-strong"
+              >
+                确认
+              </button>
+              <button
+                onClick={() => setShowNormalizeConfirm(false)}
+                className="flex-1 py-1 text-xs border border-line-strong text-ink-muted rounded-md hover:bg-surface-hover"
+              >
+                取消
+              </button>
+            </div>
+          </div>
+        )}
+
+        <button
+          onClick={() => setShowResetConfirm(true)}
+          className="w-full py-1.5 text-xs border border-line-strong text-ink-muted rounded-md hover:bg-surface-hover"
+        >
+          重置缩放
+        </button>
+
+        {showResetConfirm && (
+          <div className="flex flex-col gap-2 p-2 bg-surface-hover rounded-md border border-line-strong">
+            <p className="text-xs text-ink-muted">将清空所有单曲线缩放和偏移</p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => {
+                  resetCurveScales();
+                  setShowResetConfirm(false);
+                }}
+                className="flex-1 py-1 text-xs bg-accent text-white rounded-md hover:bg-accent-strong"
+              >
+                确认
+              </button>
+              <button
+                onClick={() => setShowResetConfirm(false)}
+                className="flex-1 py-1 text-xs border border-line-strong text-ink-muted rounded-md hover:bg-surface-hover"
+              >
+                取消
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

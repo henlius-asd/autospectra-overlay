@@ -132,7 +132,7 @@ export async function exportChartPptx(): Promise<void> {
     return useGridTop + ((yMax - yVal) / (yMax - yMin || 1)) * plotHeight;
   };
 
-  const { curves, offsets, layerSpacing, curveScales, curveScaleOffsets, normalizeFactors } = state;
+  const { curves, offsets, layerSpacing, curveScales, curveScaleOffsets } = state;
   const globalScale = state.globalScale;
   const { yRangeForLayer } = rangeResult;
 
@@ -147,9 +147,8 @@ export async function exportChartPptx(): Promise<void> {
     const offset = offsets[id] ?? { xOffset: 0, yOffset: 0 };
     const layerIndex = visibleCount - 1 - vi;
     const layerYOffset = layerIndex * layerSpacing * yRangeForLayer;
-    const normalize = normalizeFactors[id] ?? 1;
     const manual = curveScales[id] ?? 1;
-    const composite = normalize * globalScale * manual;
+    const composite = globalScale * manual;
     const scaleOffset = curveScaleOffsets[id] ?? 0;
 
     const rendered = curve.data.map(([x, y]) => [

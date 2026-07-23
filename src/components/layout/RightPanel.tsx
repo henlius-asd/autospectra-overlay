@@ -8,7 +8,6 @@ import AlignmentControls from '@/components/toolbox/AlignmentControls';
 import LabelStyleControls from '@/components/toolbox/LabelStyleControls';
 import CurveStylePanel from '@/components/toolbox/CurveStylePanel';
 import DisplaySettingsPanel from '@/components/toolbox/DisplaySettingsPanel';
-import DataProcessingPanel from '@/components/toolbox/DataProcessingPanel';
 import LayerSpacingPanel from '@/components/toolbox/LayerSpacingPanel';
 
 interface RightPanelProps {
@@ -63,11 +62,11 @@ export default function RightPanel({ overlay, onToggle, width, isDragging }: Rig
         </div>
         {/* Middle: quick-access icons */}
         <div className="flex flex-col items-center gap-1 py-3 flex-1">
-          <Tooltip label="自动对齐" side="left">
+          <Tooltip label="自动叠图" side="left">
             <button
-              onClick={() => expandAndScrollTo('自动对齐')}
+              onClick={() => expandAndScrollTo('自动叠图')}
               className="flex items-center justify-center w-7 h-7 rounded-md text-ink-faint hover:text-ink-muted hover:bg-surface-hover transition-colors"
-              aria-label="自动对齐"
+              aria-label="自动叠图"
             >
               <AlignmentIcon className="w-4 h-4" />
             </button>
@@ -135,39 +134,33 @@ export default function RightPanel({ overlay, onToggle, width, isDragging }: Rig
               id: 'metadata',
               title: '元数据',
               content: <MetadataPanel />,
+              defaultExpanded: true,
             },
             {
               id: 'alignment',
-              title: '自动对齐',
+              title: '自动叠图',
               content: <AlignmentControls />,
               defaultExpanded: true,
-            },
-            {
-              id: 'labelStyle',
-              title: '标签样式',
-              content: <LabelStyleControls />,
-              defaultExpanded: true,
-            },
-            {
-              id: 'curveStyle',
-              title: '曲线样式',
-              content: <CurveStylePanel />,
-              defaultExpanded: true,
-            },
-            {
-              id: 'displaySettings',
-              title: '显示设置',
-              content: <DisplaySettingsPanel />,
-            },
-            {
-              id: 'dataProcessing',
-              title: '数据处理',
-              content: <DataProcessingPanel />,
             },
             {
               id: 'layerSpacing',
               title: '层间距',
               content: <LayerSpacingPanel />,
+            },
+            {
+              id: 'labelStyle',
+              title: '标签样式',
+              content: <LabelStyleControls />,
+            },
+            {
+              id: 'curveStyle',
+              title: '曲线样式',
+              content: <CurveStylePanel />,
+            },
+            {
+              id: 'displaySettings',
+              title: '显示设置',
+              content: <DisplaySettingsPanel />,
             },
           ]}
         />

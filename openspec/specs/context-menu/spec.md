@@ -3,7 +3,7 @@
 ## Purpose
 曲线列表右键上下文菜单。支持设为基准线和删除曲线操作，点击外部或按 Escape 关闭。
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: 右键菜单触发
 

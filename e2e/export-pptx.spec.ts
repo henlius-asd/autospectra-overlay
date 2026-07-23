@@ -145,7 +145,6 @@ function buildWorkspaceJson(curveLineStyle: Record<string, unknown> | null): str
     curveScales: {},
     curveScaleOffsets: {},
     globalScale: 1,
-    normalizeFactors: {},
     locked: {},
     savedAt: Date.now(),
     yZoomRange: null,

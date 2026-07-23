@@ -1,4 +1,4 @@
-## ADDED Requirements
+## Requirements
 
 ### Requirement: 对齐算法补偿 ROI 偏置 (small-range semantics)
 

@@ -1,31 +1,27 @@
 # curve-composite-scale Specification
 
-## Purpose
-三层复合缩放模型：归一化层、全局层、手动层相乘得到最终曲线倍率。支持全局缩放（所有曲线一起）、归一化（一键对齐到基准线峰值）、单曲线手动缩放，仅作用于 Y 值。
-## Requirements
-### Requirement: 全局缩放
+## RENAMED Requirements
 
-系统 SHALL 提供全局缩放模式（`globalScaleMode` 独立布尔开关），用户在该模式下滚轮调节所有曲线共享的 `globalScale`。`globalScale` SHALL 钳制在 [0.1, 10.0] 范围。双击 SHALL 复位 `globalScale` 为 1。滚轮 SHALL 通过原生 `addEventListener('wheel', handler, { passive: false })` 监听，SHALL 调用 `preventDefault` 阻止 ECharts dataZoom。
+- FROM: `### Requirement: 三层复合缩放模型`
+- TO: `### Requirement: 两层复合缩放模型`
 
-#### Scenario: 滚轮放大全局倍率
+## MODIFIED Requirements
 
-- **WHEN** 用户在全局缩放模式下向上滚轮
-- **THEN** 所有曲线按相同比例放大，`globalScale` 增大
+### Requirement: 两层复合缩放模型
 
-#### Scenario: 滚轮缩小全局倍率
+系统 SHALL 为每条曲线维护两个缩放倍率层：全局层（`globalScale`，所有曲线共享）、单曲线层（`curveScales`，每曲线）。两条倍率相乘 SHALL 作为最终曲线缩放倍率。系统 SHALL NOT 维护独立的归一化层；归一化结果 SHALL 直接写入 `curveScales`。
 
-- **WHEN** 用户在全局缩放模式下向下滚轮
-- **THEN** 所有曲线按相同比例缩小，`globalScale` 减小
+最终渲染公式 SHALL 为 `rendered_y = y * (global × curveScale) + scaleOffset + layerYOffset + offset.yOffset`，其中 scaleOffset 为手动层偏移（`curveScaleOffsets`）。
 
-#### Scenario: 全局倍率范围限制
+#### Scenario: 缺省值
 
-- **WHEN** 滚轮调节使 `globalScale` 超出 [0.1, 10.0]
-- **THEN** 倍率被钳制在边界值
+- **WHEN** 某层未设置（globalScale 为 null、curveScales 缺 key）
+- **THEN** 该层视为倍率 1，不影响复合结果
 
-#### Scenario: 双击复位全局倍率
+#### Scenario: 两层相乘
 
-- **WHEN** 用户在全局缩放模式下双击
-- **THEN** `globalScale` 复位为 1，所有曲线恢复原始缩放
+- **WHEN** 曲线 A 的 curveScales=2.0、globalScale=1.5
+- **THEN** 最终倍率 = 1.5 × 2.0 = 3.0
 
 ### Requirement: 归一化
 
@@ -80,40 +76,7 @@
 - **WHEN** 用户已加载曲线并通过 dataZoom 平移或缩放 X 轴到不同可视窗口（窗口内极值与全量极值不同）
 - **THEN** `yAxisMin`、`yAxisMax`、`dataSpan`、`yRangeForLayer` 保持不变，曲线不自动重缩放、曲线层（`layerYOffset`）不发生垂直错位
 
-### Requirement: 两个独立缩放工具
-
-系统 SHALL 提供两个独立的缩放工具开关：`globalScaleMode`（全局缩放）和 `perCurveScaleMode`（单曲线缩放），各自独立 on/off，不互斥。当两者同时激活时，滚轮 SHALL 优先作用于选中曲线（如有），否则作用于全局。
-
-#### Scenario: 两者独立开关
-
-- **WHEN** 用户激活全局缩放，再激活单曲线缩放
-- **THEN** 两者都为 on，互不影响
-
-#### Scenario: 两者同时激活优先单曲线
-
-- **WHEN** 全局缩放和单曲线缩放都激活，曲线 A 被选中，滚轮
-- **THEN** 曲线 A 的 `curveScales` 改变（而非 globalScale）
-
-#### Scenario: 单曲线模式无选中曲线回退全局
-
-- **WHEN** 单曲线缩放激活但无选中曲线，全局缩放也激活，滚轮
-- **THEN** `globalScale` 改变（回退到全局缩放）
-
-### Requirement: 两层复合缩放模型
-
-系统 SHALL 为每条曲线维护两个缩放倍率层：全局层（`globalScale`，所有曲线共享）、单曲线层（`curveScales`，每曲线）。两条倍率相乘 SHALL 作为最终曲线缩放倍率。系统 SHALL NOT 维护独立的归一化层；归一化结果 SHALL 直接写入 `curveScales`。
-
-最终渲染公式 SHALL 为 `rendered_y = y * (global × curveScale) + scaleOffset + layerYOffset + offset.yOffset`，其中 scaleOffset 为手动层偏移（`curveScaleOffsets`）。
-
-#### Scenario: 缺省值
-
-- **WHEN** 某层未设置（globalScale 为 null、curveScales 缺 key）
-- **THEN** 该层视为倍率 1，不影响复合结果
-
-#### Scenario: 两层相乘
-
-- **WHEN** 曲线 A 的 curveScales=2.0、globalScale=1.5
-- **THEN** 最终倍率 = 1.5 × 2.0 = 3.0
+## ADDED Requirements
 
 ### Requirement: 重置缩放
 
@@ -129,3 +92,9 @@
 - **WHEN** globalScale=1.5，用户点击重置
 - **THEN** curveScales 清空，但 globalScale 保持 1.5 不变
 
+## REMOVED Requirements
+
+### Requirement: 持久化缩放状态
+
+**Reason**: `normalizeFactors` 字段已被移除，归一化值直接写入 `curveScales`。持久化逻辑由 `workspace-persistence` spec 的迁移 requirement 覆盖。
+**Migration**: 旧快照含 `normalizeFactors` 字段时，按 version 迁移将值乘入 `curveScales`，详见 `workspace-persistence` spec。

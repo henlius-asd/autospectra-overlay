@@ -91,7 +91,6 @@ export default function WaterfallChart() {
   const layerSpacing = useCurveStore((s) => s.layerSpacing);
   const curveScales = useCurveStore((s) => s.curveScales);
   const curveScaleOffsets = useCurveStore((s) => s.curveScaleOffsets);
-  const normalizeFactors = useCurveStore((s) => s.normalizeFactors);
   const globalScale = useCurveStore((s) => s.globalScale);
   const setCurveScale = useCurveStore((s) => s.setCurveScale);
   const setCurveScaleOffset = useCurveStore((s) => s.setCurveScaleOffset);
@@ -359,9 +358,8 @@ export default function WaterfallChart() {
       const layerIndex = visibleCount - 1 - visibleIndex;
       const layerYOffset = layerIndex * layerSpacing * yRangeForLayer;
 
-      const normalize = normalizeFactors[id] ?? 1;
       const manual = curveScales[id] ?? 1;
-      const composite = normalize * globalScale * manual;
+      const composite = globalScale * manual;
       const scaleOffset = curveScaleOffsets[id] ?? 0;
       const renderedData = curve.data.map(([x, y]) => [
         x + offset.xOffset,
@@ -497,7 +495,7 @@ legend: {
       } : {}),
     };
 
-  }, [curves, offsets, visibleCurves, layerSpacing, stagingOrder, visibleIds, interactionMode, spaceHeld, showGrid, showXAxis, showYAxis, showLegend, lineStyle, curveScales, curveScaleOffsets, normalizeFactors, globalScale]);
+  }, [curves, offsets, visibleCurves, layerSpacing, stagingOrder, visibleIds, interactionMode, spaceHeld, showGrid, showXAxis, showYAxis, showLegend, lineStyle, curveScales, curveScaleOffsets, globalScale]);
 
   // Activate ECharts brush via takeGlobalCursor dispatch.
   // Without toolbox, brushModel.brushOption stays empty and enableBrush never
@@ -672,7 +670,7 @@ legend: {
     interactionMode === 'zoomGlobal'
       ? `×${globalScale.toFixed(1)}`
       : interactionMode === 'zoomCurve' && selectedCurveId
-      ? `×${((normalizeFactors[selectedCurveId] ?? 1) * globalScale * (curveScales[selectedCurveId] ?? 1)).toFixed(1)}`
+      ? `×${(globalScale * (curveScales[selectedCurveId] ?? 1)).toFixed(1)}`
       : null
   ) : null;
 
@@ -737,9 +735,8 @@ legend: {
       const offset = offsets[id] ?? { xOffset: 0, yOffset: 0 };
       const layerIndex = visibleIds.length - 1 - visibleIds.indexOf(id);
       const layerYOffset = layerIndex * layerSpacing * yAxisFullRange.yRangeForLayer;
-      const normalize = normalizeFactors[id] ?? 1;
       const manual = curveScales[id] ?? 1;
-      const composite = normalize * globalScale * manual;
+      const composite = globalScale * manual;
       const scaleOffset = curveScaleOffsets[id] ?? 0;
       const data = curve.data;
       let lo = 0; let hi = data.length - 1;
@@ -760,7 +757,7 @@ legend: {
       setSelectedCurveId(selectedCurveId === bestId ? null : bestId);
     }
   }, [chartInstance, visibleIds, xRange, gridLeft, gridTop, gridRight, gridBottom,
-      chartDims, yAxisFullRange, curves, offsets, layerSpacing, normalizeFactors,
+      chartDims, yAxisFullRange, curves, offsets, layerSpacing,
       curveScales, globalScale, curveScaleOffsets, selectedCurveId, setSelectedCurveId]);
 
   return (

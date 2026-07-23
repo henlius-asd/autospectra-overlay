@@ -3,7 +3,7 @@
 ## Purpose
 曲线别名系统。每条曲线有原始名称（SampleName，唯一标识符）和可选的显示名称（用于图表区分），显示名称支持双击编辑。
 
-## ADDED Requirements
+## Requirements
 
 ### Requirement: 曲线原始名称与显示名称
 
