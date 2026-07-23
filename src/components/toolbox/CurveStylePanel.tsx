@@ -40,17 +40,25 @@ export default function CurveStylePanel() {
 
   // Commit on native `change` (picker release), not on the continuous React
   // `input` event. See useColorCommit for rationale.
-  const globalColorRef = useColorCommit((c) => {
-    addColorToHistory(c);
-    setLineStyle({ color: c });
-  });
+  const globalColorRef = useColorCommit(
+    (c) => {
+      addColorToHistory(c);
+      setLineStyle({ color: c });
+    },
+    [],
+    toHexColor(lineStyle.color),
+  );
   // Re-attach when the per-curve input mounts (selectedCurveId flips), since
   // the input is conditionally rendered inside the selected-curve block.
-  const overrideColorRef = useColorCommit((c) => {
-    if (!selectedCurveId) return;
-    addColorToHistory(c);
-    setCurveLineStyle(selectedCurveId, { color: c });
-  }, [selectedCurveId]);
+  const overrideColorRef = useColorCommit(
+    (c) => {
+      if (!selectedCurveId) return;
+      addColorToHistory(c);
+      setCurveLineStyle(selectedCurveId, { color: c });
+    },
+    [selectedCurveId],
+    toHexColor(override?.color ?? lineStyle.color),
+  );
 
   /** A field is overridden when present on the per-curve override object. */
   const isOverridden = (field: 'width' | 'type' | 'color') =>
@@ -126,8 +134,7 @@ export default function CurveStylePanel() {
             <input
               type="color"
               ref={globalColorRef}
-              value={toHexColor(lineStyle.color)}
-              onChange={() => {}}
+              defaultValue={toHexColor(lineStyle.color)}
               className="w-6 h-6 rounded-md cursor-pointer border border-line-strong"
             />
             <div className="flex gap-1 flex-wrap">
@@ -222,8 +229,7 @@ export default function CurveStylePanel() {
                 type="color"
                 ref={overrideColorRef}
                 disabled={!isOverridden('color')}
-                value={toHexColor(override?.color ?? lineStyle.color)}
-                onChange={() => {}}
+                defaultValue={toHexColor(override?.color ?? lineStyle.color)}
                 className="w-6 h-6 rounded-md cursor-pointer border border-line-strong disabled:opacity-40"
               />
               <div className="flex gap-1 flex-wrap">

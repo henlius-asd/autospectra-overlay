@@ -23,14 +23,14 @@ export default function LabelStyleControls() {
 
   // Commit on native `change` (picker release), not on the continuous React
   // `input` event. See useColorCommit for rationale.
-  const textColorRef = useColorCommit((c) => {
-    addColorToHistory(c);
-    setLabelStyle({ color: c });
-  });
-  const bgColorRef = useColorCommit((c) => {
-    addColorToHistory(c);
-    setLabelStyle({ backgroundColor: c });
-  });
+  const textColorRef = useColorCommit(
+    (c) => {
+      addColorToHistory(c);
+      setLabelStyle({ color: c });
+    },
+    [],
+    toHexColor(labelStyle.color),
+  );
 
   return (
     <div className="flex flex-col gap-3 p-3">
@@ -79,8 +79,7 @@ export default function LabelStyleControls() {
           <input
             type="color"
             ref={textColorRef}
-            value={toHexColor(labelStyle.color)}
-            onChange={() => {}}
+            defaultValue={toHexColor(labelStyle.color)}
             className="w-6 h-6 rounded-md cursor-pointer border border-line-strong"
           />
           <div className="flex gap-1 flex-wrap">
@@ -97,19 +96,6 @@ export default function LabelStyleControls() {
         </div>
       </div>
 
-      <div>
-        <label className="text-xs text-ink-faint">背景颜色</label>
-        <div className="flex items-center gap-2 mt-1">
-          <input
-            type="color"
-            ref={bgColorRef}
-            value={toHexColor(labelStyle.backgroundColor)}
-            onChange={() => {}}
-            className="w-6 h-6 rounded-md cursor-pointer border border-line-strong"
-          />
-          <span className="text-xs text-ink-faint">{labelStyle.backgroundColor}</span>
-        </div>
-      </div>
     </div>
   );
 }
