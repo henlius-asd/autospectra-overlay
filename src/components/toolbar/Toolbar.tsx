@@ -83,7 +83,12 @@ export default function Toolbar() {
     try {
       const { exportChartPptx } = await import('@/components/chart/exportPptx');
       await exportChartPptx();
-    } catch {
+    } catch (err) {
+      // Log the underlying error so export failures are diagnosable in the
+      // console (the toast alone carries no detail). The inner catch in
+      // exportPptx only wraps pptx.write; a throw in the geometry body
+      // reaches here, where it would otherwise be swallowed silently.
+      console.error('PPTX 导出失败:', err);
       useUiStore.getState().showToast('导出 PPTX 失败', 'error');
     }
   };

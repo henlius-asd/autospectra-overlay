@@ -40,6 +40,27 @@ describe('resolveLineStyle', () => {
     expect(resolved.width).toBe(defaultStyle.width);
     expect(resolved.color).toBe(defaultStyle.color);
   });
+
+  // Regression: an explicit null in the override must NOT clobber the default.
+  // A null color reaches the store via JSON workspace import (unsanitized) or
+  // v2->v3 migration of a null top-level color. Without this guard,
+  // `{ ...defaultStyle, color: null }` yields color: null, and the PPTX export
+  // crashes at `resolved.color.replace('#','')` with "Cannot read properties
+  // of null (reading 'replace')" -> swallowed by Toolbar catch -> toast.
+  it('falls back to the default when an override field is explicitly null', () => {
+    const resolved = resolveLineStyle({ color: null }, defaultStyle);
+    expect(resolved.color).toBe(defaultStyle.color);
+    expect(resolved.width).toBe(defaultStyle.width);
+    expect(resolved.type).toBe(defaultStyle.type);
+
+    const resolvedAll = resolveLineStyle({ width: null, type: null, color: null }, defaultStyle);
+    expect(resolvedAll).toEqual(defaultStyle);
+  });
+
+  it('keeps a falsy-but-defined width 0 instead of dropping it', () => {
+    const resolved = resolveLineStyle({ width: 0 }, defaultStyle);
+    expect(resolved.width).toBe(0);
+  });
 });
 
 describe('mapLineTypeToPptxDash', () => {

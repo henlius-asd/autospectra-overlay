@@ -5,7 +5,7 @@ TBD - created by archiving change 2026-07-22-curve-line-style. Update Purpose af
 ## Requirements
 ### Requirement: 曲线线条样式级联模型
 
-系统 SHALL 采用级联模型解析每条曲线的线条样式：全局默认 `LineStyle`（`width`/`type`/`color`）存放于 `uiStore`，每条曲线可持有 `CurveData.lineStyle?: Partial<LineStyle>` 覆盖对象。渲染时 SHALL 通过纯函数 `resolveLineStyle(override, defaultStyle)` 按字段合并——覆盖对象中存在的字段优先，缺失字段回落全局默认。`addCurves` 创建新曲线时 SHALL NOT 设置 `lineStyle` 或顶层 `color`，使新曲线完全走全局默认。
+系统 SHALL 采用级联模型解析每条曲线的线条样式：全局默认 `LineStyle`（`width`/`type`/`color`）存放于 `uiStore`，每条曲线可持有 `CurveData.lineStyle?: Partial<LineStyle>` 覆盖对象。渲染时 SHALL 通过纯函数 `resolveLineStyle(override, defaultStyle)` 按字段合并——覆盖对象中存在的字段优先，缺失字段回落全局默认。**覆盖对象中值为显式 `null` 的字段 SHALL 视为未覆盖，回落全局默认。**`addCurves` 创建新曲线时 SHALL NOT 设置 `lineStyle` 或顶层 `color`，使新曲线完全走全局默认。
 
 #### Scenario: 全局改粗细对所有曲线生效
 
@@ -21,6 +21,11 @@ TBD - created by archiving change 2026-07-22-curve-line-style. Update Purpose af
 
 - **WHEN** 用户导入新曲线（全局默认颜色为 `#000000`、粗细 1.5、线型 solid）
 - **THEN** 新曲线渲染为黑色、粗细 1.5、实线，无单独覆盖对象
+
+#### Scenario: 覆盖颜色为 null 时回落全局默认
+
+- **WHEN** 某曲线 `lineStyle` 覆盖对象中 `color` 字段为显式 `null`（如经 JSON 导入或旧版本迁移引入）
+- **THEN** 该曲线渲染颜色为全局默认颜色，不会因 null 导致渲染异常或 PPTX 导出 crash
 
 ### Requirement: 线型可选集合
 
