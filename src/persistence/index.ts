@@ -1,6 +1,6 @@
 import localforage from 'localforage';
 import type { CurveData, LabelStyle, LineStyle } from '@/types';
-import { DEFAULT_LINE_STYLE } from '@/types';
+import { DEFAULT_LINE_STYLE, DEFAULT_LABEL_STYLE } from '@/types';
 import { useCurveStore } from '@/store';
 import { useUiStore } from '@/store';
 
@@ -102,6 +102,55 @@ export function applyWorkspaceSnapshot(data: Record<string, unknown>) {
 }
 
 /**
+ * Coerce an untrusted persisted lineStyle partial into a valid LineStyle:
+ * backfill missing fields with defaults and reject wrong-typed values so a
+ * corrupted blob (e.g. `{ width: null }` or `{ width: "abc" }`) cannot leak
+ * a non-numeric `width` into a controlled <input> and trip React's
+ * controlled/uncontrolled warning.
+ */
+function hydrateLineStyle(partial: unknown): LineStyle {
+  const src = (partial ?? {}) as Record<string, unknown>;
+  const width =
+    typeof src.width === 'number' && Number.isFinite(src.width)
+      ? src.width
+      : DEFAULT_LINE_STYLE.width;
+  const type: LineStyle['type'] =
+    src.type === 'solid' || src.type === 'dashed' || src.type === 'dotted'
+      ? src.type
+      : DEFAULT_LINE_STYLE.type;
+  const color = typeof src.color === 'string' ? src.color : DEFAULT_LINE_STYLE.color;
+  return { width, type, color };
+}
+
+/**
+ * Coerce an untrusted persisted labelStyle partial into a valid LabelStyle,
+ * mirroring `hydrateLineStyle`. Rejects wrong-typed values so a persisted
+ * `fontSize: null` cannot break a controlled range input.
+ */
+function hydrateLabelStyle(partial: unknown): LabelStyle {
+  const src = (partial ?? {}) as Record<string, unknown>;
+  const fontSize =
+    typeof src.fontSize === 'number' && Number.isFinite(src.fontSize)
+      ? src.fontSize
+      : DEFAULT_LABEL_STYLE.fontSize;
+  const fontFamily =
+    typeof src.fontFamily === 'string' && src.fontFamily.length > 0
+      ? src.fontFamily
+      : DEFAULT_LABEL_STYLE.fontFamily;
+  const fontWeight: LabelStyle['fontWeight'] =
+    src.fontWeight === 'normal' || src.fontWeight === 'bold'
+      ? src.fontWeight
+      : DEFAULT_LABEL_STYLE.fontWeight;
+  const color =
+    typeof src.color === 'string' ? src.color : DEFAULT_LABEL_STYLE.color;
+  const backgroundColor =
+    typeof src.backgroundColor === 'string'
+      ? src.backgroundColor
+      : DEFAULT_LABEL_STYLE.backgroundColor;
+  return { fontSize, fontFamily, fontWeight, color, backgroundColor };
+}
+
+/**
  * Save current workspace state to IndexedDB.
  * Debounced at 500ms to avoid excessive writes during slider dragging.
  */
@@ -143,9 +192,9 @@ export async function restoreWorkspace(): Promise<boolean> {
         const oldShowAxes = uiSnapshot.showAxes;
         const showXAxis = (oldShowAxes !== undefined) ? oldShowAxes : (uiSnapshot.showXAxis ?? true);
         const showYAxis = (oldShowAxes !== undefined) ? oldShowAxes : (uiSnapshot.showYAxis ?? false);
-        useUiStore.setState({ showGrid: uiSnapshot.showGrid ?? true, showXAxis, showYAxis, showLegend: uiSnapshot.showLegend ?? true, exportWithLegend: uiSnapshot.exportWithLegend ?? false, xRange: uiSnapshot.xRange ?? [0, 10], xRangeHydrated: uiSnapshot.xRange != null, yZoomRange: uiSnapshot.yZoomRange ?? null, colorHistory: uiSnapshot.colorHistory ?? [], lineStyle: (uiSnapshot.lineStyle ?? { ...DEFAULT_LINE_STYLE }) as unknown as LineStyle });
+        useUiStore.setState({ showGrid: uiSnapshot.showGrid ?? true, showXAxis, showYAxis, showLegend: uiSnapshot.showLegend ?? true, exportWithLegend: uiSnapshot.exportWithLegend ?? false, xRange: uiSnapshot.xRange ?? [0, 10], xRangeHydrated: uiSnapshot.xRange != null, yZoomRange: uiSnapshot.yZoomRange ?? null, colorHistory: uiSnapshot.colorHistory ?? [], lineStyle: hydrateLineStyle(uiSnapshot.lineStyle) });
         if (uiSnapshot.labelStyle) {
-          useUiStore.setState({ labelStyle: uiSnapshot.labelStyle as unknown as LabelStyle });
+          useUiStore.setState({ labelStyle: hydrateLabelStyle(uiSnapshot.labelStyle) });
         }
       }
       return true;
