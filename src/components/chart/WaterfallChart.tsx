@@ -11,7 +11,8 @@ import type { EChartsInstance } from 'echarts-for-react';
 import { computeYAxisRange } from './computeYAxisRange';
 import { resolveLineStyle } from './resolveLineStyle';
 import { yToPixel, pixelToY } from './yPixelMath';
-import { topCurvePeak } from './labelGeometry';
+import { topCurvePeak, getTopCurvePixelYAtX, type TopCurveContext } from './labelGeometry';
+import { migrateLegacyPixelOffset } from './annotationMigration';
 import { BRACE_HEIGHT, BRACE_LABEL_GAP } from './bracePath';
 import { scaleByWheel, offsetByDrag } from './curveScaleMath';
 import { buildViewportRestoreActions, dispatchRangeToIds, X_ZOOM_IDS, Y_ZOOM_IDS } from './viewportRestore';
@@ -92,6 +93,8 @@ export default function WaterfallChart() {
   const curveScales = useCurveStore((s) => s.curveScales);
   const curveScaleOffsets = useCurveStore((s) => s.curveScaleOffsets);
   const globalScale = useCurveStore((s) => s.globalScale);
+  const braces = useCurveStore((s) => s.braces);
+  const pointLabels = useCurveStore((s) => s.pointLabels);
   const setCurveScale = useCurveStore((s) => s.setCurveScale);
   const setCurveScaleOffset = useCurveStore((s) => s.setCurveScaleOffset);
   const setGlobalScale = useCurveStore((s) => s.setGlobalScale);
@@ -126,6 +129,16 @@ export default function WaterfallChart() {
   // pre-rebuild xRange/yZoomRange survive for the viewport useLayoutEffect to
   // restore. Cleared by a layout effect that runs after all child updates.
   const isOptionRebuilding = useRef(false);
+  // Latest runtime geometry/transforms for the annotation Y migration effect.
+  // Updated every render (not a dep) so the effect always reads fresh values
+  // without listing function identities in its dependency array.
+  const migrationCtxRef = useRef<{
+    convertYToPixel: (y: number) => number;
+    convertPixelToY: (py: number) => number;
+    braceY: number;
+    ctx: TopCurveContext;
+    ready: boolean;
+  } | null>(null);
 
   function isChartReady(): boolean {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -181,6 +194,10 @@ export default function WaterfallChart() {
   }, [curves, visibleCurves]);
 
   const [chartDims, setChartDims] = useState({ width: 800, height: 600 });
+  // True only after a real chart measurement (onChartReady / ResizeObserver),
+  // NOT the {800,600} placeholder — gates the annotation Y migration effect so
+  // it converts legacy pixel yOffset → absolute data Y using live geometry.
+  const [chartDimsReady, setChartDimsReady] = useState(false);
 
   // DEV-only: mirror chartDims to the test seam so e2e can assert it tracks
   // container resizes (the H5 overlay-drift root cause is this React state
@@ -195,6 +212,7 @@ export default function WaterfallChart() {
   const onChartReady = useCallback((instance: EChartsInstance) => {
     chartInstance = instance;
     setChartDims({ width: instance.getWidth(), height: instance.getHeight() });
+    setChartDimsReady(true);
     // Only seed X from the live extent on a genuinely fresh viewport; never
     // clobber a restored/user xRange (mirrors the seed-effect hydration guard).
     const xExtent = getXAxisExtent();
@@ -599,6 +617,7 @@ legend: {
       const width = Math.round(cr.width);
       const height = Math.round(cr.height);
       setChartDims((prev) => (prev.width === width && prev.height === height ? prev : { width, height }));
+      setChartDimsReady(true);
     });
     ro.observe(container);
     return () => ro.disconnect();
@@ -655,6 +674,50 @@ legend: {
     container.addEventListener('mousedown', onMouseDown);
     return () => container.removeEventListener('mousedown', onMouseDown);
   }, [interactionMode, selectedCurveId, curveScaleOffsets, visibleYRange, gridTop, gridBottom, chartDims.height, setCurveScaleOffset]);
+
+  // Primitive visibility signal for the migration effect deps (the `visibleIds`
+  // array is a fresh filter result each render, so it cannot be a dep directly).
+  const hasVisibleCurves = visibleIds.length > 0;
+  // Keep the migration context ref fresh every render (functions are NOT deps).
+  migrationCtxRef.current = {
+    convertYToPixel,
+    convertPixelToY,
+    braceY,
+    ctx: { visibleIds, curves, offsets, layerSpacing, yRangeForLayer: yAxisFullRange.yRangeForLayer },
+    ready: chartDimsReady && hasVisibleCurves,
+  };
+
+  // First-render annotation Y migration: convert legacy pixel-space `yOffset`
+  // (braces: relative to braceY; point labels: relative to the top curve at the
+  // label's X via getTopCurvePixelYAtX) into absolute data Y, then strip the
+  // legacy field. Runs once real geometry is ready; idempotent — a no-op once no
+  // legacy items remain. The setState triggers the debounced auto-save (v5).
+  useEffect(() => {
+    if (!chartDimsReady) return;
+    const m = migrationCtxRef.current;
+    if (!m || !m.ready) return;
+    const hasLegacy = braces.some((b) => b.yOffset != null)
+      || pointLabels.some((p) => p.yOffset != null);
+    if (!hasLegacy) return;
+    const { convertYToPixel: yToPix, convertPixelToY: pixToY, braceY: bY, ctx } = m;
+    let changed = false;
+    const nextBraces = braces.map((b) => {
+      if (b.yOffset == null) return b;
+      changed = true;
+      const { yOffset, ...rest } = b;
+      return { ...rest, y: migrateLegacyPixelOffset(bY, yOffset, pixToY) };
+    });
+    const nextPointLabels = pointLabels.map((p) => {
+      if (p.yOffset == null) return p;
+      changed = true;
+      const { yOffset, ...rest } = p;
+      const base = getTopCurvePixelYAtX(p.x, ctx, yToPix);
+      return { ...rest, y: migrateLegacyPixelOffset(base, yOffset, pixToY) };
+    });
+    if (changed) {
+      useCurveStore.setState({ braces: nextBraces, pointLabels: nextPointLabels });
+    }
+  }, [braces, pointLabels, chartDimsReady, hasVisibleCurves]);
 
   // Double-click handler for reset
   const onChartDoubleClick = useCallback(() => {
@@ -795,6 +858,8 @@ legend: {
         height={chartDims.height}
         convertXToPixel={convertXToPixel}
         convertPixelToX={convertPixelToX}
+        convertYToPixel={convertYToPixel}
+        convertPixelToY={convertPixelToY}
         xRange={xRange}
         gridTop={gridTop}
         braceY={braceY}

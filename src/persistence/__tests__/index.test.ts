@@ -13,6 +13,7 @@ describe('buildWorkspaceSnapshot', () => {
     const snapshot = buildWorkspaceSnapshot(state);
 
     expect(snapshot).toHaveProperty('version');
+    expect(snapshot.version).toBe(5);
     expect(snapshot).toHaveProperty('curves');
     expect(snapshot).toHaveProperty('offsets');
     expect(snapshot).toHaveProperty('baselineId');
@@ -54,15 +55,15 @@ describe('applyWorkspaceSnapshot', () => {
 
   it('restores all fields from a complete snapshot', () => {
     const snapshot = {
-      version: 4,
+      version: 5,
       curves: { c1: { name: 'test', data: [[0, 1]] } },
       offsets: { c1: { xOffset: 5, yOffset: 0 } },
       baselineId: 'c1',
-      braces: [{ id: 'b1', type: 'horizontal', startX: 0, endX: 10, label: 'test' }],
+      braces: [{ id: 'b1', type: 'horizontal', startX: 0, endX: 10, label: 'test', y: 5 }],
       stagingOrder: ['c1'],
       visibleCurves: { c1: true },
       layerSpacing: 0.3,
-      pointLabels: [{ id: 'p1', x: 5, yOffset: -10, label: 'test' }],
+      pointLabels: [{ id: 'p1', x: 5, y: 3, label: 'test' }],
       curveScales: { c1: 2.0 },
       curveScaleOffsets: { c1: 30 },
       globalScale: 1.5,
@@ -188,5 +189,66 @@ describe('curve color migration (v2 -> v3)', () => {
 
     expect(result.curves.c1.lineStyle).toEqual({ color: '#000000' });
     expect((result.curves.c1 as unknown as Record<string, unknown>).color).toBeUndefined();
+  });
+});
+
+describe('v4 -> v5 annotation Y migration', () => {
+  it('carries legacy brace yOffset with y placeholder', () => {
+    const result = applyWorkspaceSnapshot({
+      version: 4,
+      curves: {},
+      braces: [{ id: 'b1', type: 'horizontal', startX: 0, endX: 10, label: 't', yOffset: 20 }],
+      savedAt: Date.now(),
+    });
+
+    expect(result.braces).toHaveLength(1);
+    expect(result.braces[0].y).toBe(0); // placeholder until first-render migration
+    expect(result.braces[0].yOffset).toBe(20); // carried for runtime migration
+  });
+
+  it('carries legacy point-label yOffset with y placeholder', () => {
+    const result = applyWorkspaceSnapshot({
+      version: 4,
+      curves: {},
+      pointLabels: [{ id: 'p1', x: 5, yOffset: -10, label: 't' }],
+      savedAt: Date.now(),
+    });
+
+    expect(result.pointLabels).toHaveLength(1);
+    expect(result.pointLabels[0].y).toBe(0);
+    expect(result.pointLabels[0].yOffset).toBe(-10);
+  });
+
+  it('passes v5 braces/point-labels with y through unchanged (no yOffset)', () => {
+    const result = applyWorkspaceSnapshot({
+      version: 5,
+      curves: {},
+      braces: [{ id: 'b1', type: 'horizontal', startX: 0, endX: 10, label: 't', y: 42 }],
+      pointLabels: [{ id: 'p1', x: 5, y: 7, label: 't' }],
+      savedAt: Date.now(),
+    });
+
+    expect(result.braces[0].y).toBe(42);
+    expect(result.braces[0].yOffset).toBeUndefined();
+    expect(result.pointLabels[0].y).toBe(7);
+    expect(result.pointLabels[0].yOffset).toBeUndefined();
+  });
+
+  it('runs color + scale + annotation mapping for missing version', () => {
+    const result = applyWorkspaceSnapshot({
+      curves: { c1: { name: 'test', data: [[0, 1]], color: '#000000' } },
+      curveScales: { c1: 1.0 },
+      normalizeFactors: { c1: 2.0 },
+      braces: [{ id: 'b1', type: 'horizontal', startX: 0, endX: 10, label: 't', yOffset: 5 }],
+      savedAt: Date.now(),
+    });
+
+    // color migrated
+    expect(result.curves.c1.lineStyle).toEqual({ color: '#000000' });
+    // scale migrated
+    expect(result.curveScales.c1).toBeCloseTo(2.0, 5);
+    // brace mapping applied (y placeholder + legacy yOffset carried)
+    expect(result.braces[0].y).toBe(0);
+    expect(result.braces[0].yOffset).toBe(5);
   });
 });

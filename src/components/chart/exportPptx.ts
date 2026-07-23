@@ -223,8 +223,9 @@ export async function exportChartPptx(): Promise<void> {
     const style = resolveLabelStyle(brace.labelStyle, labelStyle);
     const px1 = convertXToPixel(brace.startX);
     const px2 = convertXToPixel(brace.endX);
-    // Base baseline near the top of the plot; apply the user's free vertical drag (yOffset).
-    const braceY = yToPixelExport(yMax) + 30 + (brace.yOffset ?? 0);
+    // Absolute data Y via yToPixelExport (aligned with screen). Legacy yOffset
+    // falls back to the old top-of-plot formula until first-render migration.
+    const braceY = brace.yOffset != null ? yToPixelExport(yMax) + 30 + brace.yOffset : yToPixelExport(brace.y);
     const labelText = brace.label || '未命名';
     const textW = estimateTextWidth(labelText, style.fontSize);
     const textX = (px1 + px2) / 2;

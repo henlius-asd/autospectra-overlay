@@ -150,7 +150,8 @@ legend: exportWithLegend
     svgEl.setAttribute('height', String(canvas.height));
     svgEl.setAttribute('viewBox', `0 0 ${canvas.width} ${canvas.height}`);
 
-    // Braces — baseline hugs the top curve peak; per-brace yOffset (free vertical drag) applied.
+    // Braces — absolute data Y via yToPixelExport (aligned with screen). Legacy
+    // yOffset falls back to the old peak-hugging formula until first-render migration.
     const visibleBraces = braces.filter(
       (b) => b.startX <= xRange[1] && b.endX >= xRange[0],
     );
@@ -158,7 +159,7 @@ legend: exportWithLegend
     for (const brace of visibleBraces) {
       const px1 = convertXToPixel(brace.startX, xRange, chartWidth, gridLeft, gridRight) * pixelRatio;
       const px2 = convertXToPixel(brace.endX, xRange, chartWidth, gridLeft, gridRight) * pixelRatio;
-      const braceYScaled = (braceYBase + (brace.yOffset ?? 0)) * pixelRatio;
+      const braceYScaled = (brace.yOffset != null ? braceYBase + brace.yOffset : yToPixelExport(brace.y)) * pixelRatio;
 
       const pathEl = document.createElementNS(ns, 'path');
       pathEl.setAttribute('d', bracePath(px1, px2, braceYScaled));

@@ -15,6 +15,10 @@ describe('topCurvePeak', () => {
 });
 
 describe('getTopCurvePixelYAtX', () => {
+  // Also used as the legacy point-label migration baseline (v4→v5): a pre-v5
+  // point label's pixel-space yOffset was relative to the top curve at the
+  // label's X, so the first-render migration calls this to obtain basePixel
+  // (see annotationMigration.ts / WaterfallChart migration effect).
   const ctx = {
     visibleIds: ['top'],
     curves,

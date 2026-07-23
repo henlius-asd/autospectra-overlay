@@ -25,7 +25,7 @@ type CurveStoreState = ReturnType<typeof useCurveStore.getState>;
  */
 export function buildWorkspaceSnapshot(state: CurveStoreState) {
   return {
-    version: 4,
+    version: 5,
     curves: state.curves,
     offsets: state.offsets,
     baselineId: state.baselineId,
@@ -97,15 +97,21 @@ export function applyWorkspaceSnapshot(data: Record<string, unknown>) {
     curves,
     offsets: (data.offsets ?? {}) as CurveStoreState['offsets'],
     baselineId: (data.baselineId ?? null) as string | null,
-    braces: (data.braces ?? []) as CurveStoreState['braces'],
+    // Braces & point labels: ensure `y` is present (placeholder 0 for pre-v5
+    // entries that only had a pixel-space `yOffset`). Legacy `yOffset` is
+    // carried through so the first-render migration effect can convert it to an
+    // absolute data Y (see annotationMigration.ts). v5 entries already have `y`
+    // and no `yOffset`, passing through unchanged.
+    braces: ((data.braces ?? []) as Array<Record<string, unknown>>).map((b) => ({
+      ...b,
+      y: typeof b['y'] === 'number' ? b['y'] : 0,
+    })) as CurveStoreState['braces'],
     stagingOrder: (data.stagingOrder ?? []) as string[],
     visibleCurves: (data.visibleCurves ?? {}) as Record<string, boolean>,
     layerSpacing: version >= 2 ? ((data.layerSpacing as number) ?? 0) : 0,
-    // Migrate old point labels: pre-decouple format stored `yOffset` (relative
-    // to top curve) instead of absolute `y`. Old labels get y=0; user re-drags.
-    pointLabels: ((data.pointLabels ?? []) as Array<{ id: string; x: number; y?: number; label: string; labelStyle?: unknown }>).map(pl => ({
+    pointLabels: ((data.pointLabels ?? []) as Array<Record<string, unknown>>).map((pl) => ({
       ...pl,
-      y: pl.y ?? 0,
+      y: typeof pl['y'] === 'number' ? pl['y'] : 0,
     })) as CurveStoreState['pointLabels'],
     curveScales,
     curveScaleOffsets: (data.curveScaleOffsets ?? {}) as Record<string, number>,

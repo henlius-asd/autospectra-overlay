@@ -10,6 +10,8 @@ interface BraceOverlayProps {
   height: number;
   convertXToPixel: (xVal: number) => number;
   convertPixelToX: (px: number) => number;
+  convertYToPixel: (yVal: number) => number;
+  convertPixelToY: (py: number) => number;
   xRange: [number, number];
   gridTop: number;
   braceY: number;
@@ -20,6 +22,8 @@ export default function BraceOverlay({
   height,
   convertXToPixel,
   convertPixelToX,
+  convertYToPixel,
+  convertPixelToY,
   xRange,
   braceY,
 }: BraceOverlayProps) {
@@ -41,7 +45,7 @@ export default function BraceOverlay({
     startClientY: number;
     origStartX: number;
     origEndX: number;
-    origYOffset: number;
+    origY: number;
   } | null>(null);
   const dragMovedRef = useRef(false);
 
@@ -72,7 +76,7 @@ export default function BraceOverlay({
         startClientY: e.clientY,
         origStartX: brace.startX,
         origEndX: brace.endX,
-        origYOffset: brace.yOffset ?? 0,
+        origY: brace.y,
       });
       (e.target as HTMLElement).setPointerCapture(e.pointerId);
     },
@@ -92,7 +96,7 @@ export default function BraceOverlay({
         updateBrace(dragging.id, {
           startX: dragging.origStartX + delta,
           endX: dragging.origEndX + delta,
-          yOffset: dragging.origYOffset + dy,
+          y: convertPixelToY(convertYToPixel(dragging.origY) + dy),
         });
         e.stopPropagation();
         return;
@@ -104,7 +108,7 @@ export default function BraceOverlay({
       setDragEnd(px);
       e.stopPropagation();
     },
-    [bracePlacementMode, dragging, dragStart, convertXToPixel, convertPixelToX, updateBrace],
+    [bracePlacementMode, dragging, dragStart, convertXToPixel, convertPixelToX, convertYToPixel, convertPixelToY, updateBrace],
   );
 
   const handlePointerUp = useCallback(
@@ -138,7 +142,7 @@ export default function BraceOverlay({
         startX: dataStartX,
         endX: dataEndX,
         label: '',
-        yOffset: placementY != null ? placementY - braceY : 0,
+        y: convertPixelToY(placementY ?? braceY),
       };
       setEditingBrace(newBrace);
       setLabelInput('');
@@ -147,7 +151,7 @@ export default function BraceOverlay({
       setPlacementY(null);
       setInteractionMode('select');
     },
-    [bracePlacementMode, dragging, dragStart, dragEnd, placementY, convertPixelToX, braceY, setInteractionMode],
+    [bracePlacementMode, dragging, dragStart, dragEnd, placementY, convertPixelToX, convertPixelToY, braceY, setInteractionMode],
   );
 
   // Cancel placement on Escape
@@ -207,9 +211,10 @@ export default function BraceOverlay({
   const dialogLeft = editingBrace
     ? (convertXToPixel(editingBrace.startX) + convertXToPixel(editingBrace.endX)) / 2 - 100
     : width / 2 - 100;
-  // Dialog vertical position: follow the editing brace's own baseline (with yOffset).
+  // Dialog vertical position: follow the editing brace's own baseline. Legacy
+  // yOffset uses the old pixel formula; otherwise the brace's absolute data Y.
   const dialogTop = editingBrace
-    ? braceY + (editingBrace.yOffset ?? 0) - 60
+    ? (editingBrace.yOffset != null ? braceY + editingBrace.yOffset : convertYToPixel(editingBrace.y)) - 60
     : braceY - 60;
 
   return (
@@ -235,9 +240,10 @@ export default function BraceOverlay({
             const px1 = convertXToPixel(brace.startX);
             const px2 = convertXToPixel(brace.endX);
             const labelText = brace.label || '未命名';
-            // Per-brace baseline: default braceY + free vertical offset. No
-            // horizontal clamping — labels are freely positionable.
-            const y = braceY + (brace.yOffset ?? 0);
+            // Per-brace Y: absolute data Y via the shared axis transform (aligned
+            // with point labels). Legacy yOffset falls back to the old pixel formula
+            // until first-render migration converts it to `y`.
+            const y = brace.yOffset != null ? braceY + brace.yOffset : convertYToPixel(brace.y);
             const textX = (px1 + px2) / 2;
             return (
               <g
