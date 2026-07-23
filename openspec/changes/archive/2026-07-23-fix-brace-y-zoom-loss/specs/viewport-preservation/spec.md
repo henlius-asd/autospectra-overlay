@@ -1,9 +1,7 @@
 # viewport-preservation Specification
 
-## Purpose
+## MODIFIED Requirements
 
-在交互模式切换与空格平移时保持 dataZoom 视口不被重置，确保用户无闪烁地看到缩放前后的同一视口范围。
-## Requirements
 ### Requirement: 交互模式切换与空格平移时保持 dataZoom 视口
 
 系统 SHALL 在任何 `interactionMode` 变更、以及 `spaceHeld` 翻转（非 `select` 模式下 A↔B 结构切换）之后，保持当前 X 轴（`xRange`）与 Y 轴（`yZoomRange`）的 dataZoom 视口不被重置回全量数据范围。由于这些过渡会翻转 dataZoom 的 `disabled` 字段（`true` ↔ `false`，保持 `type: 'inside'` 不变以避免组件重建和 zoom 范围重置），系统 SHALL 在 option 重渲染完成后、浏览器 paint 之前，通过 `useLayoutEffect` 中的同步 `dispatchAction` 将 store 中的 `xRange` 与 `yZoomRange` 重新应用到对应 dataZoom 组件（`xZoom`、`xZoomSlider`；`yZoom`、`yZoomSlider`），确保用户不看到中间的全量帧（无闪烁）。`useLayoutEffect` 在 `echarts-for-react` 的 `componentDidUpdate`（同步 `setOption`）之后、paint 之前执行，React effect 子→父顺序保证此时序。重派发 SHALL 在 `dispatchAction` 调用外包 `try-catch` 以抑制 HMR / React StrictMode 双调用期间的 `Instance has been disposed` 警告。Y dataZoom 的 `startValue`/`endValue` SHALL NOT 写入 option 配置（经 `dispatchAction` 恢复，遵循 `y-axis-zoom`）；`yZoomRange === null` 时 SHALL NOT 对 Y 执行 `dispatchAction`。该 effect 的依赖 SHALL 仅为 `[interactionMode, spaceHeld]`——SHALL NOT 包含 `xRange`/`yZoomRange`，以免在用户滚轮/滑块缩放期间触发重派发并覆盖 ECharts 内部状态（导致抖动）；重派发时 SHALL 通过 `useUiStore.getState()` 读取最新 `xRange`/`yZoomRange` 以避免闭包过期。`hasMountedViewport` ref SHALL 跳过首次挂载运行，避免与 `onChartReady` 的初始 Y `dispatchAction` 竞态。`disabled` 字段 SHALL 在每次 `setOption` 时由 option 配置显式发射（即使为 `false`），因 ECharts 按字段合并、省略 `disabled` 不清除旧值， brace→其他模式切换时若省略会残留 `disabled: true` 并静默吞掉滚轮/拖拽输入。
@@ -54,4 +52,3 @@
 
 - **WHEN** 组件在 `useLayoutEffect` 的 `dispatchAction` 执行期间因 HMR 重挂载或卸载
 - **THEN** `dispatchAction` 的 `try-catch` 吞掉 `Instance has been disposed`，控制台无警告
-
